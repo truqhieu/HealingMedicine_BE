@@ -5,7 +5,8 @@ const {
   verifyEmail,
   login,
   getProfile,
-  authenticateToken
+  authenticateToken,
+  fixUserPassword
 } = require('../controllers/user.controller');
 
 // Routes công khai (không cần authentication)
@@ -15,5 +16,4 @@ router.post('/login', login);
 
 // Routes cần authentication
 router.get('/profile', authenticateToken, getProfile);
-
 module.exports = router;

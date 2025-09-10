@@ -1,92 +1,28 @@
-const User = require('../models/user.model');
+const userService = require('../services/user.service');
+const emailService = require('../services/email.service');
 const TempRegister = require('../models/tempRegister.model');
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
-const { createTransporter, getVerificationEmailTemplate } = require('../config/emailConfig');
 
 // Secret key cho JWT (trong production nên lưu trong environment variable)
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-here';
-const JWT_EXPIRE = process.env.JWT_EXPIRE || '7d';
 
 // Đăng ký tài khoản (gửi email xác thực)
 const register = async (req, res) => {
   try {
     const { fullName, email, password, role = 'Patient' } = req.body;
 
-    // Validation
-    if (!fullName || !email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng nhập đầy đủ thông tin: họ tên, email và mật khẩu'
-      });
-    }
-
-    // Kiểm tra email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email không đúng định dạng'
-      });
-    }
-
-    // Kiểm tra độ dài password
-    if (password.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'Mật khẩu phải có ít nhất 6 ký tự'
-      });
-    }
-
-    // Kiểm tra email đã tồn tại trong users chưa
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
-    if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email này đã được đăng ký'
-      });
-    }
-
-    // Kiểm tra email đã tồn tại trong tempRegister chưa
-    const existingTempUser = await TempRegister.findOne({ email: email.toLowerCase() });
-    if (existingTempUser) {
-      // Xóa bản ghi cũ để tạo mới
-      await TempRegister.deleteOne({ email: email.toLowerCase() });
-    }
-
-    // Hash password
-    const salt = await bcrypt.genSalt(12);
-    const passwordHash = await bcrypt.hash(password, salt);
-
-    // Tạo verification token
-    const verificationToken = crypto.randomBytes(32).toString('hex');
-
-    // Lưu vào tempRegister
-    const tempUser = new TempRegister({
-      fullName,
-      email: email.toLowerCase(),
-      passwordHash,
-      role,
-      verificationToken
+    // Xử lý đăng ký qua service
+    const { tempUser, verificationToken } = await userService.registerUser({
+      fullName, email, password, role
     });
 
-    await tempUser.save();
-
-    // Tạo link xác thực
-    const verificationLink = `${req.protocol}://${req.get('host')}/api/auth/verify-email?token=${verificationToken}&email=${email}`;
+    // Tạo link xác thực với domain thực tế
+    const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    const verificationLink = emailService.createVerificationLink(verificationToken, email, baseUrl);
 
     // Gửi email xác thực
     try {
-      const transporter = createTransporter();
-      const emailTemplate = getVerificationEmailTemplate(fullName, verificationLink);
-
-      await transporter.sendMail({
-        from: process.env.EMAIL_USER || 'noreply@healingmedicine.com',
-        to: email,
-        subject: emailTemplate.subject,
-        html: emailTemplate.html
-      });
+      await emailService.sendVerificationEmail(fullName, email, verificationLink);
 
       res.status(200).json({
         success: true,
@@ -112,6 +48,18 @@ const register = async (req, res) => {
 
   } catch (error) {
     console.error('Lỗi đăng ký:', error);
+    
+    // Xử lý lỗi từ service (validation errors)
+    if (error.message.includes('Vui lòng nhập') || 
+        error.message.includes('Email không đúng') || 
+        error.message.includes('Mật khẩu phải') ||
+        error.message.includes('Email này đã được đăng ký')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: 'Lỗi server. Vui lòng thử lại sau',
@@ -125,77 +73,178 @@ const verifyEmail = async (req, res) => {
   try {
     const { token, email } = req.query;
 
-    if (!token || !email) {
-      return res.status(400).json({
-        success: false,
-        message: 'Thiếu thông tin xác thực'
-      });
-    }
+    // Xử lý xác thực email qua service
+    const { user: newUser, token: jwtToken } = await userService.verifyEmail(token, email);
 
-    // Tìm user trong tempRegister
-    const tempUser = await TempRegister.findOne({
-      email: email.toLowerCase(),
-      verificationToken: token
-    });
+    // Trả về trang HTML thân thiện thay vì JSON
+    const successHtml = `
+      <!DOCTYPE html>
+      <html lang="vi">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Xác thực thành công - HealingMedicine</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+          }
+          .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+            overflow: hidden;
+            animation: slideUp 0.6s ease-out;
+          }
+          @keyframes slideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+          }
+          .header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 40px 30px;
+          }
+          .icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            animation: bounce 2s infinite;
+          }
+          @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            60% { transform: translateY(-5px); }
+          }
+          .title {
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 10px;
+          }
+          .subtitle {
+            font-size: 16px;
+            opacity: 0.9;
+          }
+          .content {
+            padding: 40px 30px;
+          }
+          .message {
+            font-size: 18px;
+            color: #1f2937;
+            margin-bottom: 30px;
+            line-height: 1.6;
+          }
+          .user-info {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 25px 0;
+            border-left: 4px solid #4f46e5;
+          }
+          .user-name {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 5px;
+          }
+          .user-email {
+            color: #6b7280;
+            font-size: 14px;
+          }
+          .next-steps {
+            background: #ecfdf5;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 25px 0;
+            border-left: 4px solid #10b981;
+          }
+          .next-title {
+            font-weight: 600;
+            color: #065f46;
+            margin-bottom: 10px;
+            font-size: 16px;
+          }
+          .next-text {
+            color: #047857;
+            font-size: 14px;
+          }
+          .footer {
+            background: #f8fafc;
+            padding: 25px;
+            border-top: 1px solid #e5e7eb;
+          }
+          .footer-text {
+            color: #6b7280;
+            font-size: 12px;
+            margin: 5px 0;
+          }
+          .auto-close {
+            color: #9ca3af;
+            font-size: 11px;
+            margin-top: 15px;
+            font-style: italic;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <div class="icon">✅</div>
+            <div class="title">Xác thực thành công!</div>
+            <div class="subtitle">Chào mừng đến với HealingMedicine</div>
+          </div>
+          
+          <div class="content">
+            <div class="message">
+              🎉 <strong>Chúc mừng!</strong> Tài khoản của bạn đã được xác thực và kích hoạt thành công.
+            </div>
+            
+            <div class="user-info">
+              <div class="user-name">👤 ${newUser.fullName}</div>
+              <div class="user-email">${newUser.email}</div>
+            </div>
+            
+            <div class="next-steps">
+              <div class="next-title">🚀 Bước tiếp theo:</div>
+              <div class="next-text">
+                Bạn có thể đóng trang này và quay lại website để đăng nhập với tài khoản vừa được kích hoạt.
+              </div>
+            </div>
+          </div>
+          
+          <div class="footer">
+            <div class="footer-text">🏥 <strong>HealingMedicine</strong></div>
+            <div class="footer-text">Hệ thống chăm sóc sức khỏe toàn diện</div>
+            <div class="auto-close">Trang này sẽ tự động đóng sau 5 giây...</div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
 
-    if (!tempUser) {
-      return res.status(400).json({
-        success: false,
-        message: 'Link xác thực không hợp lệ hoặc đã hết hạn'
-      });
-    }
-
-    // Kiểm tra token có hết hạn chưa
-    if (tempUser.tokenExpireAt < new Date()) {
-      await TempRegister.deleteOne({ _id: tempUser._id });
-      return res.status(400).json({
-        success: false,
-        message: 'Link xác thực đã hết hạn. Vui lòng đăng ký lại'
-      });
-    }
-
-    // Tạo user mới trong collection users
-    const newUser = new User({
-      fullName: tempUser.fullName,
-      email: tempUser.email,
-      passwordHash: tempUser.passwordHash,
-      role: tempUser.role
-    });
-
-    await newUser.save();
-
-    // Xóa tempUser sau khi tạo user thành công
-    await TempRegister.deleteOne({ _id: tempUser._id });
-
-    // Tạo JWT token
-    const jwtToken = jwt.sign(
-      { 
-        userId: newUser._id,
-        email: newUser.email,
-        role: newUser.role
-      },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRE }
-    );
-
-    res.status(200).json({
-      success: true,
-      message: 'Xác thực email thành công! Tài khoản của bạn đã được kích hoạt',
-      data: {
-        user: {
-          id: newUser._id,
-          fullName: newUser.fullName,
-          email: newUser.email,
-          role: newUser.role,
-          status: newUser.status,
-          createdAt: newUser.createdAt
-        },
-        token: jwtToken
-      }
-    });
+    res.status(200).send(successHtml);
 
   } catch (error) {
     console.error('Lỗi xác thực email:', error);
+    
+    // Xử lý lỗi từ service (validation errors)
+    if (error.message.includes('Thiếu thông tin') || 
+        error.message.includes('Link xác thực không hợp lệ') || 
+        error.message.includes('Link xác thực đã hết hạn')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: 'Lỗi server. Vui lòng thử lại sau',
@@ -209,54 +258,8 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Validation
-    if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng nhập email và mật khẩu'
-      });
-    }
-
-    // Tìm user
-    const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Email hoặc mật khẩu không đúng'
-      });
-    }
-
-    // Kiểm tra trạng thái tài khoản
-    if (user.status !== 'Active') {
-      return res.status(401).json({
-        success: false,
-        message: 'Tài khoản của bạn đã bị khóa hoặc chưa được kích hoạt'
-      });
-    }
-
-    // Kiểm tra password
-    const isPasswordValid = await user.comparePassword(password);
-    if (!isPasswordValid) {
-      return res.status(401).json({
-        success: false,
-        message: 'Email hoặc mật khẩu không đúng'
-      });
-    }
-
-    // Tạo JWT token
-    const token = jwt.sign(
-      { 
-        userId: user._id,
-        email: user.email,
-        role: user.role
-      },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRE }
-    );
-
-    // Cập nhật thời gian đăng nhập cuối
-    user.updatedAt = new Date();
-    await user.save();
+    // Xử lý đăng nhập qua service
+    const { user, token } = await userService.loginUser(email, password);
 
     res.status(200).json({
       success: true,
@@ -282,6 +285,17 @@ const login = async (req, res) => {
 
   } catch (error) {
     console.error('Lỗi đăng nhập:', error);
+    
+    // Xử lý lỗi từ service (validation errors)
+    if (error.message.includes('Vui lòng nhập') || 
+        error.message.includes('Email hoặc mật khẩu không đúng') || 
+        error.message.includes('Tài khoản của bạn đã bị khóa')) {
+      return res.status(401).json({
+        success: false,
+        message: error.message
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: 'Lỗi server. Vui lòng thử lại sau',
@@ -293,14 +307,8 @@ const login = async (req, res) => {
 // Lấy thông tin profile người dùng
 const getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('-passwordHash');
-    
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'Không tìm thấy thông tin người dùng'
-      });
-    }
+    // Lấy profile qua service
+    const user = await userService.getUserProfile(req.user.userId);
 
     res.status(200).json({
       success: true,
@@ -309,6 +317,14 @@ const getProfile = async (req, res) => {
 
   } catch (error) {
     console.error('Lỗi lấy profile:', error);
+    
+    if (error.message.includes('Không tìm thấy thông tin người dùng')) {
+      return res.status(404).json({
+        success: false,
+        message: error.message
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: 'Lỗi server. Vui lòng thử lại sau',
@@ -359,5 +375,5 @@ module.exports = {
   verifyEmail,
   login,
   getProfile,
-  authenticateToken
+  authenticateToken,
 };
