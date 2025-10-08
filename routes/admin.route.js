@@ -1,11 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const {getAllUsers,getUserById,updateUser,bulkUpdateUser,createAccount} = require('../controllers/admin.controller');
+const {getAllManager,getManagerById,updateManager,createManager} = require('../controllers/admin.controller');
 
-router.get('/all', getAllUsers);
-router.get('/:id', getUserById);
-router.post('/create', createAccount);
-router.patch('/:id', updateUser);
-router.post('/bulk-update', bulkUpdateUser);
+router.get('/', getAllManager);
+router.get('/:id', getManagerById);
+router.post('/', createManager);
+router.patch('/:id', updateManager);
 
 module.exports = router;
