@@ -18,17 +18,7 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Vui lòng nhập mật khẩu']
   },
-  role: {
-    type: String,
-    enum: ['Patient', 'Doctor', 'Admin', 'Staff','Manager'],
-    default: 'Patient'
-  },
-  status: {
-    type: String,
-    enum: ['Active', 'Inactive', 'Banned'],
-    default: 'Active'
-  },
-  phone: {
+  phoneNumber: {
     type: String,
     trim: true
   },
@@ -36,21 +26,24 @@ const userSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
-  dateOfBirth: {
+  dob: {
     type: Date
   },
   gender: {
     type: String,
     enum: ['Male', 'Female', 'Other']
   },
-  avatar: {
-    type: String
+  role: {
+    type: String,
+    enum: ['Patient', 'Doctor', 'Staff', 'Admin'],
+    default: 'Patient'
+  },
+  status: {
+    type: String,
+    enum: ['Active', 'Inactive', 'Banned'],
+    default: 'Active'
   },
   createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
     type: Date,
     default: Date.now
   }
