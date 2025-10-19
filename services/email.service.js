@@ -1,4 +1,4 @@
-const { createTransporter, getVerificationEmailTemplate } = require('../config/emailConfig');
+const { createTransporter, getVerificationEmailTemplate, getResetPasswordEmailTemplate } = require('../config/emailConfig');
 
 class EmailService {
 
@@ -7,6 +7,13 @@ class EmailService {
    */
   createVerificationLink(token, email, baseUrl) {
     return `${baseUrl}/api/auth/verify-email?token=${token}&email=${email}`;
+  }
+
+  /**
+   * Tạo reset password link
+   */
+  createResetPasswordLink(token, email, baseUrl) {
+    return `${baseUrl}/api/auth/reset-password?token=${token}&email=${email}`;
   }
 
   /**
@@ -36,6 +43,22 @@ class EmailService {
       from: process.env.EMAIL_USER || 'noreply@healingmedicine.com',
       to: email,
       subject: '🔄 ' + emailTemplate.subject,
+      text: emailTemplate.text,
+      html: emailTemplate.html
+    });
+  }
+
+  /**
+   * Gửi email reset password
+   */
+  async sendResetPasswordEmail(fullName, email, resetLink) {
+    const transporter = createTransporter();
+    const emailTemplate = getResetPasswordEmailTemplate(fullName, resetLink);
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER || 'noreply@healingmedicine.com',
+      to: email,
+      subject: emailTemplate.subject,
       text: emailTemplate.text,
       html: emailTemplate.html
     });

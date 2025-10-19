@@ -230,6 +230,76 @@ class UserService {
 
     return user;
   }
+
+  /**
+   * Gửi forgot password email
+   */
+  async forgotPassword(email) {
+    if (!email) {
+      throw new Error('Vui lòng nhập email');
+    }
+
+    // Tìm user
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      throw new Error('Không tìm thấy tài khoản với email này');
+    }
+
+    // Kiểm tra trạng thái tài khoản
+    if (user.status !== 'Active') {
+      throw new Error('Tài khoản của bạn đã bị khóa hoặc chưa được kích hoạt');
+    }
+
+    // Tạo reset token
+    const resetToken = user.generateResetPasswordToken();
+    
+    // Lưu user với reset token và expire time
+    await user.save({ validateBeforeSave: false });
+
+    return { resetToken, user };
+  }
+
+  /**
+   * Reset password với token
+   */
+  async resetPassword(token, email, newPassword) {
+    if (!token || !email || !newPassword) {
+      throw new Error('Thiếu thông tin cần thiết để reset password');
+    }
+
+    // Hash token để so sánh với DB
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Tìm user với token chưa hết hạn
+    const user = await User.findOne({
+      email: email.toLowerCase(),
+      resetPasswordToken: hashedToken,
+      resetPasswordExpire: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      throw new Error('Token không hợp lệ hoặc đã hết hạn');
+    }
+
+    // Validation password mới
+    if (newPassword.length < 6) {
+      throw new Error('Mật khẩu mới phải có ít nhất 6 ký tự');
+    }
+
+    // Hash password mới
+    const salt = await bcrypt.genSalt(12);
+    const newPasswordHash = await bcrypt.hash(newPassword, salt);
+
+    // Cập nhật password và xóa reset token
+    user.passwordHash = newPasswordHash;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+    user.updatedAt = new Date();
+
+    await user.save();
+
+    return user;
+  }
 }
 
 module.exports = new UserService();

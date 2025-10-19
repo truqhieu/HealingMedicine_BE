@@ -1,6 +1,7 @@
 const userService = require('../services/user.service');
 const emailService = require('../services/email.service');
 const TempRegister = require('../models/tempRegister.model');
+const User = require('../models/user.model');
 const jwt = require('jsonwebtoken');
 
 
@@ -225,6 +226,195 @@ const getProfile = async (req, res) => {
   }
 };
 
+// Quên mật khẩu
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng nhập email'
+      });
+    }
+
+    // Kiểm tra email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email không đúng định dạng'
+      });
+    }
+
+    // Xử lý forgot password qua service
+    const { resetToken, user } = await userService.forgotPassword(email);
+
+    // Tạo link reset password
+    const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    const resetLink = emailService.createResetPasswordLink(resetToken, email, baseUrl);
+
+    // Gửi email reset password
+    try {
+      await emailService.sendResetPasswordEmail(user.fullName, email, resetLink);
+
+      res.status(200).json({
+        success: true,
+        message: 'Email đặt lại mật khẩu đã được gửi thành công',
+        data: {
+          email,
+          message: 'Vui lòng kiểm tra email và làm theo hướng dẫn. Link có hiệu lực trong 10 phút.',
+          fullName: user.fullName
+        }
+      });
+
+    } catch (emailError) {
+      console.error('Lỗi gửi email reset password:', emailError);
+
+      // Xóa reset token nếu gửi email thất bại
+      await User.updateOne(
+        { email: email.toLowerCase() },
+        { 
+          $unset: { 
+            resetPasswordToken: 1, 
+            resetPasswordExpire: 1 
+          } 
+        }
+      );
+
+      res.status(500).json({
+        success: false,
+        message: 'Không thể gửi email đặt lại mật khẩu. Vui lòng thử lại sau',
+        error: process.env.NODE_ENV === 'development' ? emailError.message : undefined
+      });
+    }
+
+  } catch (error) {
+    console.error('Lỗi forgot password:', error);
+    
+    // Xử lý lỗi từ service
+    if (error.message.includes('Vui lòng nhập email') ||
+        error.message.includes('Không tìm thấy tài khoản') ||
+        error.message.includes('Tài khoản của bạn đã bị khóa')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server. Vui lòng thử lại sau',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Đặt lại mật khẩu
+const resetPassword = async (req, res) => {
+  try {
+    const { token, email, newPassword } = req.body;
+
+    if (!token || !email || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng nhập đầy đủ thông tin'
+      });
+    }
+
+    // Validation password mới
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mật khẩu mới phải có ít nhất 6 ký tự'
+      });
+    }
+
+    // Xử lý reset password qua service
+    const updatedUser = await userService.resetPassword(token, email, newPassword);
+
+    res.status(200).json({
+      success: true,
+      message: 'Đặt lại mật khẩu thành công! Bạn có thể đăng nhập với mật khẩu mới',
+      data: {
+        email: updatedUser.email,
+        fullName: updatedUser.fullName,
+        message: 'Vui lòng đăng nhập lại với mật khẩu mới'
+      }
+    });
+
+  } catch (error) {
+    console.error('Lỗi reset password:', error);
+    
+    // Xử lý lỗi từ service
+    if (error.message.includes('Thiếu thông tin') ||
+        error.message.includes('Token không hợp lệ') ||
+        error.message.includes('Mật khẩu mới phải')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server. Vui lòng thử lại sau',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Verify reset password token (GET endpoint)
+const verifyResetPasswordToken = async (req, res) => {
+  try {
+    const { token, email } = req.query;
+
+    if (!token || !email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Thiếu token hoặc email'
+      });
+    }
+
+    // Hash token để so sánh với DB
+    const crypto = require('crypto');
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Tìm user với token chưa hết hạn
+    const user = await User.findOne({
+      email: email.toLowerCase(),
+      resetPasswordToken: hashedToken,
+      resetPasswordExpire: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token không hợp lệ hoặc đã hết hạn'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Token hợp lệ, bạn có thể đặt lại mật khẩu',
+      data: {
+        email: user.email,
+        fullName: user.fullName,
+        message: 'Token hợp lệ. Bạn có thể đặt lại mật khẩu mới.'
+      }
+    });
+
+  } catch (error) {
+    console.error('Lỗi verify reset password token:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server. Vui lòng thử lại sau',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 // Middleware xác thực JWT
 const authenticateToken = async (req, res, next) => {
   try {
@@ -267,5 +457,8 @@ module.exports = {
   verifyEmail,
   login,
   getProfile,
+  forgotPassword,
+  resetPassword,
+  verifyResetPasswordToken,
   authenticateToken,
 };
