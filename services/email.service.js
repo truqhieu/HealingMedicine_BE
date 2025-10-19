@@ -20,6 +20,7 @@ class EmailService {
       from: process.env.EMAIL_USER || 'noreply@healingmedicine.com',
       to: email,
       subject: emailTemplate.subject,
+      text: emailTemplate.text,
       html: emailTemplate.html
     });
   }
@@ -35,6 +36,7 @@ class EmailService {
       from: process.env.EMAIL_USER || 'noreply@healingmedicine.com',
       to: email,
       subject: '🔄 ' + emailTemplate.subject,
+      text: emailTemplate.text,
       html: emailTemplate.html
     });
   }

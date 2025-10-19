@@ -14,22 +14,12 @@ class UserService {
    * Xử lý đăng ký user - Business Logic hoàn chỉnh
    */
   async registerUser(userData) {
-    const { fullName, email, password, role = 'Patient' } = userData;
+    const { fullName, email, password, gender, dateOfBirth } = userData;
+    const role = 'Patient'; 
 
-    // Validation
+    // Validation cơ bản (input validation đã được xử lý ở controller)
     if (!fullName || !email || !password) {
-      throw new Error('Vui lòng nhập đầy đủ thông tin: họ tên, email và mật khẩu');
-    }
-
-    // Kiểm tra email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      throw new Error('Email không đúng định dạng');
-    }
-
-    // Kiểm tra độ dài password
-    if (password.length < 6) {
-      throw new Error('Mật khẩu phải có ít nhất 6 ký tự');
+      throw new Error('Dữ liệu đầu vào không hợp lệ');
     }
 
     // Kiểm tra email đã tồn tại trong users chưa
@@ -52,15 +42,25 @@ class UserService {
     // Tạo verification token
     const verificationToken = crypto.randomBytes(32).toString('hex');
 
-    // Lưu vào tempRegister
-    const tempUser = new TempRegister({
+    // Chuẩn bị dữ liệu cho tempRegister
+    const tempUserData = {
       fullName,
       email: email.toLowerCase(),
       passwordHash,
       role,
       verificationToken
-    });
+    };
 
+    // Thêm gender và dateOfBirth nếu có
+    if (gender) {
+      tempUserData.gender = gender;
+    }
+    if (dateOfBirth) {
+      tempUserData.dateOfBirth = new Date(dateOfBirth);
+    }
+
+    // Lưu vào tempRegister
+    const tempUser = new TempRegister(tempUserData);
     await tempUser.save();
 
     return { tempUser, verificationToken };
@@ -101,6 +101,14 @@ class UserService {
       createdAt: new Date(),
       updatedAt: new Date()
     };
+
+    // Thêm gender và dob nếu có trong tempUser
+    if (tempUser.gender) {
+      userData.gender = tempUser.gender;
+    }
+    if (tempUser.dateOfBirth) {
+      userData.dob = tempUser.dateOfBirth;
+    }
 
     const result = await User.collection.insertOne(userData);
     const newUser = await User.findById(result.insertedId);

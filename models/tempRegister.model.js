@@ -22,13 +22,19 @@ const tempRegisterSchema = new mongoose.Schema({
     enum: ['Patient', 'Doctor', 'Admin'],
     default: 'Patient'
   },
+  gender: {
+    type: String,
+    enum: ['Male', 'Female', 'Other']
+  },
+  dateOfBirth: {
+    type: Date
+  },
   verificationToken: {
     type: String,
     required: true
   },
   tokenExpireAt: {
     type: Date,
-    required: true,
     // Token sẽ tự động hết hạn sau 24 giờ
     default: () => new Date(Date.now() + 24 * 60 * 60 * 1000)
   },
