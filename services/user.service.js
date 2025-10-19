@@ -4,45 +4,36 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 
-// Secret key cho JWT
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-here';
 const JWT_EXPIRE = process.env.JWT_EXPIRE || '7d';
 
 class UserService {
-  
-  /**
-   * Xử lý đăng ký user - Business Logic hoàn chỉnh
-   */
+
   async registerUser(userData) {
     const { fullName, email, password, gender, dateOfBirth } = userData;
     const role = 'Patient'; 
 
-    // Validation cơ bản (input validation đã được xử lý ở controller)
     if (!fullName || !email || !password) {
       throw new Error('Dữ liệu đầu vào không hợp lệ');
     }
 
-    // Kiểm tra email đã tồn tại trong users chưa
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
       throw new Error('Email này đã được đăng ký');
     }
 
-    // Kiểm tra email đã tồn tại trong tempRegister chưa
     const existingTempUser = await TempRegister.findOne({ email: email.toLowerCase() });
     if (existingTempUser) {
       // Xóa bản ghi cũ để tạo mới
       await TempRegister.deleteOne({ email: email.toLowerCase() });
     }
 
-    // Hash password
     const salt = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(password, salt);
 
     // Tạo verification token
     const verificationToken = crypto.randomBytes(32).toString('hex');
 
-    // Chuẩn bị dữ liệu cho tempRegister
     const tempUserData = {
       fullName,
       email: email.toLowerCase(),
@@ -66,9 +57,6 @@ class UserService {
     return { tempUser, verificationToken };
   }
 
-  /**
-   * Xử lý xác thực email - Business Logic hoàn chỉnh
-   */
   async verifyEmail(token, email) {
     if (!token || !email) {
       throw new Error('Thiếu thông tin xác thực');
@@ -84,14 +72,11 @@ class UserService {
       throw new Error('Link xác thực không hợp lệ hoặc đã hết hạn');
     }
 
-    // Kiểm tra token có hết hạn chưa
     if (tempUser.tokenExpireAt < new Date()) {
       await TempRegister.deleteOne({ _id: tempUser._id });
       throw new Error('Link xác thực đã hết hạn. Vui lòng đăng ký lại');
     }
 
-    // Tạo user mới trong collection users
-    // Sử dụng insertOne để bypass middleware hash (tránh hash lại password đã được hash)
     const userData = {
       fullName: tempUser.fullName,
       email: tempUser.email,
@@ -130,27 +115,20 @@ class UserService {
     return { user: newUser, token: jwtToken };
   }
 
-  /**
-   * Xử lý đăng nhập - Business Logic hoàn chỉnh
-   */
   async loginUser(email, password) {
-    // Validation
     if (!email || !password) {
       throw new Error('Vui lòng nhập email và mật khẩu');
     }
 
-    // Tìm user
     const user = await User.findOne({ email: email.toLowerCase() });
     if (!user) {
       throw new Error('Email hoặc mật khẩu không đúng');
     }
 
-    // Kiểm tra trạng thái tài khoản
     if (user.status !== 'Active') {
       throw new Error('Tài khoản của bạn đã bị khóa hoặc chưa được kích hoạt');
     }
 
-    // Kiểm tra password
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
       throw new Error('Email hoặc mật khẩu không đúng');
@@ -174,9 +152,6 @@ class UserService {
     return { user, token };
   }
 
-  /**
-   * Lấy profile user - Business Logic hoàn chỉnh
-   */
   async getUserProfile(userId) {
     const user = await User.findById(userId).select('-passwordHash');
     
@@ -187,16 +162,10 @@ class UserService {
     return user;
   }
 
-  /**
-   * Verify JWT token
-   */
   verifyJWTToken(token) {
     return jwt.verify(token, JWT_SECRET);
   }
 
-  /**
-   * Fix user password (development only)
-   */
   async fixUserPassword(email, newPassword) {
     if (!email || !newPassword) {
       throw new Error('Vui lòng nhập email và newPassword');
@@ -231,26 +200,20 @@ class UserService {
     return user;
   }
 
-  /**
-   * Gửi forgot password email
-   */
   async forgotPassword(email) {
     if (!email) {
       throw new Error('Vui lòng nhập email');
     }
 
-    // Tìm user
     const user = await User.findOne({ email: email.toLowerCase() });
     if (!user) {
       throw new Error('Không tìm thấy tài khoản với email này');
     }
 
-    // Kiểm tra trạng thái tài khoản
     if (user.status !== 'Active') {
       throw new Error('Tài khoản của bạn đã bị khóa hoặc chưa được kích hoạt');
     }
 
-    // Tạo reset token
     const resetToken = user.generateResetPasswordToken();
     
     // Lưu user với reset token và expire time
@@ -259,9 +222,6 @@ class UserService {
     return { resetToken, user };
   }
 
-  /**
-   * Reset password với token
-   */
   async resetPassword(token, email, newPassword) {
     if (!token || !email || !newPassword) {
       throw new Error('Thiếu thông tin cần thiết để reset password');

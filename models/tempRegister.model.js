@@ -42,7 +42,7 @@ const tempRegisterSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
     // Document sẽ tự động bị xóa sau 24 giờ nếu không được xác thực
-    expires: 86400 // 24 hours in seconds
+    expires: 86400 
   }
 }, {
   timestamps: true

@@ -5,26 +5,18 @@ const User = require('../models/user.model');
 const jwt = require('jsonwebtoken');
 
 
-// Secret key cho JWT (trong production nên lưu trong environment variable)
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-here';
 
-// Đăng ký tài khoản (gửi email xác thực)
 const register = async (req, res) => {
   try {
     const { fullName, email, gender, dateOfBirth, password } = req.body;
 
-    // Validation cơ bản cho các trường bắt buộc
     if (!fullName || !email || !password) {
       return res.status(400).json({
         success: false,
         message: 'Vui lòng nhập đầy đủ thông tin bắt buộc'
       });
     }
-
-    // Validation các trường cơ bản
-    // Lưu ý: confirmPassword sẽ được validate ở Frontend trước khi gửi API
-
-    // Kiểm tra độ dài mật khẩu
     if (password.length < 6) {
       return res.status(400).json({
         success: false,
@@ -146,7 +138,6 @@ const verifyEmail = async (req, res) => {
   }
 };
 
-// Đăng nhập
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -197,7 +188,6 @@ const login = async (req, res) => {
   }
 };
 
-// Lấy thông tin profile người dùng
 const getProfile = async (req, res) => {
   try {
     // Lấy profile qua service
@@ -226,7 +216,6 @@ const getProfile = async (req, res) => {
   }
 };
 
-// Quên mật khẩu
 const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
@@ -292,7 +281,6 @@ const forgotPassword = async (req, res) => {
   } catch (error) {
     console.error('Lỗi forgot password:', error);
     
-    // Xử lý lỗi từ service
     if (error.message.includes('Vui lòng nhập email') ||
         error.message.includes('Không tìm thấy tài khoản') ||
         error.message.includes('Tài khoản của bạn đã bị khóa')) {
@@ -310,7 +298,6 @@ const forgotPassword = async (req, res) => {
   }
 };
 
-// Đặt lại mật khẩu
 const resetPassword = async (req, res) => {
   try {
     const { token, email, newPassword } = req.body;

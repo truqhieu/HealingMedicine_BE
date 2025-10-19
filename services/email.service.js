@@ -2,23 +2,14 @@ const { createTransporter, getVerificationEmailTemplate, getResetPasswordEmailTe
 
 class EmailService {
 
-  /**
-   * Tạo verification link
-   */
   createVerificationLink(token, email, baseUrl) {
     return `${baseUrl}/api/auth/verify-email?token=${token}&email=${email}`;
   }
 
-  /**
-   * Tạo reset password link
-   */
   createResetPasswordLink(token, email, baseUrl) {
     return `${baseUrl}/api/auth/reset-password?token=${token}&email=${email}`;
   }
 
-  /**
-   * Gửi email xác thực
-   */
   async sendVerificationEmail(fullName, email, verificationLink) {
     const transporter = createTransporter();
     const emailTemplate = getVerificationEmailTemplate(fullName, verificationLink);
@@ -32,9 +23,6 @@ class EmailService {
     });
   }
 
-  /**
-   * Gửi lại email xác thực với prefix
-   */
   async resendVerificationEmail(fullName, email, verificationLink) {
     const transporter = createTransporter();
     const emailTemplate = getVerificationEmailTemplate(fullName, verificationLink);
@@ -48,9 +36,6 @@ class EmailService {
     });
   }
 
-  /**
-   * Gửi email reset password
-   */
   async sendResetPasswordEmail(fullName, email, resetLink) {
     const transporter = createTransporter();
     const emailTemplate = getResetPasswordEmailTemplate(fullName, resetLink);

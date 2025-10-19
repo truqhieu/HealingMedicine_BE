@@ -1,13 +1,4 @@
-/**
- * Utility functions cho ứng dụng
- */
 
-/**
- * Validate confirmPassword một cách chặt chẽ
- * @param {string} password - Mật khẩu gốc
- * @param {string} confirmPassword - Mật khẩu xác nhận
- * @returns {object} - { isValid: boolean, message: string }
- */
 function validateConfirmPassword(password, confirmPassword) {
   // Kiểm tra type
   if (typeof password !== 'string' || typeof confirmPassword !== 'string') {
@@ -47,12 +38,6 @@ function validateConfirmPassword(password, confirmPassword) {
   };
 }
 
-/**
- * Timing-safe string comparison để tránh timing attacks
- * @param {string} a 
- * @param {string} b 
- * @returns {boolean}
- */
 function timingSafeEqual(a, b) {
   if (a.length !== b.length) {
     return false;
@@ -66,27 +51,15 @@ function timingSafeEqual(a, b) {
   return result === 0;
 }
 
-/**
- * Sanitize password để loại bỏ thông tin nhạy cảm khỏi memory
- * Lưu ý: JavaScript strings are immutable, function này chỉ tạo reference mới
- * @param {string} str - String cần sanitize
- */
 function sanitizePassword(obj) {
-  // Trong JS, không thể thay đổi string trực tiếp
-  // Chỉ có thể đảm bảo không giữ reference đến sensitive data
+
   if (typeof obj === 'object' && obj !== null && 'confirmPassword' in obj) {
     delete obj.confirmPassword;
   }
-  return null; // Return null để clear reference
+  return null; 
 }
 
-/**
- * Alternative: Validate password confirmation using header hash
- * FE gửi password hash trong header X-Confirm-Password-Hash
- * @param {string} password - Password từ body
- * @param {string} confirmHash - Hash từ header
- * @returns {object} - { isValid: boolean, message: string }
- */
+
 function validatePasswordWithHeader(password, confirmHash) {
   const crypto = require('crypto');
   
@@ -97,10 +70,8 @@ function validatePasswordWithHeader(password, confirmHash) {
     };
   }
 
-  // Tạo hash từ password hiện tại
   const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
   
-  // So sánh với hash từ header (timing-safe)
   if (!timingSafeEqual(passwordHash, confirmHash)) {
     return {
       isValid: false,

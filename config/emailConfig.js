@@ -1,8 +1,6 @@
 const nodemailer = require('nodemailer');
 
-// Cấu hình email transporter với App Password
 const createTransporter = () => {
-  // Kiểm tra biến môi trường
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
     console.error('⚠️ Thiếu EMAIL_USER hoặc EMAIL_PASSWORD trong file .env');
     throw new Error('Email configuration missing');
@@ -22,7 +20,6 @@ const createTransporter = () => {
   });
 };
 
-// Template email xác thực - Chuyên nghiệp & Đẹp mắt
 const getVerificationEmailTemplate = (fullName, verificationLink) => {
   return {
     subject: `Xác thực tài khoản HealingMedicine`,
@@ -110,7 +107,6 @@ HealingMedicine Team
   };
 };
 
-// Template email reset password
 const getResetPasswordEmailTemplate = (fullName, resetLink) => {
   return {
     subject: `Đặt lại mật khẩu HealingMedicine`,
