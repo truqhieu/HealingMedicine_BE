@@ -1,10 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const {getAllManager,getManagerById,updateManager,createManager} = require('../controllers/admin.controller');
+const {createAccount, getAllAccounts, viewDetailAccount, updateAccount,lockAcount, unlockAcount} = require('../controllers/admin.controller');
 
-router.get('/', getAllManager);
-router.get('/:id', getManagerById);
-router.post('/', createManager);
-router.patch('/:id', updateManager);
+router.post('/accounts', createAccount)
+router.get('/accounts', getAllAccounts)
+router.get('/accounts/:id', viewDetailAccount)
+router.patch('/accounts/:id', updateAccount)
+router.patch('/accounts/lock/:id', lockAcount)
+router.patch('/accounts/unlock/:id', unlockAcount)
 
 module.exports = router;

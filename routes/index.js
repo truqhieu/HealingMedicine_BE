@@ -31,10 +31,12 @@ router.get('/', (req, res) => {
         cancel: 'DELETE /api/temp-register/cancel'
       },
       admin :{
-        getAllManager : 'GET /api/admin',
-        getManagerById : 'GET /api/admin/:id',
-        createManager : 'POST /api/admin',
-        updateManager : 'PATCH /api/admin/:id',
+        createAccount : 'POST /api/admin/accounts',
+        getAllAccounts : 'GET /api/admin/accounts',
+        viewDetailAccount : 'GET /api/admin/accounts/:id',
+        updateAccount : 'PATCH /api/admin/accounts/:id',
+        lockAccount : 'PATCH /api/admin/accounts/lock/:id',
+        unlockAccount : 'PATCH /api/admin/accounts/unlock/:id'
       }
     }
   });
