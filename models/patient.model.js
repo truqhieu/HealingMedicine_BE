@@ -4,7 +4,6 @@ const patientSchema = new mongoose.Schema({
   patientUserId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: [true, 'Vui lòng cung cấp ID người dùng bệnh nhân']
   },
   emergencyContact: {
     type: Object

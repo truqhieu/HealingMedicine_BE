@@ -7,12 +7,11 @@ require('dotenv').config();
 
 const app = express();
 
-// Sử dụng cấu hình CORS từ file riêng
 
 // Cấu hình middleware
-app.use(morgan('combined')); // Hiển thị log HTTP requests chi tiết
+app.use(morgan('combined')); 
 app.use(cors(corsOptions));
-app.use(express.json({ limit: '10mb' })); // Giới hạn size request body
+app.use(express.json({ limit: '10mb' })); 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 connectMongo();

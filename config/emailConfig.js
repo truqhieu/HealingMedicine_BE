@@ -1,8 +1,6 @@
 const nodemailer = require('nodemailer');
 
-// Cấu hình email transporter với App Password
 const createTransporter = () => {
-  // Kiểm tra biến môi trường
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
     console.error('⚠️ Thiếu EMAIL_USER hoặc EMAIL_PASSWORD trong file .env');
     throw new Error('Email configuration missing');
@@ -22,191 +20,185 @@ const createTransporter = () => {
   });
 };
 
-// Template email xác thực chuyên nghiệp
 const getVerificationEmailTemplate = (fullName, verificationLink) => {
   return {
-    subject: '🏥 Xác thực tài khoản HealingMedicine - Chào mừng bạn!',
+    subject: `Xác thực tài khoản HealingMedicine`,
+    text: `
+Xin chào ${fullName}!
+
+Để hoàn tất đăng ký, vui lòng nhấp vào link:
+${verificationLink}
+
+Link có hiệu lực trong 24 giờ.
+
+HealingMedicine Team
+    `.trim(),
     html: `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Xác thực tài khoản HealingMedicine</title>
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            background-color: #f5f7fa;
-            padding: 20px;
-          }
-          .email-container {
-            max-width: 600px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            overflow: hidden;
-          }
-          .header {
-            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-            color: white;
-            padding: 40px 30px;
-            text-align: center;
-          }
-          .logo {
-            font-size: 28px;
-            font-weight: bold;
-            margin-bottom: 10px;
-          }
-          .header-subtitle {
-            font-size: 16px;
-            opacity: 0.9;
-          }
-          .content {
-            padding: 40px 30px;
-          }
-          .greeting {
-            font-size: 22px;
-            color: #1f2937;
-            margin-bottom: 20px;
-            font-weight: 600;
-          }
-          .message {
-            font-size: 16px;
-            color: #4b5563;
-            margin-bottom: 30px;
-          }
-          .cta-container {
-            text-align: center;
-            margin: 35px 0;
-          }
-          .cta-button {
-            display: inline-block;
-            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-            color: white;
-            padding: 16px 32px;
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 16px;
-            transition: transform 0.2s;
-            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
-          }
-          .cta-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(79, 70, 229, 0.4);
-          }
-          .info-box {
-            background: #f8fafc;
-            border-left: 4px solid #4f46e5;
-            padding: 20px;
-            margin: 25px 0;
-            border-radius: 0 8px 8px 0;
-          }
-          .info-title {
-            font-weight: 600;
-            color: #1f2937;
-            margin-bottom: 10px;
-          }
-          .info-list {
-            color: #4b5563;
-            font-size: 14px;
-          }
-          .info-list li {
-            margin-bottom: 5px;
-          }
-          .backup-link {
-            background: #f1f5f9;
-            padding: 15px;
-            border-radius: 8px;
-            margin: 20px 0;
-            font-size: 14px;
-            color: #64748b;
-          }
-          .backup-url {
-            word-break: break-all;
-            background: white;
-            padding: 10px;
-            border-radius: 4px;
-            margin-top: 8px;
-            border: 1px solid #e2e8f0;
-            font-family: monospace;
-            font-size: 12px;
-          }
-          .footer {
-            background: #f8fafc;
-            padding: 30px;
-            text-align: center;
-            border-top: 1px solid #e2e8f0;
-          }
-          .footer-text {
-            font-size: 12px;
-            color: #64748b;
-            margin-bottom: 5px;
-          }
-          .disclaimer {
-            font-size: 14px;
-            color: #6b7280;
-            margin-top: 20px;
-            font-style: italic;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="email-container">
-          <div class="header">
-            <div class="logo">🏥 HealingMedicine</div>
-            <div class="header-subtitle">Hệ thống chăm sóc sức khỏe toàn diện</div>
-          </div>
-          
-          <div class="content">
-            <div class="greeting">Xin chào ${fullName}!</div>
-            
-            <div class="message">
-              Chào mừng bạn đến với <strong>HealingMedicine</strong>! Chúng tôi rất vui mừng khi bạn quyết định tham gia cộng đồng chăm sóc sức khỏe của chúng tôi.
-            </div>
-            
-            <div class="message">
-              Để bảo mật tài khoản và hoàn tất quá trình đăng ký, vui lòng xác thực địa chỉ email của bạn bằng cách nhấp vào nút bên dưới:
-            </div>
-            
-            <div class="cta-container">
-              <a href="${verificationLink}" class="cta-button" target="_blank">
-                ✅ Xác thực tài khoản ngay
-              </a>
-            </div>
-            
-            <div class="info-box">
-              <div class="info-title">📋 Thông tin quan trọng:</div>
-              <ul class="info-list">
-                <li>✅ Link xác thực có hiệu lực trong <strong>24 giờ</strong></li>
-                <li>🔐 Sau khi xác thực, bạn có thể đăng nhập an toàn</li>
-                <li>🗑️ Tài khoản chưa xác thực sẽ bị xóa tự động</li>
-                <li>🎯 Một lần xác thực, sử dụng trọn đời</li>
-              </ul>
-            </div>
-            
-            <div class="disclaimer">
-              💡 <strong>Lưu ý:</strong> Nếu bạn không đăng ký tài khoản này, vui lòng bỏ qua email. Chúng tôi cam kết bảo vệ thông tin cá nhân của bạn.
-            </div>
-          </div>
-          
-          <div class="footer">
-            <div class="footer-text">© 2024 HealingMedicine. Bản quyền thuộc về chúng tôi.</div>
-            <div class="footer-text">Email tự động - Vui lòng không trả lời trực tiếp.</div>
-            <div class="footer-text">🌟 Cảm ơn bạn đã tin tương HealingMedicine!</div>
-          </div>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 20px; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
+  
+  <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);">
+    
+    <!-- Header -->
+    <div style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 30px; text-align: center;">
+      <h1 style="margin: 0; color: white; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">
+        🏥 HealingMedicine
+      </h1>
+      <p style="margin: 8px 0 0 0; color: #e0e7ff; font-size: 14px; opacity: 0.9;">
+        Hệ thống chăm sóc sức khỏe
+      </p>
+    </div>
+    
+    <!-- Content -->
+    <div style="padding: 40px 30px;">
+      <h2 style="margin: 0 0 20px 0; color: #1e293b; font-size: 20px; font-weight: 600;">
+        Xin chào ${fullName}! 👋
+      </h2>
+      
+      <p style="margin: 0 0 25px 0; color: #475569; font-size: 16px; line-height: 1.6;">
+        Chào mừng bạn đến với <strong style="color: #4f46e5;">HealingMedicine</strong>!<br>
+        Để hoàn tất đăng ký tài khoản, vui lòng xác thực email của bạn.
+      </p>
+      
+      <!-- CTA Button -->
+      <div style="text-align: center; margin: 35px 0;">
+        <a href="${verificationLink}" 
+           style="display: inline-block; background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; text-decoration: none; padding: 16px 32px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); transition: transform 0.2s;">
+          ✅ Xác thực tài khoản
+        </a>
+      </div>
+      
+      <!-- Info Box -->
+      <div style="background: #f1f5f9; border-left: 4px solid #4f46e5; padding: 20px; border-radius: 0 8px 8px 0; margin: 30px 0;">
+        <div style="display: flex; align-items: center; margin-bottom: 8px;">
+          <span style="font-size: 18px; margin-right: 8px;">⏰</span>
+          <strong style="color: #1e293b; font-size: 14px;">Quan trọng</strong>
         </div>
-      </body>
-      </html>
-    `
+        <p style="margin: 0; color: #64748b; font-size: 14px; line-height: 1.5;">
+          Link xác thực có hiệu lực trong <strong style="color: #dc2626;">24 giờ</strong>. 
+          Sau khi xác thực, bạn có thể đăng nhập và sử dụng hệ thống.
+        </p>
+      </div>
+      
+      <p style="margin: 25px 0 0 0; color: #94a3b8; font-size: 13px; line-height: 1.5;">
+        Nếu bạn không thực hiện đăng ký này, vui lòng bỏ qua email này.
+      </p>
+    </div>
+    
+    <!-- Footer -->
+    <div style="background: #f8fafc; padding: 25px 30px; border-top: 1px solid #e2e8f0; text-align: center;">
+      <p style="margin: 0 0 8px 0; color: #64748b; font-size: 14px; font-weight: 600;">
+        HealingMedicine Team
+      </p>
+      <p style="margin: 0; color: #94a3b8; font-size: 12px;">
+        Email tự động • Không trả lời
+      </p>
+    </div>
+    
+  </div>
+</body>
+</html>
+    `.trim()
+  };
+};
+
+const getResetPasswordEmailTemplate = (fullName, resetLink) => {
+  return {
+    subject: `Đặt lại mật khẩu HealingMedicine`,
+    text: `
+Xin chào ${fullName}!
+
+Bạn đã yêu cầu đặt lại mật khẩu cho tài khoản HealingMedicine.
+
+Để đặt lại mật khẩu, vui lòng nhấp vào link sau:
+${resetLink}
+
+Link có hiệu lực trong 10 phút.
+
+Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.
+
+HealingMedicine Team
+    `.trim(),
+    html: `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 20px; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
+  
+  <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);">
+    
+    <!-- Header -->
+    <div style="background: linear-gradient(135deg, rgb(38, 220, 84) 0%, rgb(38, 220, 84) 100%); padding: 30px; text-align: center;">
+      <h1 style="margin: 0; color: white; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">
+        🔒 Đặt lại mật khẩu
+      </h1>
+      <p style="margin: 8px 0 0 0; color: #fecaca; font-size: 14px; opacity: 0.9;">
+        HealingMedicine
+      </p>
+    </div>
+    
+    <!-- Content -->
+    <div style="padding: 40px 30px;">
+      <h2 style="margin: 0 0 20px 0; color: #1e293b; font-size: 20px; font-weight: 600;">
+        Xin chào ${fullName}! 👋
+      </h2>
+      
+      <p style="margin: 0 0 25px 0; color: #475569; font-size: 16px; line-height: 1.6;">
+        Bạn đã yêu cầu <strong style="color:rgb(38, 220, 84);">đặt lại mật khẩu</strong> cho tài khoản HealingMedicine của bạn.
+      </p>
+      
+      <!-- CTA Button -->
+      <div style="text-align: center; margin: 35px 0;">
+        <a href="${resetLink}" 
+           style="display: inline-block; background: linear-gradient(135deg, rgb(38, 220, 84) 0%, rgb(38, 220, 84) 100%); color: white; text-decoration: none; padding: 16px 32px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);">
+          🔄 Đặt lại mật khẩu
+        </a>
+      </div>
+      
+      <!-- Info Box -->
+      <div style="background: #fef2f2; border-left: 4px solidrgb(38, 220, 47); padding: 20px; border-radius: 0 8px 8px 0; margin: 30px 0;">
+        <div style="display: flex; align-items: center; margin-bottom: 8px;">
+          <span style="font-size: 18px; margin-right: 8px;">⏰</span>
+          <strong style="color: #1e293b; font-size: 14px;">Quan trọng</strong>
+        </div>
+        <p style="margin: 0; color: #64748b; font-size: 14px; line-height: 1.5;">
+          Link đặt lại có hiệu lực trong <strong style="color:rgb(235, 12, 12);">10 phút</strong>. 
+          Sau khi đặt lại thành công, bạn có thể đăng nhập với mật khẩu mới.
+        </p>
+      </div>
+      
+      <p style="margin: 25px 0 0 0; color: #94a3b8; font-size: 13px; line-height: 1.5;">
+        Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.
+      </p>
+    </div>
+    
+    <!-- Footer -->
+    <div style="background: #f8fafc; padding: 25px 30px; border-top: 1px solid #e2e8f0; text-align: center;">
+      <p style="margin: 0 0 8px 0; color: #64748b; font-size: 14px; font-weight: 600;">
+        HealingMedicine Team
+      </p>
+      <p style="margin: 0; color: #94a3b8; font-size: 12px;">
+        Email tự động • Không trả lời
+      </p>
+    </div>
+    
+  </div>
+</body>
+</html>
+    `.trim()
   };
 };
 
 module.exports = {
   createTransporter,
-  getVerificationEmailTemplate
+  getVerificationEmailTemplate,
+  getResetPasswordEmailTemplate
 };

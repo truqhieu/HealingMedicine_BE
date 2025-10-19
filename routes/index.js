@@ -1,16 +1,13 @@
 const express = require('express');
 const router = express.Router();
 
-// Import routes
 const userRoutes = require('./user.route');
 const adminRoutes = require('./admin.route');
 const tempRegisterRoutes = require('./tempRegister.route');
 
-// Authentication routes
 router.use('/auth', userRoutes);
 router.use('/admin', adminRoutes);
 
-// Temporary registration routes
 router.use('/temp-register', tempRegisterRoutes);
 
 // API info endpoint
