@@ -3,11 +3,15 @@ const { createTransporter, getVerificationEmailTemplate, getResetPasswordEmailTe
 class EmailService {
 
   createVerificationLink(token, email, baseUrl) {
-    return `${baseUrl}/api/auth/verify-email?token=${token}&email=${email}`;
+    // Sử dụng FRONTEND_URL nếu có, fallback về baseUrl
+    const frontendUrl = process.env.FRONTEND_URL || baseUrl;
+    return `${frontendUrl}/verify-email?token=${token}&email=${email}`;
   }
 
   createResetPasswordLink(token, email, baseUrl) {
-    return `${baseUrl}/api/auth/reset-password?token=${token}&email=${email}`;
+    // Sử dụng FRONTEND_URL nếu có, fallback về baseUrl  
+    const frontendUrl = process.env.FRONTEND_URL || baseUrl;
+    return `${frontendUrl}/reset-password?token=${token}&email=${email}`;
   }
 
   async sendVerificationEmail(fullName, email, verificationLink) {
