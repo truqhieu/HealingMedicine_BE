@@ -84,7 +84,7 @@ class AppointmentService {
       startTime: new Date(selectedSlot.startTime),
       endTime: new Date(selectedSlot.endTime),
       doctorUserId: doctorUserId,
-      status: { $ne: 'Available' } // Status không phải Available
+      status: { $in: ['Reserved', 'Booked'] } // Chỉ block nếu đang được giữ hoặc booked
     });
 
     if (existingTimeslot) {
