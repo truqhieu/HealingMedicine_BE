@@ -122,6 +122,11 @@ class AvailableSlotService {
     console.log('   - Dịch vụ:', service.serviceName, `(${serviceDuration} phút)`);
     console.log('   - Ngày:', searchDate.toISOString().split('T')[0]);
     console.log('   - Số appointments đã book:', bookedAppointments.length);
+    console.log('   - Số timeslots Reserved/Booked:', reservedTimeslots.length);
+    console.log('🔴 DEBUG busySlots:', busySlots.map(b => ({
+      start: new Date(b.start).toISOString(),
+      end: new Date(b.end).toISOString()
+    })));
 
     // 7. Tạo danh sách slots available
     const allAvailableSlots = [];

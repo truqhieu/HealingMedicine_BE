@@ -203,6 +203,19 @@ class AppointmentService {
       appointmentType = 'Consultation'; // Mặc định
     }
 
+    // ⭐ THÊM: Kiểm tra xem timeslot đã được book/reserved chưa
+    // Để tránh 2 người đặt cùng slot
+    const existingTimeslot = await Timeslot.findOne({
+      startTime: selectedSlot.startTime,
+      endTime: selectedSlot.endTime,
+      doctorUserId: doctorUserId,
+      status: { $ne: 'Available' } // Nếu status không phải Available
+    });
+
+    if (existingTimeslot) {
+      throw new Error(`Khung giờ này đã được đặt hoặc đang chờ thanh toán. Vui lòng chọn khung giờ khác.`);
+    }
+
     // Xác định status và expireAt dựa vào isPrepaid
     let appointmentStatus = 'Pending';
     let paymentHoldExpiresAt = null;
@@ -230,8 +243,10 @@ class AppointmentService {
     });
 
     // Update timeslot với appointmentId
+    // ⭐ FIXED: Update status thành "Reserved" nếu cần thanh toán
     await Timeslot.findByIdAndUpdate(newTimeslot._id, {
-      appointmentId: newAppointment._id
+      appointmentId: newAppointment._id,
+      status: service.isPrepaid ? 'Reserved' : 'Booked'
     });
 
     // Nếu cần thanh toán trước, tạo Payment record và QR code
