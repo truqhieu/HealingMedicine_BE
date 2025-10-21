@@ -26,11 +26,19 @@ const handleSepayWebhook = async (req, res) => {
     // Parse webhook data
     const webhookData = sepayService.parseWebhookData(req.body);
     console.log('📊 Parsed Data:', webhookData);
-    console.log('💳 Tài khoản nhận:', webhookData.accountNumber, '(MBBank)');
+    console.log('💳 Tài khoản nhận:', webhookData.accountNumber, '(' + webhookData.bankAccount + ')');
     
     // Lấy appointment ID từ content
     // Content format: "APPOINTMENT {shortId}"
     const content = webhookData.content;
+    
+    // Check nếu content không tồn tại
+    if (!content) {
+      console.log('⚠️  Content trống hoặc undefined:', content);
+      console.log('   → Bỏ qua giao dịch này');
+      return;
+    }
+    
     const match = content.match(/APPOINTMENT\s+([A-Z0-9]+)/i);
     
     if (!match) {

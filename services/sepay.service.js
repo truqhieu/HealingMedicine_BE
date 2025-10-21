@@ -278,18 +278,30 @@ class SepayService {
 
   /**
    * Parse webhook data từ Sepay
+   * Format: Sepay gửi với camelCase (content, transferAmount, transactionDate, referenceCode)
    */
   parseWebhookData(data) {
     try {
+      // Sepay webhook format:
+      // {
+      //   "id": 27181556,
+      //   "gateway": "MBBank",
+      //   "accountNumber": "5510125082003",
+      //   "content": "APPOINTMENT DD2EAFE1",
+      //   "transferAmount": 40000,
+      //   "transactionDate": "2025-10-21 19:51:00",
+      //   "referenceCode": "FT25294220080931"
+      // }
+      
       return {
-        transactionId: data.id,
-        gatewayTransactionId: data.gateway_transaction_id,
-        accountNumber: data.account_number,
-        amount: data.amount_in,
-        content: data.transaction_content,
-        transactionDate: data.transaction_date,
-        referenceNumber: data.reference_number,
-        bankAccount: data.bank_account
+        transactionId: data.id || data.transaction_id,
+        gatewayTransactionId: data.gateway_transaction_id || data.gateway,
+        accountNumber: data.account_number || data.accountNumber,
+        amount: data.amount_in || data.transferAmount,
+        content: data.transaction_content || data.content,
+        transactionDate: data.transaction_date || data.transactionDate,
+        referenceNumber: data.reference_number || data.referenceCode,
+        bankAccount: data.bank_account || data.gateway
       };
     } catch (error) {
       console.error('❌ Lỗi parse webhook data:', error);
