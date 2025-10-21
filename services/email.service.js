@@ -106,7 +106,6 @@ class EmailService {
     }
 
     const transporter = createTransporter();
-    const { getAppointmentApprovedEmailTemplate } = require('../config/emailConfig');
     const emailTemplate = getAppointmentApprovedEmailTemplate(appointmentData);
     await transporter.sendMail({
       from: process.env.EMAIL_USER || 'noreply@haianteeth.com',
@@ -129,7 +128,6 @@ class EmailService {
     }
 
     const transporter = createTransporter();
-    const { getAppointmentCancelledEmailTemplate } = require('../config/emailConfig');
     const emailTemplate = getAppointmentCancelledEmailTemplate(appointmentData);
     await transporter.sendMail({
       from: process.env.EMAIL_USER || 'noreply@haianteeth.com',

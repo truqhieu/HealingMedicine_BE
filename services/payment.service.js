@@ -87,8 +87,14 @@ class PaymentService {
         console.log('✅ Appointment confirmed:', appointment._id);
         console.log('✅ Timeslot updated: Reserved → Booked');
 
-        // Gửi email xác nhận
-        await this.sendPaymentConfirmationEmail(appointment);
+        // ⭐ GỬI EMAIL ASYNC (NON-BLOCKING)
+        (async () => {
+          try {
+            await this.sendPaymentConfirmationEmail(appointment);
+          } catch (emailError) {
+            console.error('❌ Lỗi gửi email xác nhận thanh toán:', emailError.message);
+          }
+        })();
       }
 
       return { payment, appointment };
