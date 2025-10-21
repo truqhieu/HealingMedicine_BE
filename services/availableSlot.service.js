@@ -82,12 +82,21 @@ class AvailableSlotService {
 
     const bookedAppointments = await Appointment.find({
       doctorUserId,
-      status: { $in: ['Pending', 'Approved', 'CheckedIn'] },
+      status: { $in: ['PendingPayment', 'Pending', 'Approved', 'CheckedIn'] },
       createdAt: { $gte: startOfDay, $lte: endOfDay }
     })
     .populate('serviceId', 'durationMinutes')
     .populate('timeslotId', 'startTime endTime')
     .sort({ 'timeslotId.startTime': 1 });
+
+    // ⭐ THÊM: Lấy tất cả timeslots đã được Reserved hoặc Booked trong ngày
+    // Để tránh conflict ngay cả khi chưa confirm appointment
+    const Timeslot = require('../models/timeslot.model');
+    const reservedTimeslots = await Timeslot.find({
+      doctorUserId,
+      status: { $in: ['Reserved', 'Booked'] },
+      startTime: { $gte: startOfDay, $lte: endOfDay }
+    }).sort({ startTime: 1 });
 
     // 6. Tạo danh sách khoảng thời gian đã bận
     const busySlots = bookedAppointments.map(apt => {
@@ -99,6 +108,14 @@ class AvailableSlotService {
       }
       return null;
     }).filter(slot => slot !== null);
+
+    // ⭐ THÊM: Thêm Reserved/Booked timeslots vào busySlots
+    const reservedBusySlots = reservedTimeslots.map(ts => ({
+      start: new Date(ts.startTime),
+      end: new Date(ts.endTime).getTime() + breakAfterMinutes * 60000
+    }));
+    
+    busySlots.push(...reservedBusySlots);
 
     console.log('📅 Tính toán available slots:');
     console.log('   - Bác sĩ:', doctorUserId);
