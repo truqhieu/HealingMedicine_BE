@@ -78,7 +78,14 @@ class PaymentService {
         appointment.status = 'Pending'; // Từ PendingPayment → Pending
         await appointment.save();
 
+        // ⭐ UPDATE TIMESLOT: Reserved → Booked (khi thanh toán xong)
+        const Timeslot = require('../models/timeslot.model');
+        await Timeslot.findByIdAndUpdate(appointment.timeslotId._id, {
+          status: 'Booked'
+        });
+
         console.log('✅ Appointment confirmed:', appointment._id);
+        console.log('✅ Timeslot updated: Reserved → Booked');
 
         // Gửi email xác nhận
         await this.sendPaymentConfirmationEmail(appointment);

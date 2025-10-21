@@ -185,7 +185,9 @@ class AppointmentService {
       startTime: new Date(selectedSlot.startTime),
       endTime: new Date(selectedSlot.endTime),
       breakAfterMinutes: 10,
-      status: 'Booked',
+      // ⭐ FIXED: Nếu dịch vụ cần thanh toán trước, slot là "Reserved" (chưa xác nhận)
+      // Khi thanh toán xong mới thành "Booked"
+      status: service.isPrepaid ? 'Reserved' : 'Booked',
       appointmentId: null // Sẽ update sau khi tạo appointment
     });
 
