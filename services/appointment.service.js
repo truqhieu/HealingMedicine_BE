@@ -16,7 +16,8 @@ class AppointmentService {
       selectedSlot, // { startTime, endTime } từ available slots
       consultationType,
       notes,
-      formData
+      phoneNumber,
+      appointmentFor
     } = appointmentData;
 
     // Validate required fields
@@ -55,11 +56,40 @@ class AppointmentService {
     // Xác định mode dựa vào category của service
     let appointmentMode;
     if (service.category === 'Consultation') {
-      appointmentMode = 'Online'; // Consultation luôn là Online
+      appointmentMode = 'Online'; // Tư vấn online
     } else if (service.category === 'Examination') {
-      appointmentMode = 'Offline'; // Examination luôn là Offline
+      appointmentMode = 'Offline'; // Khám offline
     } else {
-      appointmentMode = 'Offline'; // Mặc định là Offline cho các category khác
+      appointmentMode = 'Online'; // Mặc định online
+    }
+
+    // Xác định customerId dựa vào appointmentFor
+    // appointmentFor: 'self' | 'other'
+    let customerId = null;
+    
+    // Formdata lấy từ request
+    const formData = { phoneNumber, appointmentFor };
+    if (formData?.appointmentFor === 'other') {
+      // TODO: Lấy customerId từ request
+      customerId = null; // Tạm thời null
+    }
+
+    if (formData.phoneNumber) {
+      console.log('   - SĐT:', formData.phoneNumber);
+    }
+
+    // ⭐ THÊM: CHECK TIMESLOT TRƯỚC KHI TẠO ❌
+    // Để tránh race condition: 2 request cùng lúc
+    const existingTimeslot = await Timeslot.findOne({
+      startTime: new Date(selectedSlot.startTime),
+      endTime: new Date(selectedSlot.endTime),
+      doctorUserId: doctorUserId,
+      status: { $ne: 'Available' } // Status không phải Available
+    });
+
+    if (existingTimeslot) {
+      console.log('❌ Khung giờ đã bị book/reserved:', existingTimeslot._id);
+      throw new Error(`Khung giờ này đã được đặt hoặc đang chờ thanh toán. Vui lòng chọn khung giờ khác.`);
     }
 
     // Validate selectedSlot duration phải khớp với service duration
@@ -151,8 +181,6 @@ class AppointmentService {
     console.log('- Email từ user đăng nhập:', patient.email);
     console.log('- Đặt cho:', formData?.appointmentFor || 'self');
 
-    let customerId = null;
-
     // Nếu đặt cho người khác, tạo Customer
     if (formData?.appointmentFor === 'other') {
       if (!formData?.fullName || !formData?.email || !formData?.phoneNumber) {
@@ -201,19 +229,6 @@ class AppointmentService {
       appointmentType = 'Examination';
     } else {
       appointmentType = 'Consultation'; // Mặc định
-    }
-
-    // ⭐ THÊM: Kiểm tra xem timeslot đã được book/reserved chưa
-    // Để tránh 2 người đặt cùng slot
-    const existingTimeslot = await Timeslot.findOne({
-      startTime: selectedSlot.startTime,
-      endTime: selectedSlot.endTime,
-      doctorUserId: doctorUserId,
-      status: { $ne: 'Available' } // Nếu status không phải Available
-    });
-
-    if (existingTimeslot) {
-      throw new Error(`Khung giờ này đã được đặt hoặc đang chờ thanh toán. Vui lòng chọn khung giờ khác.`);
     }
 
     // Xác định status và expireAt dựa vào isPrepaid
