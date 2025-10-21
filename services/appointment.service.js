@@ -328,16 +328,20 @@ class AppointmentService {
           
           const googleMeetService = require('./googleMeetService');
           
-          meetLink = await googleMeetService.generateMeetLink({
-            appointmentId: appointmentId,
-            doctorName: populatedAppointment.doctorUserId.fullName,
-            patientName: recipientName,
-            startTime: populatedAppointment.timeslotId.startTime,
-            endTime: populatedAppointment.timeslotId.endTime,
-            serviceName: populatedAppointment.serviceId.serviceName
-          });
-
-          console.log('✅ Google Meet link đã tạo:', meetLink);
+          try {
+            meetLink = await googleMeetService.generateMeetLink({
+              appointmentId: appointmentId,
+              doctorName: populatedAppointment.doctorUserId.fullName,
+              patientName: recipientName,
+              startTime: populatedAppointment.timeslotId.startTime,
+              endTime: populatedAppointment.timeslotId.endTime,
+              serviceName: populatedAppointment.serviceId.serviceName
+            });
+            console.log('✅ Google Meet link đã tạo:', meetLink);
+          } catch (meetError) {
+            console.error('❌ Lỗi tạo Google Meet link:', meetError.message);
+            // Vẫn tiếp tục, fallback link được xử lý trong service
+          }
         }
 
         // Update status sang Approved
@@ -356,6 +360,8 @@ class AppointmentService {
           .populate('serviceId', 'serviceName price durationMinutes category')
           .populate('timeslotId', 'startTime endTime');
 
+        console.log('✅ Appointment updated:', updatedAppointment._id);
+
         // Prepare email
         emailData = {
           fullName: recipientName,
@@ -368,17 +374,23 @@ class AppointmentService {
           meetLink: updatedAppointment.linkMeetUrl
         };
 
-        // Gửi email
-        try {
-          await emailService.sendAppointmentApprovedEmail(emailRecipient, emailData);
-          console.log(`📧 Đã gửi email xác nhận duyệt đến: ${emailRecipient}`);
-        } catch (emailError) {
-          console.error('❌ Lỗi gửi email:', emailError);
-        }
+        // ⭐ GỬI EMAIL ASYNC (NON-BLOCKING) - Không chờ xong mới trả response
+        (async () => {
+          try {
+            console.log('📧 Bắt đầu gửi email xác nhận duyệt...');
+            await emailService.sendAppointmentApprovedEmail(emailRecipient, emailData);
+            console.log(`✅ Email xác nhận duyệt đã gửi thành công đến: ${emailRecipient}`);
+          } catch (emailError) {
+            console.error('❌ Lỗi gửi email xác nhận duyệt:', emailError.message);
+            console.error('📧 Email recipient:', emailRecipient);
+            console.error('📧 Error details:', emailError);
+          }
+        })();
 
+        // ⭐ TRẢ RESPONSE NGAY (response không chờ email)
         return {
           success: true,
-          message: 'Lịch hẹn đã được duyệt và gửi email xác nhận cho bệnh nhân',
+          message: 'Lịch hẹn đã được duyệt. Email xác nhận sẽ được gửi trong vài giây',
           data: updatedAppointment
         };
       }
@@ -413,6 +425,8 @@ class AppointmentService {
           .populate('serviceId', 'serviceName price durationMinutes category')
           .populate('timeslotId', 'startTime endTime');
 
+        console.log('✅ Appointment cancelled:', updatedAppointment._id);
+
         // Prepare email
         emailData = {
           fullName: recipientName,
@@ -425,17 +439,23 @@ class AppointmentService {
           cancelReason: cancelReason || 'Lịch hẹn đã bị hủy'
         };
 
-        // Gửi email
-        try {
-          await emailService.sendAppointmentCancelledEmail(emailRecipient, emailData);
-          console.log(`📧 Đã gửi email thông báo hủy lịch đến: ${emailRecipient}`);
-        } catch (emailError) {
-          console.error('❌ Lỗi gửi email:', emailError);
-        }
+        // ⭐ GỬI EMAIL ASYNC (NON-BLOCKING) - Không chờ xong mới trả response
+        (async () => {
+          try {
+            console.log('📧 Bắt đầu gửi email thông báo hủy lịch...');
+            await emailService.sendAppointmentCancelledEmail(emailRecipient, emailData);
+            console.log(`✅ Email thông báo hủy lịch đã gửi thành công đến: ${emailRecipient}`);
+          } catch (emailError) {
+            console.error('❌ Lỗi gửi email thông báo hủy:', emailError.message);
+            console.error('📧 Email recipient:', emailRecipient);
+            console.error('📧 Error details:', emailError);
+          }
+        })();
 
+        // ⭐ TRẢ RESPONSE NGAY (response không chờ email)
         return {
           success: true,
-          message: 'Lịch hẹn đã bị hủy và email thông báo đã được gửi cho bệnh nhân',
+          message: 'Lịch hẹn đã bị hủy. Email thông báo sẽ được gửi trong vài giây',
           data: updatedAppointment
         };
       }
