@@ -1,21 +1,24 @@
+// Load environment variables
+require('dotenv').config();
 
-// HARDCODE TẠM THỜI ĐỂ TEST (sẽ xóa sau)
-const HARDCODED_TOKEN ='9KOJ6C17AUPPOR8QTQXFEK8MQ5MUIDNPUYULG97JGHYSZE2WNGFKSVW1AJCBOTZR';
-
-// Debug
-console.log('🔍 DEBUG SEPAY CONFIG:');
-console.log('   - SEPAY_API_TOKEN từ .env:', process.env.SEPAY_API_TOKEN ? 'CÓ (' + process.env.SEPAY_API_TOKEN.substring(0, 10) + '...)' : 'KHÔNG CÓ');
-console.log('   - SEPAY_ACCOUNT_NUMBER từ .env:', process.env.SEPAY_ACCOUNT_NUMBER || 'KHÔNG CÓ');
-console.log('   - Dùng HARDCODED TOKEN:', HARDCODED_TOKEN ? 'CÓ (' + HARDCODED_TOKEN.substring(0, 10) + '...)' : 'KHÔNG');
+// Debug (chỉ trong development)
+if (process.env.NODE_ENV !== 'production') {
+  console.log('🔍 DEBUG SEPAY CONFIG:');
+  console.log('   - SEPAY_API_TOKEN:', process.env.SEPAY_API_TOKEN ? 'CÓ' : 'KHÔNG CÓ');
+  console.log('   - SEPAY_ACCOUNT_NUMBER:', process.env.SEPAY_ACCOUNT_NUMBER || 'KHÔNG CÓ');
+  console.log('   - SEPAY_BANK_CODE:', process.env.SEPAY_BANK_CODE || 'KHÔNG CÓ');
+  console.log('   - SEPAY_ACCOUNT_NAME:', process.env.SEPAY_ACCOUNT_NAME ? 'CÓ' : 'KHÔNG CÓ');
+}
 
 const sepayConfig = {
   // Thông tin tài khoản ngân hàng nhận tiền
-  accountNumber: process.env.SEPAY_ACCOUNT_NUMBER || '3950450728',
-  accountName: process.env.SEPAY_ACCOUNT_NAME || 'PHONG KHAM RANG HAM MAT HAI ANH',
-  bankCode: process.env.SEPAY_BANK_CODE || 'BIDV',
+  // ⭐ Updated to MBBank (5510125082003 - TRAN VAN THAO)
+  accountNumber: process.env.SEPAY_ACCOUNT_NUMBER || '5510125082003',
+  accountName: process.env.SEPAY_ACCOUNT_NAME || 'TRAN VAN THAO',
+  bankCode: process.env.SEPAY_BANK_CODE || 'MB', // Default MBBank
   
-  // API Token - DÙNG HARDCODE TẠM THỜI
-  apiToken: process.env.SEPAY_API_TOKEN || HARDCODED_TOKEN,
+  // API Token từ environment variables
+  apiToken: process.env.SEPAY_API_TOKEN || '',
   
   // API Endpoints
   apiBaseUrl: 'https://my.sepay.vn/userapi',
@@ -27,8 +30,20 @@ const sepayConfig = {
   paymentTimeoutMinutes: 15,
   
   // Webhook URL (để nhận thông báo từ Sepay khi có giao dịch)
-  webhookUrl: process.env.SEPAY_WEBHOOK_URL || 'https://yourdomain.com/api/payments/webhook/sepay'
+  // QUAN TRỌNG: Phải match chính xác với URL cấu hình trong Sepay Dashboard
+  webhookUrl: process.env.SEPAY_WEBHOOK_URL || 'https://haianhteethbe-production.up.railway.app/api/payments/webhook/sepay'
 };
+
+// Log webhook URL để verify
+if (process.env.NODE_ENV === 'production') {
+  console.log('\n🔌 SEPAY WEBHOOK CONFIG:');
+  console.log('   - Webhook URL:', sepayConfig.webhookUrl);
+  console.log('   - Endpoint:', '/api/payments/webhook/sepay');
+  console.log('   - Method: POST');
+  console.log('   - Bank Account: ' + sepayConfig.accountNumber + ' (' + sepayConfig.bankCode + ')');
+  console.log('   - Account Holder: ' + sepayConfig.accountName);
+  console.log('');
+}
 
 // Danh sách mã ngân hàng Việt Nam
 const BANK_CODES = {

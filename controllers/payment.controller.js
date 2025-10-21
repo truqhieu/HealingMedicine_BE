@@ -3,22 +3,30 @@ const sepayService = require('../services/sepay.service');
 
 /**
  * Webhook từ Sepay khi có giao dịch mới
+ * TỰ ĐỘNG xử lý thanh toán - KHÔNG CẦN MANUAL
  */
 const handleSepayWebhook = async (req, res) => {
+  const startTime = Date.now();
+  
   try {
-    console.log('🔔 Nhận webhook từ Sepay:', req.body);
+    console.log('\n' + '='.repeat(70));
+    console.log('🔔 WEBHOOK TỰ ĐỘNG - Nhận thông báo từ Sepay');
+    console.log('='.repeat(70));
+    console.log('📦 Webhook Data:', JSON.stringify(req.body, null, 2));
+    console.log('📋 Headers:', JSON.stringify(req.headers, null, 2));
 
-    // Validate webhook signature (nếu Sepay có)
-    const signature = req.headers['x-sepay-signature'];
-    if (signature && !sepayService.validateWebhook(signature, req.body)) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid webhook signature'
-      });
-    }
+    // QUAN TRỌNG: Luôn trả về 200 OK ngay để Sepay không retry
+    // Xử lý logic trong background
+    res.status(200).json({ 
+      received: true, 
+      message: 'Webhook received, processing...',
+      timestamp: new Date().toISOString()
+    });
 
     // Parse webhook data
     const webhookData = sepayService.parseWebhookData(req.body);
+    console.log('📊 Parsed Data:', webhookData);
+    console.log('💳 Tài khoản nhận:', webhookData.accountNumber, '(MBBank)');
     
     // Lấy appointment ID từ content
     // Content format: "APPOINTMENT {shortId}"
@@ -27,17 +35,20 @@ const handleSepayWebhook = async (req, res) => {
     
     if (!match) {
       console.log('⚠️  Không tìm thấy appointment ID trong content:', content);
-      return res.status(200).json({ received: true });
+      console.log('   → Bỏ qua giao dịch này (không phải từ hệ thống)');
+      return;
     }
 
     const shortId = match[1];
-    console.log('🔍 Short ID:', shortId);
+    console.log('🔍 Tìm kiếm appointment với Short ID:', shortId);
 
     // Tìm appointment theo short ID (8 ký tự cuối)
     const Appointment = require('../models/appointment.model');
     const appointments = await Appointment.find({
       status: 'PendingPayment'
     }).populate('paymentId');
+
+    console.log(`📋 Tìm thấy ${appointments.length} appointment đang chờ thanh toán`);
 
     const appointment = appointments.find(apt => {
       const aptShortId = apt._id.toString().slice(-8).toUpperCase();
@@ -46,34 +57,55 @@ const handleSepayWebhook = async (req, res) => {
 
     if (!appointment) {
       console.log('⚠️  Không tìm thấy appointment với shortId:', shortId);
-      return res.status(200).json({ received: true });
+      console.log('   → Có thể đã được xử lý trước đó hoặc đã hủy');
+      return;
     }
 
     console.log('✅ Tìm thấy appointment:', appointment._id);
+    console.log('   - Status hiện tại:', appointment.status);
+    console.log('   - Payment ID:', appointment.paymentId._id);
 
     // Kiểm tra số tiền
-    if (webhookData.amount < appointment.paymentId.amount) {
-      console.log('⚠️  Số tiền không đúng:', webhookData.amount, 'vs', appointment.paymentId.amount);
-      return res.status(200).json({ received: true });
+    const expectedAmount = appointment.paymentId.amount;
+    const receivedAmount = webhookData.amount;
+    
+    console.log('💰 Kiểm tra số tiền:');
+    console.log('   - Số tiền cần thanh toán:', expectedAmount.toLocaleString(), 'VND');
+    console.log('   - Số tiền đã nhận:', receivedAmount.toLocaleString(), 'VND');
+    
+    if (receivedAmount < expectedAmount) {
+      console.log('❌ Số tiền không đủ! Cần thêm:', (expectedAmount - receivedAmount).toLocaleString(), 'VND');
+      return;
     }
 
-    // Confirm payment
-    await paymentService.confirmPayment(appointment.paymentId._id, webhookData);
+    // ✨ TỰ ĐỘNG CONFIRM PAYMENT - KHÔNG CẦN MANUAL!
+    console.log('🚀 Đang tự động xác nhận thanh toán...');
+    
+    const result = await paymentService.confirmPayment(appointment.paymentId._id, webhookData);
 
-    console.log('✅ Payment confirmed successfully');
-
-    res.status(200).json({
-      success: true,
-      message: 'Payment confirmed',
-      appointmentId: appointment._id
-    });
+    const processingTime = Date.now() - startTime;
+    
+    console.log('\n' + '🎉'.repeat(35));
+    console.log('✅ THANH TOÁN TỰ ĐỘNG THÀNH CÔNG!');
+    console.log('='.repeat(70));
+    console.log('📄 Appointment ID:', appointment._id);
+    console.log('💳 Payment ID:', appointment.paymentId._id);
+    console.log('💰 Số tiền:', receivedAmount.toLocaleString(), 'VND');
+    console.log('📊 Status mới:', result.appointment?.status || 'Pending');
+    console.log('⏱️  Thời gian xử lý:', processingTime, 'ms');
+    console.log('🔔 Lịch hẹn đã được hiển thị cho STAFF');
+    console.log('='.repeat(70) + '\n');
 
   } catch (error) {
-    console.error('❌ Lỗi xử lý webhook:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi xử lý webhook'
-    });
+    console.error('\n' + '❌'.repeat(35));
+    console.error('LỖI XỬ LÝ WEBHOOK:', error);
+    console.error('Stack:', error.stack);
+    console.error('='.repeat(70) + '\n');
+    
+    // Log để admin có thể manual check nếu cần
+    console.error('⚠️  CẦN KIỂM TRA THỦ CÔNG:');
+    console.error('   - Webhook data:', JSON.stringify(req.body, null, 2));
+    console.error('   - Error:', error.message);
   }
 };
 
@@ -181,10 +213,103 @@ const manualConfirmPayment = async (req, res) => {
   }
 };
 
+/**
+ * Test webhook endpoint - để manually verify webhook hoạt động
+ */
+const testWebhook = async (req, res) => {
+  try {
+    console.log('\n' + '='.repeat(70));
+    console.log('🧪 TEST WEBHOOK - Kiểm tra webhook handler hoạt động');
+    console.log('='.repeat(70));
+
+    // Lấy appointment pending payment đầu tiên
+    const Appointment = require('../models/appointment.model');
+    const appointments = await Appointment.find({
+      status: 'PendingPayment'
+    })
+      .populate('paymentId')
+      .sort({ createdAt: -1 })
+      .limit(1);
+
+    if (appointments.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Không có appointment nào đang chờ thanh toán'
+      });
+    }
+
+    const appointment = appointments[0];
+    const payment = appointment.paymentId;
+
+    console.log('📄 Test Appointment:', appointment._id);
+    console.log('💳 Payment ID:', payment._id);
+    console.log('💰 Amount:', payment.amount);
+
+    // Tạo mock webhook data từ Sepay
+    const mockWebhookData = {
+      id: Date.now(),
+      gateway_transaction_id: 'TEST_' + Date.now(),
+      account_number: '3950450728',
+      amount_in: payment.amount,
+      transaction_content: `APPOINTMENT ${appointment._id.toString().slice(-8).toUpperCase()}`,
+      transaction_date: new Date().toISOString(),
+      reference_number: 'TEST_REF_' + Date.now(),
+      bank_account: 'BIDV'
+    };
+
+    console.log('📦 Mock Webhook Data:', JSON.stringify(mockWebhookData, null, 2));
+
+    // Call webhook handler
+    const mockRes = {
+      statusCode: 200,
+      jsonData: null,
+      status: function (code) {
+        this.statusCode = code;
+        return this;
+      },
+      json: function (data) {
+        this.jsonData = data;
+        return this;
+      }
+    };
+
+    const mockReq = {
+      body: mockWebhookData,
+      headers: {}
+    };
+
+    await handleSepayWebhook(mockReq, mockRes);
+
+    // Check result
+    const updatedAppointment = await Appointment.findById(appointment._id);
+
+    res.status(200).json({
+      success: true,
+      message: '✅ Test webhook thành công',
+      data: {
+        appointmentId: appointment._id,
+        previousStatus: appointment.status,
+        newStatus: updatedAppointment.status,
+        paymentStatus: updatedAppointment.paymentId?.status,
+        testData: mockWebhookData
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Lỗi test webhook:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi test webhook',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   handleSepayWebhook,
   checkPaymentStatus,
   getPaymentInfo,
-  manualConfirmPayment
+  manualConfirmPayment,
+  testWebhook
 };
 
