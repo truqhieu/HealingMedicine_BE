@@ -1,10 +1,9 @@
 const mongoose = require('mongoose');
 const User = require('../models/user.model')
-const Doctor = require('../models/doctor.model')
-const Staff = require('../models/staff.model')
+const bcrypt = require('bcryptjs')
 
 const ROLE_ACCOUNT = ['Doctor', 'Nurse', 'Staff', 'Patient', 'Manager'];
-const ASSIN_ROLE = ['Doctor', 'Nurse', 'Staff'];
+// const ASSIN_ROLE = ['Doctor', 'Nurse', 'Staff'];
 const STATUS = User.schema.path('status').enumValues;
 
 const createAccount = async(req, res) =>{
@@ -107,7 +106,7 @@ const viewDetailAccount = async(req,res) =>{
     try {
         const detailAccount = await User.findById(req.params.id).select('-passwordHash -__v');
         if(!detailAccount){
-            return res.status(404).json({
+            return res.status(400).json({
                 status : false,
                 message : 'Không tìm thấy tài khoản'
             })
@@ -125,6 +124,13 @@ const viewDetailAccount = async(req,res) =>{
 
 const updateAccount = async (req,res) => {
     try {
+        const checkUser = await User.findById(req.params.id)
+        if(checkUser.role === 'Patient'){
+            return res.status(400).json({
+                status : false,
+                message : 'Không thể cập nhật tài khoản bệnh nhân.'
+            })
+        }
         const updateFields = [
             'fullName',
             'phoneNumber',
@@ -165,6 +171,33 @@ const updateAccount = async (req,res) => {
         })
     } catch (error) {
         console.error('Lỗi cập nhật tài khoản', error);
+        return res.status(500).json({ success: false, message: 'Lỗi server' });
+    }
+}
+
+const changePassword = async(req,res) =>{
+    try {
+        const checkUser = await User.findById(req.params.id)
+        if(checkUser.role === 'Patient'){
+            return res.status(400).json({
+                status : false,
+                message : 'Không thể thay đổi tài khoản của bệnh nhân.'
+            })
+        }
+        const newPassowrd = 'tuyenquangclinic';
+        const salt = await bcrypt.genSalt(12);
+        const hashedPassword = await bcrypt.hash(newPassowrd, salt)
+
+        checkUser.passwordHash = hashedPassword;
+        checkUser.mustChangePassword = true;
+        await checkUser.save();
+        res.status(200).json({
+            status : true,
+            message : `Đổi mật khẩu thành công`
+        })
+
+    } catch (error) {
+        console.error('Lỗi thay đổi mật khẩu', error);
         return res.status(500).json({ success: false, message: 'Lỗi server' });
     }
 }
@@ -216,17 +249,39 @@ const unlockAcount = async (req,res) =>{
     }
 }
 
-// const assignRole = async (req, res) =>{
-//     try {
-//         const changeRole = await User.findByIdAndUpdate(
-//             req.params.id
-//         )
-//     } catch (error) {
-//          console.error('Lỗi gán vai trò', error);
-//         return res.status(500).json({ success: false, message: 'Lỗi server' });
-//     }
-// }
+const assignRole = async (req,res) =>{
+    try {
+        const user = await User.findById(req.params.id)
+        if(user.role !== 'Doctor' && user.role !== 'Nurse'){
+            return res.status(400).json({
+                status : true,
+                message : 'Chỉ có thể thay đổi vai trò của bác sĩ hoặc y tá'
+            })
+        }
+
+        user.role = user.role === 'Doctor' ? 'Nurse' : 'Doctor';
+        await user.save();
+
+        res.status(200).json({
+            status : true,
+            message : 'Thay đổi vai trò thành công',
+        })
+    } catch (error) {
+        console.error('Lỗi thay đổi vai trò', error);
+        return res.status(500).json({ success: false, message: 'Lỗi server' });
+    }
+}
 
 
 
-module.exports = {createAccount, getAllAccounts, viewDetailAccount, updateAccount, lockAcount, unlockAcount};
+
+module.exports = {
+createAccount,
+getAllAccounts,
+viewDetailAccount,
+updateAccount,
+changePassword,
+lockAcount,
+unlockAcount,
+assignRole
+};

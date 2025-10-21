@@ -402,6 +402,107 @@ const verifyResetPasswordToken = async (req, res) => {
   }
 };
 
+const updateProfile = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    const allowedFields = [
+      'fullName',
+      'phoneNumber', 
+      'address',
+      'dob',
+      'gender'
+    ];
+    
+    const updates = {};
+    Object.keys(req.body).forEach(key => {
+      if (allowedFields.includes(key)) {
+        // Format date nếu là trường dob
+        if (key === 'dob' && req.body[key]) {
+          const dateValue = new Date(req.body[key]);
+          // Kiểm tra date có hợp lệ không
+          if (isNaN(dateValue.getTime())) {
+            return res.status(400).json({
+              success: false,
+              message: 'Ngày sinh không đúng định dạng'
+            });
+          }
+          // Kiểm tra date không được trong tương lai
+          if (dateValue > new Date()) {
+            return res.status(400).json({
+              success: false,
+              message: 'Ngày sinh không thể là ngày trong tương lai'
+            });
+          }
+          updates[key] = dateValue;
+        } else {
+          updates[key] = req.body[key];
+        }
+      }
+    });
+    
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Không có trường hợp lệ để cập nhật'
+      });
+    }
+    
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $set: updates },
+      { new: true, runValidators: true }
+    ).select('-passwordHash -__v');
+    
+    if (!updatedUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy thông tin người dùng'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      message: 'Cập nhật thông tin cá nhân thành công',
+      data: {
+        user: {
+          id: updatedUser._id,
+          fullName: updatedUser.fullName,
+          email: updatedUser.email,
+          role: updatedUser.role,
+          status: updatedUser.status,
+          phone: updatedUser.phoneNumber,
+          address: updatedUser.address,
+          dateOfBirth: updatedUser.dob,
+          gender: updatedUser.gender,
+          avatar: updatedUser.avatar,
+          createdAt: updatedUser.createdAt,
+          updatedAt: updatedUser.updatedAt
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.error('Lỗi cập nhật profile:', error);
+    
+    // Xử lý lỗi validation
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: 'Dữ liệu không hợp lệ',
+        errors: errors
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server. Vui lòng thử lại sau',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 // Middleware xác thực JWT
 const authenticateToken = async (req, res, next) => {
   try {
@@ -439,11 +540,14 @@ const authenticateToken = async (req, res, next) => {
   }
 };
 
+
+
 module.exports = {
   register,
   verifyEmail,
   login,
   getProfile,
+  updateProfile,
   forgotPassword,
   resetPassword,
   verifyResetPasswordToken,

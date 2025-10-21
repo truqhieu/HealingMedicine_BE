@@ -44,6 +44,10 @@ const userSchema = new mongoose.Schema({
     enum: ['Active', 'Lock', 'Banned'],
     default: 'Active'
   },
+  mustChangePassword : {
+    type : Boolean,
+    default : false
+  },
   resetPasswordToken: {
     type: String,
     default: null

@@ -5,6 +5,7 @@ const {
   verifyEmail,
   login,
   getProfile,
+  updateProfile,
   forgotPassword,
   resetPassword,
   verifyResetPasswordToken,
@@ -21,4 +22,5 @@ router.post('/reset-password', resetPassword);
 
 // Routes cần authentication
 router.get('/profile', authenticateToken, getProfile);
+router.patch('/profile', authenticateToken, updateProfile);
 module.exports = router;
