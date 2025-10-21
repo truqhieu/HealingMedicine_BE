@@ -110,52 +110,6 @@ class AppointmentService {
       throw new Error('Lịch làm việc của bác sĩ không tồn tại');
     }
 
-    // Kiểm tra khung giờ có bị trùng không
-    // Check cả timeslot đã booked VÀ appointment đang pending payment
-    const conflictTimeslot = await Timeslot.findOne({
-      doctorUserId,
-      status: 'Booked',
-      $or: [
-        {
-          startTime: { $lt: new Date(selectedSlot.endTime) },
-          endTime: { $gt: new Date(selectedSlot.startTime) }
-        }
-      ]
-    });
-
-    if (conflictTimeslot) {
-      // Kiểm tra xem timeslot này có appointment pending payment không
-      if (conflictTimeslot.appointmentId) {
-        const conflictAppointment = await Appointment.findById(conflictTimeslot.appointmentId);
-        
-        if (conflictAppointment) {
-          // Nếu appointment đang pending payment và chưa hết hạn
-          if (conflictAppointment.status === 'PendingPayment') {
-            if (conflictAppointment.paymentHoldExpiresAt && 
-                conflictAppointment.paymentHoldExpiresAt > new Date()) {
-              throw new Error('Khung giờ này đang được giữ chờ thanh toán. Vui lòng chọn khung giờ khác hoặc thử lại sau ít phút.');
-            } else {
-              // Appointment đã hết hạn, có thể xóa và cho đặt lại
-              console.log('⏰ Appointment hết hạn, tự động hủy:', conflictAppointment._id);
-              await Appointment.findByIdAndUpdate(conflictAppointment._id, {
-                status: 'Expired',
-                cancelReason: 'Không thanh toán trong thời gian quy định'
-              });
-              await Timeslot.findByIdAndUpdate(conflictTimeslot._id, {
-                status: 'Available',
-                appointmentId: null
-              });
-            }
-          } else {
-            // Appointment đã confirmed hoặc approved
-            throw new Error('Khung giờ này đã được đặt. Vui lòng chọn khung giờ khác');
-          }
-        }
-      } else {
-        throw new Error('Khung giờ này đã được đặt. Vui lòng chọn khung giờ khác');
-      }
-    }
-
     // Kiểm tra doctor có tồn tại không (từ bảng User với role="Doctor")
     const doctor = await User.findById(doctorUserId);
     if (!doctor) {
@@ -315,6 +269,268 @@ class AppointmentService {
     console.log('✅ Status:', populatedAppointment.status);
 
     return populatedAppointment;
+  }
+
+  async reviewAppointment(appointmentId, staffUserId, action, cancelReason = null) {
+    try {
+      // Kiểm tra appointment tồn tại
+      const appointment = await Appointment.findById(appointmentId);
+      if (!appointment) {
+        throw new Error('Không tìm thấy lịch hẹn');
+      }
+
+      // Kiểm tra action hợp lệ
+      if (!['approve', 'cancel'].includes(action)) {
+        throw new Error('Action phải là "approve" hoặc "cancel"');
+      }
+
+      // Kiểm tra appointment status có thể review không
+      if (!['Pending', 'Approved'].includes(appointment.status)) {
+        throw new Error(`Không thể xử lý lịch hẹn ở trạng thái ${appointment.status}`);
+      }
+
+      // Nếu là PendingPayment, không được phép xử lý
+      if (appointment.status === 'PendingPayment') {
+        throw new Error('Lịch hẹn đang chờ thanh toán. Vui lòng chờ khách hàng thanh toán hoặc hủy yêu cầu này.');
+      }
+
+      // Lấy đầy đủ thông tin
+      const populatedAppointment = await Appointment.findById(appointmentId)
+        .populate('patientUserId', 'fullName email')
+        .populate('customerId', 'fullName email phoneNumber')
+        .populate('doctorUserId', 'fullName email')
+        .populate('serviceId', 'serviceName price durationMinutes category')
+        .populate('timeslotId', 'startTime endTime');
+
+      // Xác định người nhận email
+      let emailRecipient, recipientName;
+      if (populatedAppointment.customerId) {
+        emailRecipient = populatedAppointment.customerId.email;
+        recipientName = populatedAppointment.customerId.fullName;
+      } else {
+        emailRecipient = populatedAppointment.patientUserId.email;
+        recipientName = populatedAppointment.patientUserId.fullName;
+      }
+
+      // Các biến dùng chung
+      let updatedAppointment;
+      let emailData;
+      const emailService = require('./email.service');
+
+      // ========== APPROVE ACTION ==========
+      if (action === 'approve') {
+        console.log('✅ Duyệt lịch hẹn...');
+
+        // ⭐ Nếu là Consultation (Online), tạo Google Meet link
+        let meetLink = null;
+        if (populatedAppointment.mode === 'Online' && populatedAppointment.type === 'Consultation') {
+          console.log('📞 Tạo Google Meet link cho tư vấn online...');
+          
+          const googleMeetService = require('./googleMeetService');
+          
+          meetLink = await googleMeetService.generateMeetLink({
+            appointmentId: appointmentId,
+            doctorName: populatedAppointment.doctorUserId.fullName,
+            patientName: recipientName,
+            startTime: populatedAppointment.timeslotId.startTime,
+            endTime: populatedAppointment.timeslotId.endTime,
+            serviceName: populatedAppointment.serviceId.serviceName
+          });
+
+          console.log('✅ Google Meet link đã tạo:', meetLink);
+        }
+
+        // Update status sang Approved
+        updatedAppointment = await Appointment.findByIdAndUpdate(
+          appointmentId,
+          {
+            status: 'Approved',
+            approvedByUserId: staffUserId,
+            linkMeetUrl: meetLink
+          },
+          { new: true }
+        )
+          .populate('patientUserId', 'fullName email')
+          .populate('customerId', 'fullName email phoneNumber')
+          .populate('doctorUserId', 'fullName email')
+          .populate('serviceId', 'serviceName price durationMinutes category')
+          .populate('timeslotId', 'startTime endTime');
+
+        // Prepare email
+        emailData = {
+          fullName: recipientName,
+          serviceName: updatedAppointment.serviceId.serviceName,
+          doctorName: updatedAppointment.doctorUserId.fullName,
+          startTime: updatedAppointment.timeslotId.startTime,
+          endTime: updatedAppointment.timeslotId.endTime,
+          type: updatedAppointment.type,
+          mode: updatedAppointment.mode,
+          meetLink: updatedAppointment.linkMeetUrl
+        };
+
+        // Gửi email
+        try {
+          await emailService.sendAppointmentApprovedEmail(emailRecipient, emailData);
+          console.log(`📧 Đã gửi email xác nhận duyệt đến: ${emailRecipient}`);
+        } catch (emailError) {
+          console.error('❌ Lỗi gửi email:', emailError);
+        }
+
+        return {
+          success: true,
+          message: 'Lịch hẹn đã được duyệt và gửi email xác nhận cho bệnh nhân',
+          data: updatedAppointment
+        };
+      }
+
+      // ========== CANCEL ACTION ==========
+      if (action === 'cancel') {
+        console.log('❌ Hủy lịch hẹn...');
+
+        // Xóa timeslot
+        if (populatedAppointment.timeslotId) {
+          await Timeslot.findByIdAndUpdate(populatedAppointment.timeslotId._id, {
+            status: 'Available',
+            appointmentId: null
+          });
+          console.log('✅ Timeslot đã được release');
+        }
+
+        // Update status sang Cancelled
+        updatedAppointment = await Appointment.findByIdAndUpdate(
+          appointmentId,
+          {
+            status: 'Cancelled',
+            approvedByUserId: staffUserId,
+            cancelReason: cancelReason || 'Lịch hẹn đã bị hủy',
+            cancelledAt: new Date()
+          },
+          { new: true }
+        )
+          .populate('patientUserId', 'fullName email')
+          .populate('customerId', 'fullName email phoneNumber')
+          .populate('doctorUserId', 'fullName email')
+          .populate('serviceId', 'serviceName price durationMinutes category')
+          .populate('timeslotId', 'startTime endTime');
+
+        // Prepare email
+        emailData = {
+          fullName: recipientName,
+          serviceName: updatedAppointment.serviceId.serviceName,
+          doctorName: updatedAppointment.doctorUserId.fullName,
+          startTime: updatedAppointment.timeslotId.startTime,
+          endTime: updatedAppointment.timeslotId.endTime,
+          type: updatedAppointment.type,
+          mode: updatedAppointment.mode,
+          cancelReason: cancelReason || 'Lịch hẹn đã bị hủy'
+        };
+
+        // Gửi email
+        try {
+          await emailService.sendAppointmentCancelledEmail(emailRecipient, emailData);
+          console.log(`📧 Đã gửi email thông báo hủy lịch đến: ${emailRecipient}`);
+        } catch (emailError) {
+          console.error('❌ Lỗi gửi email:', emailError);
+        }
+
+        return {
+          success: true,
+          message: 'Lịch hẹn đã bị hủy và email thông báo đã được gửi cho bệnh nhân',
+          data: updatedAppointment
+        };
+      }
+
+    } catch (error) {
+      console.error('❌ Lỗi xử lý lịch hẹn:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Lấy danh sách lịch hẹn chờ duyệt (Pending)
+   * Dùng cho staff review
+   */
+  async getPendingAppointments(filters = {}) {
+    try {
+      const query = {
+        status: { $in: ['Pending', 'PendingPayment'] }
+      };
+
+      // Có thể filter theo doctor, ngày, v.v
+      if (filters.doctorUserId) {
+        query.doctorUserId = filters.doctorUserId;
+      }
+
+      if (filters.startDate && filters.endDate) {
+        query.createdAt = {
+          $gte: new Date(filters.startDate),
+          $lte: new Date(filters.endDate)
+        };
+      }
+
+      const appointments = await Appointment.find(query)
+        .populate('patientUserId', 'fullName email phoneNumber')
+        .populate('customerId', 'fullName email phoneNumber')
+        .populate('doctorUserId', 'fullName email')
+        .populate('serviceId', 'serviceName price durationMinutes category')
+        .populate('timeslotId', 'startTime endTime')
+        .sort({ createdAt: -1 });
+
+      return {
+        success: true,
+        data: appointments,
+        count: appointments.length
+      };
+    } catch (error) {
+      console.error('❌ Lỗi lấy danh sách lịch hẹn:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Lấy danh sách tất cả appointments (có filter)
+   */
+  async getAllAppointments(filters = {}) {
+    try {
+      const query = {};
+
+      if (filters.status) {
+        query.status = filters.status;
+      }
+
+      if (filters.doctorUserId) {
+        query.doctorUserId = filters.doctorUserId;
+      }
+
+      if (filters.patientUserId) {
+        query.patientUserId = filters.patientUserId;
+      }
+
+      if (filters.mode) {
+        query.mode = filters.mode;
+      }
+
+      if (filters.type) {
+        query.type = filters.type;
+      }
+
+      const appointments = await Appointment.find(query)
+        .populate('patientUserId', 'fullName email')
+        .populate('customerId', 'fullName email')
+        .populate('doctorUserId', 'fullName email')
+        .populate('serviceId', 'serviceName price')
+        .populate('timeslotId', 'startTime endTime')
+        .sort({ createdAt: -1 });
+
+      return {
+        success: true,
+        data: appointments,
+        count: appointments.length
+      };
+    } catch (error) {
+      console.error('❌ Lỗi lấy danh sách lịch hẹn:', error);
+      throw error;
+    }
   }
 }
 

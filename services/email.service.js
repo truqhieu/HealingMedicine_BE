@@ -65,6 +65,34 @@ class EmailService {
       html: emailTemplate.html
     });
   }
+
+  async sendAppointmentApprovedEmail(email, appointmentData) {
+    const transporter = createTransporter();
+    const { getAppointmentApprovedEmailTemplate } = require('../config/emailConfig');
+    const emailTemplate = getAppointmentApprovedEmailTemplate(appointmentData);
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER || 'noreply@haianteeth.com',
+      to: email,
+      subject: emailTemplate.subject,
+      text: emailTemplate.text,
+      html: emailTemplate.html
+    });
+  }
+
+  async sendAppointmentCancelledEmail(email, appointmentData) {
+    const transporter = createTransporter();
+    const { getAppointmentCancelledEmailTemplate } = require('../config/emailConfig');
+    const emailTemplate = getAppointmentCancelledEmailTemplate(appointmentData);
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER || 'noreply@haianteeth.com',
+      to: email,
+      subject: emailTemplate.subject,
+      text: emailTemplate.text,
+      html: emailTemplate.html
+    });
+  }
 }
 
 module.exports = new EmailService();

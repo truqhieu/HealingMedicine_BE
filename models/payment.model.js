@@ -20,7 +20,7 @@ const paymentSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['Pending', 'Completed', 'Failed', 'Refunded', 'Cancelled'],
+    enum: ['Pending', 'Completed', 'Expired', 'Refunded', 'Cancelled'],
     default: 'Pending',
   },
   QRurl: {

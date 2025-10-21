@@ -201,6 +201,128 @@ const createConsultationAppointment = async (req, res) => {
   }
 };
 
+const reviewAppointment = async (req, res) => {
+  try {
+    const { appointmentId, action, cancelReason } = req.body;
+    const staffUserId = req.user?.userId;
+
+    // Validation
+    if (!appointmentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp ID lịch hẹn'
+      });
+    }
+
+    // ⭐ Convert action to lowercase (case-insensitive)
+    const normalizedAction = action?.toLowerCase().trim();
+
+    if (!normalizedAction || !['approve', 'cancel'].includes(normalizedAction)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Action phải là "approve" hoặc "cancel" (không phân biệt chữ hoa/thường)'
+      });
+    }
+
+    if (normalizedAction === 'cancel' && !cancelReason) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp lý do hủy lịch'
+      });
+    }
+
+    if (!staffUserId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Vui lòng đăng nhập để xử lý lịch hẹn'
+      });
+    }
+
+    // Gọi service với normalizedAction
+    const result = await appointmentService.reviewAppointment(
+      appointmentId,
+      staffUserId,
+      normalizedAction,
+      cancelReason
+    );
+
+    res.status(200).json(result);
+
+  } catch (error) {
+    console.error('Lỗi xử lý lịch hẹn:', error);
+
+    if (error.message.includes('Không tìm thấy') || 
+        error.message.includes('Không thể') ||
+        error.message.includes('phải là')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server. Vui lòng thử lại sau',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+const getPendingAppointments = async (req, res) => {
+  try {
+    const { doctorUserId, startDate, endDate } = req.query;
+
+    const filters = {};
+    if (doctorUserId) filters.doctorUserId = doctorUserId;
+    if (startDate && endDate) {
+      filters.startDate = startDate;
+      filters.endDate = endDate;
+    }
+
+    const result = await appointmentService.getPendingAppointments(filters);
+
+    res.status(200).json(result);
+
+  } catch (error) {
+    console.error('Lỗi lấy danh sách lịch hẹn chờ duyệt:', error);
+
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server. Vui lòng thử lại sau',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+const getAllAppointments = async (req, res) => {
+  try {
+    const { status, doctorUserId, patientUserId, mode, type } = req.query;
+
+    const filters = {};
+    if (status) filters.status = status;
+    if (doctorUserId) filters.doctorUserId = doctorUserId;
+    if (patientUserId) filters.patientUserId = patientUserId;
+    if (mode) filters.mode = mode;
+    if (type) filters.type = type;
+
+    const result = await appointmentService.getAllAppointments(filters);
+
+    res.status(200).json(result);
+
+  } catch (error) {
+    console.error('Lỗi lấy danh sách lịch hẹn:', error);
+
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server. Vui lòng thử lại sau',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = {
-  createConsultationAppointment
+  createConsultationAppointment,
+  reviewAppointment,
+  getPendingAppointments,
+  getAllAppointments
 };

@@ -70,7 +70,7 @@ class PaymentService {
       const appointment = await Appointment.findById(payment.appointmentId)
         .populate('patientUserId', 'fullName email')
         .populate('doctorUserId', 'fullName email')
-        .populate('serviceId', 'serviceName')
+        .populate('serviceId', 'serviceName price durationMinutes category')
         .populate('timeslotId', 'startTime endTime')
         .populate('customerId', 'fullName email');
 
@@ -165,6 +165,14 @@ class PaymentService {
         appointment.cancelReason = 'Không thanh toán trong thời gian quy định';
         await appointment.save();
 
+        const Timeslot = require('../models/timeslot.model');
+        if (appointment.timeslotId) {
+          await Timeslot.findByIdAndUpdate(appointment.timeslotId, {
+            status: 'Cancelled'
+          });
+          console.log('🗑️  Timeslot cập nhật thành Cancelled:', appointment.timeslotId);
+        }
+
         console.log('⏰ Payment và Appointment đã bị hủy do hết hạn');
       }
 
@@ -173,37 +181,6 @@ class PaymentService {
     } catch (error) {
       console.error('❌ Lỗi cancel payment:', error);
       throw error;
-    }
-  }
-
-  /**
-   * Kiểm tra và auto-confirm payment từ Sepay
-   */
-  async checkAndConfirmPayment(paymentId) {
-    try {
-      const payment = await Payment.findById(paymentId)
-        .populate('appointmentId');
-
-      if (!payment || payment.status !== 'Pending') {
-        return null;
-      }
-
-      // Lấy content để check
-      const content = sepayService.generateTransferContent(payment.appointmentId._id);
-
-      // Kiểm tra trạng thái giao dịch từ Sepay
-      const transaction = await sepayService.checkTransactionStatus(content);
-
-      if (transaction && transaction.found) {
-        // Nếu tìm thấy giao dịch, confirm payment
-        return await this.confirmPayment(paymentId, transaction);
-      }
-
-      return null;
-
-    } catch (error) {
-      console.error('❌ Lỗi check và confirm payment:', error);
-      return null;
     }
   }
 
@@ -225,6 +202,43 @@ class PaymentService {
     } catch (error) {
       console.error('❌ Lỗi lấy payment info:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Sync timeslot status với payment status
+   * Dùng khi payment status được thay đổi thủ công trong DB
+   */
+  async syncTimeslotStatus() {
+    try {
+      console.log('🔄 [PaymentSync] Đang sync timeslot status với payment status...');
+
+      // Tìm tất cả payment có status Expired hoặc Cancelled
+      const expiredPayments = await Payment.find({
+        status: { $in: ['Expired', 'Cancelled'] }
+      }).populate('appointmentId');
+
+      for (const payment of expiredPayments) {
+        if (payment.appointmentId && payment.appointmentId.timeslotId) {
+          const Timeslot = require('../models/timeslot.model');
+          
+          // Check xem timeslot đã Cancelled chưa
+          const timeslot = await Timeslot.findById(payment.appointmentId.timeslotId);
+          
+          if (timeslot && timeslot.status !== 'Cancelled') {
+            // Update timeslot thành Cancelled
+            await Timeslot.findByIdAndUpdate(payment.appointmentId.timeslotId, {
+              status: 'Cancelled'
+            });
+            console.log(`✅ [PaymentSync] Updated timeslot ${payment.appointmentId.timeslotId} → Cancelled`);
+          }
+        }
+      }
+
+      console.log('✅ [PaymentSync] Hoàn tất sync');
+
+    } catch (error) {
+      console.error('❌ [PaymentSync] Lỗi sync timeslot status:', error);
     }
   }
 }

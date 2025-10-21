@@ -46,6 +46,11 @@ app.use((req, res, next) => {
 
 connectMongo();
 
+// ⭐ THÊM: Khởi động PaymentMonitor (auto-expire payment sau 15 phút)
+console.log('\n🔔 Khởi động Payment Monitor...');
+paymentMonitor.startMonitoring(1); // Check mỗi 1 phút
+console.log('');
+
 // Routes 
 app.get('/', (req, res) => {
   res.json({
