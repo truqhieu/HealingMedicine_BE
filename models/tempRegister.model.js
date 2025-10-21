@@ -41,14 +41,11 @@ const tempRegisterSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now,
-    // Document sẽ tự động bị xóa sau 24 giờ nếu không được xác thực
     expires: 86400 
   }
 }, {
   timestamps: true
 });
-
-// Index để tự động xóa document hết hạn
 tempRegisterSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 });
 
-module.exports = mongoose.model('TempRegister', tempRegisterSchema);
+module.exports = mongoose.model('TempRegister', tempRegisterSchema,'tempregisters');

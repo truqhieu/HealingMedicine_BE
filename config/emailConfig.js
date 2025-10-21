@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const DateHelper = require('../utils/dateHelper');
 
 const createTransporter = () => {
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
@@ -197,8 +198,204 @@ HealingMedicine Team
   };
 };
 
+const getAppointmentConfirmationEmailTemplate = (appointmentData) => {
+  const { fullName, serviceName, doctorName, startTime, endTime, type, mode } = appointmentData;
+  
+  // Format date and time với timezone Việt Nam (UTC+7) sử dụng DateHelper
+  const formattedDate = DateHelper.formatVietnameseDate(startTime);
+  const formattedStartTime = DateHelper.formatVietnameseTime(startTime);
+  const formattedEndTime = DateHelper.formatVietnameseTime(endTime);
+
+  const typeText = type === 'Consultation' ? 'Tư vấn' : type === 'Examination' ? 'Khám bệnh' : 'Tái khám';
+  const modeText = mode === 'Online' ? 'Trực tuyến' : 'Trực tiếp';
+
+  console.log('📧 Email template data:');
+  console.log('   - Start Time UTC:', startTime);
+  console.log('   - End Time UTC:', endTime);
+  console.log('   - Formatted Date VN:', formattedDate);
+  console.log('   - Formatted Start Time VN:', formattedStartTime);
+  console.log('   - Formatted End Time VN:', formattedEndTime);
+
+  return {
+    subject: `Xác nhận đặt lịch ${typeText} - HaiAnhTeeth`,
+    text: `
+Xin chào ${fullName}!
+
+Cảm ơn bạn đã đặt lịch ${typeText.toLowerCase()} tại HaiAnhTeeth.
+
+THÔNG TIN CUỘC HẸN:
+- Dịch vụ: ${serviceName}
+- Bác sĩ: ${doctorName}
+- Thời gian: ${formattedStartTime} - ${formattedEndTime}
+- Ngày: ${formattedDate}
+- Hình thức: ${modeText}
+
+Cuộc hẹn của bạn đang chờ xác nhận từ phòng khám. Chúng tôi sẽ thông báo cho bạn sớm nhất.
+
+Nếu cần thay đổi hoặc hủy lịch hẹn, vui lòng liên hệ hotline: 1900-xxxx
+
+Trân trọng,
+HaiAnhTeeth Team
+    `.trim(),
+    html: `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 20px; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
+  
+  <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);">
+    
+    <!-- Header -->
+    <div style="background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); padding: 30px; text-align: center;">
+      <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">
+        🦷 HaiAnhTeeth
+      </h1>
+      <p style="margin: 8px 0 0 0; color: #cffafe; font-size: 14px; opacity: 0.9;">
+        Nha khoa uy tín - Nụ cười rạng rỡ
+      </p>
+    </div>
+    
+    <!-- Content -->
+    <div style="padding: 40px 30px;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <div style="display: inline-block; background: #dcfce7; border-radius: 50%; width: 80px; height: 80px; line-height: 80px; font-size: 40px; margin-bottom: 15px;">
+          ✅
+        </div>
+        <h2 style="margin: 0; color: #1e293b; font-size: 24px; font-weight: 600;">
+          Đặt lịch thành công!
+        </h2>
+      </div>
+      
+      <p style="margin: 0 0 25px 0; color: #475569; font-size: 16px; line-height: 1.6;">
+        Xin chào <strong style="color: #0891b2;">${fullName}</strong>! 👋
+      </p>
+      
+      <p style="margin: 0 0 30px 0; color: #475569; font-size: 16px; line-height: 1.6;">
+        Cảm ơn bạn đã đặt lịch ${typeText.toLowerCase()} tại <strong style="color: #0891b2;">HaiAnhTeeth</strong>. 
+        Chúng tôi đã nhận được yêu cầu của bạn.
+      </p>
+      
+      <!-- Appointment Details Box -->
+      <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 2px solid #10b981; border-radius: 12px; padding: 25px; margin: 30px 0; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.15);">
+        <h3 style="margin: 0 0 20px 0; color: #059669; font-size: 18px; font-weight: 600; text-align: center;">
+          📋 Thông tin cuộc hẹn
+        </h3>
+        
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr style="border-bottom: 1px solid #d1fae5;">
+            <td style="padding: 12px 0; vertical-align: top; width: 36px;">
+              <span style="font-size: 20px;">💊</span>
+            </td>
+            <td style="padding: 12px 0; vertical-align: top; width: 100px;">
+              <span style="color: #065f46; font-size: 14px; font-weight: 400;">Dịch vụ</span>
+            </td>
+            <td style="padding: 12px 0; vertical-align: top;">
+              <span style="color: #047857; font-size: 15px; font-weight: 500;">${serviceName}</span>
+            </td>
+          </tr>
+          
+          <tr style="border-bottom: 1px solid #d1fae5;">
+            <td style="padding: 12px 0; vertical-align: top;">
+              <span style="font-size: 20px;">👨‍⚕️</span>
+            </td>
+            <td style="padding: 12px 0; vertical-align: top;">
+              <span style="color: #065f46; font-size: 14px; font-weight: 400;">Bác sĩ</span>
+            </td>
+            <td style="padding: 12px 0; vertical-align: top;">
+              <span style="color: #047857; font-size: 15px; font-weight: 500;">${doctorName}</span>
+            </td>
+          </tr>
+          
+          <tr style="border-bottom: 1px solid #d1fae5;">
+            <td style="padding: 12px 0; vertical-align: top;">
+              <span style="font-size: 20px;">📅</span>
+            </td>
+            <td style="padding: 12px 0; vertical-align: top;">
+              <span style="color: #065f46; font-size: 14px; font-weight: 400;">Ngày hẹn</span>
+            </td>
+            <td style="padding: 12px 0; vertical-align: top;">
+              <span style="color: #047857; font-size: 15px; font-weight: 500;">${formattedDate}</span>
+            </td>
+          </tr>
+          
+          <tr style="border-bottom: 1px solid #d1fae5;">
+            <td style="padding: 12px 0; vertical-align: top;">
+              <span style="font-size: 20px;">🕐</span>
+            </td>
+            <td style="padding: 12px 0; vertical-align: top;">
+              <span style="color: #065f46; font-size: 14px; font-weight: 400;">Thời gian</span>
+            </td>
+            <td style="padding: 12px 0; vertical-align: top;">
+              <span style="color: #047857; font-size: 15px; font-weight: 500; padding: 4px 12px; border-radius: 6px;">${formattedStartTime} - ${formattedEndTime}</span>
+            </td>
+          </tr>
+          
+          <tr>
+            <td style="padding: 12px 0; vertical-align: top;">
+              <span style="font-size: 20px;">${mode === 'Online' ? '💻' : '🏥'}</span>
+            </td>
+            <td style="padding: 12px 0; vertical-align: top;">
+              <span style="color: #065f46; font-size: 14px; font-weight: 400;">Hình thức</span>
+            </td>
+            <td style="padding: 12px 0; vertical-align: top;">
+              <span style="color: #047857; font-size: 15px; font-weight: 500;">${modeText}</span>
+            </td>
+          </tr>
+        </table>
+      </div>
+      
+      <!-- Status Info Box -->
+      <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 20px; border-radius: 0 8px 8px 0; margin: 30px 0;">
+        <div style="display: flex; align-items: center; margin-bottom: 8px;">
+          <span style="font-size: 18px; margin-right: 8px;">⏳</span>
+          <strong style="color: #1e293b; font-size: 14px;">Trạng thái</strong>
+        </div>
+        <p style="margin: 0; color: #64748b; font-size: 14px; line-height: 1.5;">
+          Cuộc hẹn của bạn đang <strong style="color: #f59e0b;">chờ xác nhận</strong> từ phòng khám. 
+          Chúng tôi sẽ thông báo cho bạn qua email khi cuộc hẹn được xác nhận.
+        </p>
+      </div>
+      
+      <!-- Contact Info -->
+      <div style="background: #f1f5f9; padding: 20px; border-radius: 8px; margin: 30px 0;">
+        <p style="margin: 0 0 12px 0; color: #334155; font-size: 14px; font-weight: 600;">
+          📞 Cần hỗ trợ?
+        </p>
+        <p style="margin: 0; color: #64748b; font-size: 14px; line-height: 1.6;">
+          Nếu cần thay đổi hoặc hủy lịch hẹn, vui lòng liên hệ:<br>
+          <strong>Hotline:</strong> 1900-xxxx<br>
+          <strong>Email:</strong> support@haianteeth.com
+        </p>
+      </div>
+      
+      <p style="margin: 25px 0 0 0; color: #94a3b8; font-size: 13px; line-height: 1.5; text-align: center;">
+        Cảm ơn bạn đã tin tưởng HaiAnhTeeth!
+      </p>
+    </div>
+    
+    <!-- Footer -->
+    <div style="background: #f8fafc; padding: 25px 30px; border-top: 1px solid #e2e8f0; text-align: center;">
+      <p style="margin: 0 0 8px 0; color: #64748b; font-size: 14px; font-weight: 600;">
+        🦷 HaiAnhTeeth
+      </p>
+      <p style="margin: 0; color: #94a3b8; font-size: 12px;">
+        Email tự động • Không trả lời
+      </p>
+    </div>
+    
+  </div>
+</body>
+</html>
+    `.trim()
+  };
+};
+
 module.exports = {
   createTransporter,
   getVerificationEmailTemplate,
-  getResetPasswordEmailTemplate
+  getResetPasswordEmailTemplate,
+  getAppointmentConfirmationEmailTemplate
 };

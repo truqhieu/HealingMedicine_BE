@@ -1,4 +1,4 @@
-const { createTransporter, getVerificationEmailTemplate, getResetPasswordEmailTemplate } = require('../config/emailConfig');
+const { createTransporter, getVerificationEmailTemplate, getResetPasswordEmailTemplate, getAppointmentConfirmationEmailTemplate } = require('../config/emailConfig');
 
 class EmailService {
 
@@ -46,6 +46,19 @@ class EmailService {
 
     await transporter.sendMail({
       from: process.env.EMAIL_USER || 'noreply@healingmedicine.com',
+      to: email,
+      subject: emailTemplate.subject,
+      text: emailTemplate.text,
+      html: emailTemplate.html
+    });
+  }
+
+  async sendAppointmentConfirmationEmail(email, appointmentData) {
+    const transporter = createTransporter();
+    const emailTemplate = getAppointmentConfirmationEmailTemplate(appointmentData);
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER || 'noreply@haianteeth.com',
       to: email,
       subject: emailTemplate.subject,
       text: emailTemplate.text,

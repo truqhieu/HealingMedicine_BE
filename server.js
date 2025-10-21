@@ -3,6 +3,7 @@ const cors = require('cors');
 const morgan = require('morgan');
 const connectMongo = require('./config/connectMongo');
 const corsOptions = require('./config/corsConfig');
+const paymentMonitor = require('./services/paymentMonitor.service');
 require('dotenv').config();
 
 const app = express();
@@ -74,5 +75,11 @@ const PORT = process.env.PORT || 9999;
 app.listen(PORT, () => {
   console.log(`🚀 Server is running on port ${PORT}`);
   console.log(`📍 Server URL: http://localhost:${PORT}`);
-  console.log(`🏥 HealingMedicine API is ready to server`);
+  console.log(`🏥 HealingMedicine API is ready to serve`);
+  
+  // ⚠️ Sepay API không hỗ trợ lấy danh sách giao dịch (501 Not Implemented)
+  // → Tạm thời TẮT auto-check, sử dụng manual confirm
+  // TODO: Liên hệ Sepay support để hỏi API đúng hoặc config Webhook
+  console.log('\n⚠️  Auto-check Sepay đã TẮT (API không khả dụng)');
+  console.log('💡 Sử dụng Manual Confirm để xác nhận thanh toán\n');
 });
