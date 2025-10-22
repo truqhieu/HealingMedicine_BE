@@ -815,15 +815,15 @@ class AvailableSlotService {
     // Log first 3 slots to see duration
     console.log(`   📋 First 3 slots:`);
     for (let i = 0; i < Math.min(3, allSlots.length); i++) {
-      const duration = (allSlots[i].endTime - allSlots[i].startTime) / 60000;
-      console.log(`      [${i+1}] ${allSlots[i].startTime.toISOString()} - ${allSlots[i].endTime.toISOString()} (${duration}min)`);
+      const duration = (new Date(allSlots[i].endTime) - new Date(allSlots[i].startTime)) / 60000;
+      console.log(`      [${i+1}] ${allSlots[i].startTime} - ${allSlots[i].endTime} (${duration}min)`);
     }
 
-    // Convert Date objects to ISO strings for JSON serialization
+    // Slots already have ISO strings from _generateSlotsInRange, just ensure displayTime is correct
     const slotsWithISOStrings = allSlots.map(slot => ({
-      startTime: slot.startTime.toISOString(),
-      endTime: slot.endTime.toISOString(),
-      displayTime: ScheduleHelper.formatTimeSlot(new Date(slot.startTime), new Date(slot.endTime))
+      startTime: slot.startTime,  // Already ISO string
+      endTime: slot.endTime,      // Already ISO string
+      displayTime: slot.displayTime || ScheduleHelper.formatTimeSlot(new Date(slot.startTime), new Date(slot.endTime))
     }));
 
     return {
