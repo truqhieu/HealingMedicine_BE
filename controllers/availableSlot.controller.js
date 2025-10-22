@@ -226,10 +226,12 @@ const getAvailableDoctorsForTimeSlot = async (req, res) => {
 
   } catch (error) {
     console.error('Lỗi lấy danh sách bác sĩ cho khung giờ cụ thể:', error);
+    console.error('Error message:', error.message);
 
     if (error.message.includes('Không tìm thấy') ||
         error.message.includes('không hoạt động') ||
-        error.message.includes('Vui lòng cung cấp')) {
+        error.message.includes('Vui lòng cung cấp') ||
+        error.message.includes('không khớp')) {
       return res.status(400).json({
         success: false,
         message: error.message

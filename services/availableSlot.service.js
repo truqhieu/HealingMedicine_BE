@@ -283,6 +283,9 @@ class AvailableSlotService {
     const searchDate = new Date(date);
     searchDate.setHours(0, 0, 0, 0);
 
+    console.log('🔍 Search date:', searchDate.toISOString());
+    console.log('📅 Searching for doctors with schedule on:', searchDate.toISOString().split('T')[0]);
+
     // ⭐ THÊM: Auto-create schedule cho TOÀN BỘ ngày (1 lần duy nhất)
     // Kiểm tra xem ngày này đã có schedule nào chưa
     const existingSchedules = await DoctorSchedule.findOne({
@@ -430,7 +433,27 @@ class AvailableSlotService {
     const slotStartTime = new Date(startTime);
     const slotEndTime = new Date(endTime);
     const slotDurationMinutes = (slotEndTime - slotStartTime) / 60000;
-    const serviceDurationMinutes = service.durationMinutes;
+    let serviceDurationMinutes = service.durationMinutes;
+
+    console.log('🔍 DEBUG getAvailableDoctorsForTimeSlot:');
+    console.log('   - ServiceID:', serviceId);
+    console.log('   - Service Name:', service.serviceName);
+    console.log('   - Date:', date);
+    console.log('   - Start Time Input:', startTime);
+    console.log('   - End Time Input:', endTime);
+    console.log('   - Slot Start:', slotStartTime.toISOString());
+    console.log('   - Slot End:', slotEndTime.toISOString());
+    console.log('   - Slot Duration (Minutes):', slotDurationMinutes);
+    console.log('   - Service Duration (Minutes - raw):', serviceDurationMinutes);
+
+    // ⭐ THÊM: Validate service duration - nếu không hợp lý, dùng duration tính từ slot
+    if (!serviceDurationMinutes || serviceDurationMinutes <= 5 || serviceDurationMinutes > 480) {
+      console.warn(`⚠️  Service duration ${serviceDurationMinutes} không hợp lệ, sử dụng slot duration ${slotDurationMinutes}`);
+      serviceDurationMinutes = slotDurationMinutes;
+    }
+
+    console.log('   - Service Duration (Minutes - final):', serviceDurationMinutes);
+    console.log('   - Duration Match:', slotDurationMinutes === serviceDurationMinutes);
 
     if (slotDurationMinutes !== serviceDurationMinutes) {
       throw new Error(
@@ -481,6 +504,9 @@ class AvailableSlotService {
           status: 'Available'
         });
 
+        console.log(`\n👨‍⚕️ Checking doctor: ${doctor.fullName} (${doctor._id})`);
+        console.log(`   Schedule found: ${schedule ? 'YES' : 'NO'}`);
+
         // ⭐ THÊM: Nếu không có schedule → Tự động tạo
         if (!schedule) {
           console.log(`⚠️  Bác sĩ ${doctor._id} không có schedule cho ngày ${searchDate.toISOString().split('T')[0]}, tự động tạo...`);
@@ -522,7 +548,12 @@ class AvailableSlotService {
         const scheduleStart = new Date(schedule.startTime);
         const scheduleEnd = new Date(schedule.endTime);
 
+        console.log(`   Schedule: ${scheduleStart.toISOString()} - ${scheduleEnd.toISOString()}`);
+        console.log(`   Slot: ${slotStartTime.toISOString()} - ${slotEndTime.toISOString()}`);
+        console.log(`   Slot in schedule: ${slotStartTime >= scheduleStart && slotEndTime <= scheduleEnd}`);
+
         if (slotStartTime < scheduleStart || slotEndTime > scheduleEnd) {
+          console.log(`   ❌ SKIP: Slot nằm ngoài schedule`);
           continue; // Khung giờ này nằm ngoài schedule
         }
 
@@ -536,10 +567,12 @@ class AvailableSlotService {
         });
 
         if (conflictingTimeslot) {
+          console.log(`   ❌ SKIP: Slot has conflict`);
           continue; // Khung giờ này đã bị đặt
         }
 
         // Bác sĩ này có khung giờ này rảnh
+        console.log(`   ✅ AVAILABLE`);
         availableDoctors.push({
           doctorId: doctor._id,
           doctorScheduleId: schedule._id, // ← Schedule của ngày đó
@@ -594,33 +627,98 @@ class AvailableSlotService {
     }
 
     const serviceDuration = service.durationMinutes;
+    
+    console.log('🔍 Service info for generateAvailableSlotsByDate:');
+    console.log('   - Service ID:', serviceId);
+    console.log('   - Service Name:', service.serviceName);
+    console.log('   - Duration Minutes:', serviceDuration);
+    console.log('   - Service object:', JSON.stringify({
+      name: service.serviceName,
+      durationMinutes: service.durationMinutes,
+      category: service.category,
+      status: service.status
+    }, null, 2));
+
+    // ⭐ THÊM: Validate service duration - nếu không hợp lý, dùng 30 phút mặc định
+    const finalServiceDuration = (serviceDuration && serviceDuration > 5 && serviceDuration <= 480) 
+      ? serviceDuration 
+      : 30;
+    
+    if (finalServiceDuration !== serviceDuration) {
+      console.warn(`⚠️  Service duration ${serviceDuration} không hợp lệ, sử dụng mặc định 30 phút`);
+    }
 
     // 3. Chuẩn bị ngày tìm kiếm
     const searchDate = new Date(date);
     searchDate.setHours(0, 0, 0, 0);
 
-    // 4. Tạo schedule mặc định nếu chưa có
-    // ⭐ Note: 8-12h là theo giờ Việt Nam (UTC+7)
-    // Khi lưu vào DB dưới dạng UTC, cần trừ 7 tiếng
-    const VIETNAM_TIMEZONE_OFFSET = 7 * 60 * 60 * 1000; // 7 hours in milliseconds
-    
+    console.log('🔍 Search date:', searchDate.toISOString());
+    console.log('📅 Searching for doctors with schedule on:', searchDate.toISOString().split('T')[0]);
+
+    // ⭐ THÊM: Auto-create schedule cho TOÀN BỘ ngày (1 lần duy nhất)
+    // Kiểm tra xem ngày này đã có schedule nào chưa
+    const existingSchedules = await DoctorSchedule.findOne({
+      date: searchDate,
+      status: 'Available'
+    });
+
+    if (!existingSchedules) {
+      console.log(`⚠️  Ngày ${searchDate.toISOString().split('T')[0]} chưa có schedule, tự động tạo cho tất cả bác sĩ...`);
+      
+      try {
+        // Tạo schedule cho TẤT CẢ bác sĩ 1 lần
+        const doctors = await User.find({
+          role: 'Doctor',
+          status: 'Active'
+        }).select('_id');
+
+        const schedulesToCreate = [];
+        for (const doctor of doctors) {
+          schedulesToCreate.push(
+            {
+              doctorUserId: doctor._id,
+              date: searchDate,
+              shift: 'Morning',
+              startTime: new Date(searchDate).setHours(1, 0, 0),  // 1h UTC = 8h Vietnam time
+              endTime: new Date(searchDate).setHours(5, 0, 0),    // 5h UTC = 12h Vietnam time
+              status: 'Available',
+              maxSlots: 4
+            },
+            {
+              doctorUserId: doctor._id,
+              date: searchDate,
+              shift: 'Afternoon',
+              startTime: new Date(searchDate).setHours(7, 0, 0),  // 7h UTC = 14h Vietnam time
+              endTime: new Date(searchDate).setHours(11, 0, 0),   // 11h UTC = 18h Vietnam time
+              status: 'Available',
+              maxSlots: 4
+            }
+          );
+        }
+        
+        await DoctorSchedule.insertMany(schedulesToCreate);
+        console.log(`✅ Tạo ${schedulesToCreate.length} schedules cho ${doctors.length} bác sĩ`);
+      } catch (createError) {
+        console.error(`❌ Lỗi tạo schedules: ${createError.message}`);
+      }
+    }
+
+    // 5. Generate slots từ schedules
+    const allSlots = [];
+
+    // Tạo schedules mặc định nếu chưa tạo
     const schedules = [
       {
         shift: 'Morning',
-        // 8h Việt Nam = 1h UTC (8 - 7 = 1)
-        startTime: new Date(searchDate).setHours(1, 0, 0), // 1h UTC = 8h Vietnam time
+        startTime: new Date(searchDate).setHours(1, 0, 0),  // 1h UTC = 8h Vietnam time
         endTime: new Date(searchDate).setHours(5, 0, 0)    // 5h UTC = 12h Vietnam time
       },
       {
         shift: 'Afternoon',
-        // 14h Việt Nam = 7h UTC (14 - 7 = 7)
         startTime: new Date(searchDate).setHours(7, 0, 0),  // 7h UTC = 14h Vietnam time
         endTime: new Date(searchDate).setHours(11, 0, 0)    // 11h UTC = 18h Vietnam time
       }
     ];
-
-    // 5. Generate slots từ schedules
-    const allSlots = [];
 
     for (const schedule of schedules) {
       const scheduleStart = new Date(schedule.startTime);
@@ -629,7 +727,7 @@ class AvailableSlotService {
       const slots = this._generateSlotsInRange(
         scheduleStart,
         scheduleEnd,
-        serviceDuration,
+        finalServiceDuration, // Sử dụng finalServiceDuration
         breakAfterMinutes,
         [] // Không có busySlots (chỉ generate toàn bộ)
       );
@@ -641,18 +739,25 @@ class AvailableSlotService {
     console.log(`   - Dịch vụ: ${service.serviceName} (${serviceDuration} phút)`);
     console.log(`   - Tổng slots: ${allSlots.length}`);
 
+    // Log first 3 slots to see duration
+    console.log(`   📋 First 3 slots:`);
+    for (let i = 0; i < Math.min(3, allSlots.length); i++) {
+      const duration = (allSlots[i].endTime - allSlots[i].startTime) / 60000;
+      console.log(`      [${i+1}] ${allSlots[i].startTime.toISOString()} - ${allSlots[i].endTime.toISOString()} (${duration}min)`);
+    }
+
     // Convert Date objects to ISO strings for JSON serialization
     const slotsWithISOStrings = allSlots.map(slot => ({
       startTime: slot.startTime.toISOString(),
       endTime: slot.endTime.toISOString(),
-      displayTime: ScheduleHelper.formatTimeSlot(slot.startTime, slot.endTime)
+      displayTime: ScheduleHelper.formatTimeSlot(new Date(slot.startTime), new Date(slot.endTime))
     }));
 
     return {
       date: searchDate.toISOString().split('T')[0],
       serviceId,
       serviceName: service.serviceName,
-      serviceDuration,
+      serviceDuration: finalServiceDuration, // Sử dụng finalServiceDuration
       breakAfterMinutes,
       slots: slotsWithISOStrings,
       totalSlots: slotsWithISOStrings.length,
