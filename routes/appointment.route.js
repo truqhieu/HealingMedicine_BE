@@ -15,7 +15,7 @@ router.post('/consultation/create', verifyToken, verifyRole('Patient'), createCo
 router.post('/create-by-staff', verifyToken, verifyRole(['Staff', 'Manager']), createConsultationAppointment);
 
 // ⭐ Staff duyệt hoặc hủy lịch hẹn - Chỉ Staff/Manager được phép
-router.post('/review', verifyToken, verifyRole(['Staff', 'Manager']), reviewAppointment);
+router.post('/review', verifyToken, verifyRole(['Staff']), reviewAppointment);
 
 // ⭐ API lấy danh sách lịch hẹn chờ duyệt - Staff/Manager xem
 router.get('/pending', verifyToken, verifyRole(['Staff', 'Manager']), getPendingAppointments);

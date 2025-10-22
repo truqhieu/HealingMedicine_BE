@@ -5,6 +5,8 @@ const userRoutes = require('./user.route');
 const adminRoutes = require('./admin.route');
 const serviceRoutes = require('./service.route')
 const clinicRoutes = require('./clinic.route')
+const doctorRoutes = require('./doctor.route');
+const nurseRoutes = require('./nurse.route');
 const tempRegisterRoutes = require('./tempRegister.route');
 const appointmentRoutes = require('./appointment.route');
 const availableSlotRoutes = require('./availableSlot.route');
@@ -15,6 +17,8 @@ router.use('/auth', userRoutes);
 router.use('/admin', adminRoutes);
 router.use('/manager', serviceRoutes);
 router.use('/manager', clinicRoutes)
+router.use('/doctor', doctorRoutes);
+router.use('/nurse', nurseRoutes);
 
 router.use('/temp-register', tempRegisterRoutes);
 
@@ -67,6 +71,16 @@ router.get('/', (req, res) => {
         listDoctor : 'GET /api/manager/clinics/doctor',
         assignDoctor : 'PACTH /api/manager/assign-doctor/:id',
         unssignDoctor : 'PACTH /api/manager/unssign-doctor/:id',
+      },
+      doctor : {
+        getAppointmentsSchedule : 'GET /api/doctor/appointments-schedule (requires Doctor token)',
+        getAppointmentDetail : 'GET /api/doctor/appointments/:appointmentId (requires Doctor token)',
+        getPatientDetail : 'GET /api/doctor/patients/:patientId (requires Doctor token)',
+      },
+      nurse : {
+        getAppointmentsSchedule : 'GET /api/nurse/appointments-schedule (requires Nurse token)',
+        getAppointmentDetail : 'GET /api/nurse/appointments/:appointmentId (requires Nurse token)',
+        getPatientDetail : 'GET /api/nurse/patients/:patientId (requires Nurse token)',
       }
     }
   });
