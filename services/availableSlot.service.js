@@ -794,4 +794,122 @@ class AvailableSlotService {
         }
         
         await DoctorSchedule.insertMany(schedulesToCreate);
-        console.log(`
+        console.log(`✅ Đã tạo ${schedulesToCreate.length} schedules cho ${doctors.length} bác sĩ vào ngày ${searchDate.toISOString().split('T')[0]}`);
+      } catch (error) {
+        console.error('❌ Lỗi tạo schedule tự động:', error);
+        // Không throw error, tiếp tục xử lý
+      }
+    }
+
+    // 4. Lấy tất cả bác sĩ đang active
+    const doctors = await User.find({
+      role: 'Doctor',
+      status: 'Active'
+    }).select('_id fullName specialization');
+
+    console.log(`📋 Tìm thấy ${doctors.length} bác sĩ active`);
+
+    if (doctors.length === 0) {
+      return {
+        date: searchDate,
+        slots: []
+      };
+    }
+
+    // 5. Lấy schedules của tất cả bác sĩ trong ngày
+    const schedules = await DoctorSchedule.find({
+      doctorUserId: { $in: doctors.map(d => d._id) },
+      date: searchDate,
+      status: 'Available'
+    });
+
+    console.log(`📋 Tìm thấy ${schedules.length} schedules`);
+
+    if (schedules.length === 0) {
+      return {
+        date: searchDate,
+        slots: []
+      };
+    }
+
+    // 6. Lấy tất cả appointments đã book trong ngày này
+    const appointments = await Appointment.find({
+      doctorUserId: { $in: doctors.map(d => d._id) },
+      status: { $in: ['Pending', 'Approved', 'CheckedIn'] }
+    }).populate('timeslotId', 'startTime endTime doctorUserId');
+
+    // 7. Tạo map của booked timeslots theo doctorId
+    const bookedSlotsByDoctor = {};
+    for (const apt of appointments) {
+      if (apt.timeslotId) {
+        const docId = apt.timeslotId.doctorUserId.toString();
+        if (!bookedSlotsByDoctor[docId]) {
+          bookedSlotsByDoctor[docId] = [];
+        }
+        bookedSlotsByDoctor[docId].push({
+          start: new Date(apt.timeslotId.startTime),
+          end: new Date(apt.timeslotId.endTime)
+        });
+      }
+    }
+
+    // 8. Generate slots cho từng bác sĩ
+    const allSlots = [];
+
+    for (const schedule of schedules) {
+      const doctorId = schedule.doctorUserId.toString();
+      const doctor = doctors.find(d => d._id.toString() === doctorId);
+
+      if (!doctor) continue;
+
+      const scheduleStart = new Date(schedule.startTime);
+      const scheduleEnd = new Date(schedule.endTime);
+      
+      const slots = ScheduleHelper.generateTimeSlots({
+        scheduleStart,
+        scheduleEnd,
+        serviceDuration: finalServiceDuration,
+        breakAfterMinutes
+      });
+
+      // Lọc bỏ các slots đã được book
+      const bookedSlots = bookedSlotsByDoctor[doctorId] || [];
+      const availableSlots = slots.filter(slot => {
+        const slotStart = new Date(slot.startTime);
+        const slotEnd = new Date(slot.endTime);
+        
+        // Kiểm tra xem slot có bị trung với booked slot nào không
+        return !bookedSlots.some(booked => {
+          return (slotStart < booked.end && slotEnd > booked.start);
+        });
+      });
+
+      // Thêm thông tin doctor vào mỗi slot
+      availableSlots.forEach(slot => {
+        allSlots.push({
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          doctor: {
+            doctorUserId: doctor._id,
+            fullName: doctor.fullName,
+            specialization: doctor.specialization
+          },
+          doctorScheduleId: schedule._id
+        });
+      });
+    }
+
+    // 9. Sort theo thời gian
+    allSlots.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+
+    console.log(`✅ Tổng cộng ${allSlots.length} slots khả dụng`);
+
+    return {
+      date: searchDate,
+      slots: allSlots,
+      totalSlots: allSlots.length
+    };
+  }
+}
+
+module.exports = new AvailableSlotService();
