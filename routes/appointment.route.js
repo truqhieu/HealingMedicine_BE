@@ -6,18 +6,22 @@ const {
   getPendingAppointments,
   getAllAppointments 
 } = require('../controllers/appointment.controller');
-const { verifyToken } = require('../middleware/auth.middleware');
+const { verifyToken, verifyRole } = require('../middleware/auth.middleware');
 
-// API đặt lịch tư vấn - Yêu cầu đăng nhập
-router.post('/consultation/create', verifyToken, createConsultationAppointment);
+// ⭐ Patient đặt lịch tư vấn/khám - Cần đăng nhập
+router.post('/consultation/create', verifyToken, verifyRole('Patient'), createConsultationAppointment);
 
-// ⭐ API duyệt hoặc hủy lịch hẹn - Unified endpoint
-router.post('/review', verifyToken, reviewAppointment);
+// Bao gồm cả lịch tư vấn và lịch khám
+router.post('/create-by-staff', verifyToken, verifyRole(['Staff', 'Manager']), createConsultationAppointment);
 
-// API lấy danh sách lịch hẹn chờ duyệt
-router.get('/pending', verifyToken, getPendingAppointments);
+// ⭐ Staff duyệt hoặc hủy lịch hẹn - Chỉ Staff/Manager được phép
+router.post('/review', verifyToken, verifyRole(['Staff', 'Manager']), reviewAppointment);
 
-// API lấy danh sách tất cả lịch hẹn (có filter)
+// ⭐ API lấy danh sách lịch hẹn chờ duyệt - Staff/Manager xem
+router.get('/pending', verifyToken, verifyRole(['Staff', 'Manager']), getPendingAppointments);
+
+//  API lấy danh sách tất cả lịch hẹn (có filter)
+// Patient xem lịch của mình, Staff/Manager/Doctor xem tất cả
 router.get('/all', verifyToken, getAllAppointments);
 
 module.exports = router;
