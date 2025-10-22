@@ -771,13 +771,28 @@ class AvailableSlotService {
 
         const schedulesToCreate = [];
         for (const doctor of doctors) {
+          // Tạo thời gian theo giờ Việt Nam (UTC+7)
+          // Sử dụng UTC methods để đảm bảo consistency
+          const year = searchDate.getFullYear();
+          const month = searchDate.getMonth();
+          const day = searchDate.getDate();
+          
+          // 8h VN = 1h UTC (8 - 7 = 1)
+          const morningStart = new Date(Date.UTC(year, month, day, 1, 0, 0));
+          // 12h VN = 5h UTC
+          const morningEnd = new Date(Date.UTC(year, month, day, 5, 0, 0));
+          // 14h VN = 7h UTC
+          const afternoonStart = new Date(Date.UTC(year, month, day, 7, 0, 0));
+          // 18h VN = 11h UTC
+          const afternoonEnd = new Date(Date.UTC(year, month, day, 11, 0, 0));
+          
           schedulesToCreate.push(
             {
               doctorUserId: doctor._id,
               date: searchDate,
               shift: 'Morning',
-              startTime: new Date(searchDate).setHours(1, 0, 0),  // 1h UTC = 8h Vietnam time
-              endTime: new Date(searchDate).setHours(5, 0, 0),    // 5h UTC = 12h Vietnam time
+              startTime: morningStart,
+              endTime: morningEnd,
               status: 'Available',
               maxSlots: 4
             },
@@ -785,8 +800,8 @@ class AvailableSlotService {
               doctorUserId: doctor._id,
               date: searchDate,
               shift: 'Afternoon',
-              startTime: new Date(searchDate).setHours(7, 0, 0),  // 7h UTC = 14h Vietnam time
-              endTime: new Date(searchDate).setHours(11, 0, 0),   // 11h UTC = 18h Vietnam time
+              startTime: afternoonStart,
+              endTime: afternoonEnd,
               status: 'Available',
               maxSlots: 4
             }
@@ -884,11 +899,27 @@ class AvailableSlotService {
         });
       });
 
-      // Thêm thông tin doctor vào mỗi slot
+      // Thêm thông tin doctor và format displayTime theo giờ Việt Nam
       availableSlots.forEach(slot => {
+        // Format thời gian hiển thị theo timezone Việt Nam
+        const start = new Date(slot.startTime);
+        const end = new Date(slot.endTime);
+        
+        const formatVNTime = (date) => {
+          return date.toLocaleTimeString('vi-VN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+            timeZone: 'Asia/Ho_Chi_Minh'
+          });
+        };
+        
+        const displayTime = `${formatVNTime(start)} - ${formatVNTime(end)}`;
+        
         allSlots.push({
           startTime: slot.startTime,
           endTime: slot.endTime,
+          displayTime: displayTime, // Format sẵn theo giờ VN
           doctor: {
             doctorUserId: doctor._id,
             fullName: doctor.fullName,
