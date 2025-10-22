@@ -7,7 +7,14 @@ const verifyToken = (req, res, next) => {
     // Lấy token từ header
     const authHeader = req.headers.authorization;
     
+    console.log('🔍 DEBUG verifyToken middleware:');
+    console.log('   - URL:', req.originalUrl);
+    console.log('   - Method:', req.method);
+    console.log('   - Authorization header:', authHeader ? 'EXISTS' : 'MISSING');
+    console.log('   - All headers:', JSON.stringify(req.headers, null, 2));
+    
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.error('❌ No valid Authorization header found');
       return res.status(401).json({
         success: false,
         message: 'Vui lòng đăng nhập để tiếp tục'
@@ -15,9 +22,13 @@ const verifyToken = (req, res, next) => {
     }
 
     const token = authHeader.split(' ')[1];
+    
+    console.log('   - Token extracted:', token ? 'YES' : 'NO');
 
     // Verify token
     const decoded = jwt.verify(token, JWT_SECRET);
+    
+    console.log('   - Token decoded:', decoded);
     
     // Gắn thông tin user vào request
     req.user = {
@@ -26,11 +37,13 @@ const verifyToken = (req, res, next) => {
       role: decoded.role
     };
 
+    console.log('   ✅ User info attached:', req.user);
     next();
   } catch (error) {
     console.error('Token verification error:', error);
 
     if (error.name === 'JsonWebTokenError') {
+      console.error('❌ JWT Error:', error.message);
       return res.status(401).json({
         success: false,
         message: 'Token không hợp lệ'
@@ -38,6 +51,7 @@ const verifyToken = (req, res, next) => {
     }
 
     if (error.name === 'TokenExpiredError') {
+      console.error('❌ Token Expired:', error.message);
       return res.status(401).json({
         success: false,
         message: 'Token đã hết hạn. Vui lòng đăng nhập lại'

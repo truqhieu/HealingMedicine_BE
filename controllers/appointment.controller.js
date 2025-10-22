@@ -14,10 +14,27 @@ const createConsultationAppointment = async (req, res) => {
       selectedSlot 
     } = req.body;
 
+    console.log('🔍 DEBUG createConsultationAppointment:');
+    console.log('   - req.user:', req.user);
+    console.log('   - req.headers.authorization:', req.headers.authorization ? 'EXISTS' : 'MISSING');
+    console.log('   - req.body:', {
+      fullName,
+      email,
+      phoneNumber,
+      appointmentFor,
+      serviceId,
+      doctorUserId,
+      doctorScheduleId,
+      selectedSlot
+    });
+
     // Lấy thông tin user đã đăng nhập
     const userId = req.user?.userId;
 
+    console.log('   - userId extracted:', userId);
+
     if (!userId) {
+      console.error('❌ userId is missing!');
       return res.status(401).json({
         success: false,
         message: 'Vui lòng đăng nhập để đặt lịch tư vấn'
