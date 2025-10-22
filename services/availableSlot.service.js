@@ -165,6 +165,21 @@ class AvailableSlotService {
       startTime: { $gte: startOfDay, $lte: endOfDay }
     }).sort({ startTime: 1 });
 
+    // ⭐ THÊM: Lấy tất cả timeslots từ appointments của bệnh nhân hiện tại trong ngày
+    // Để exclude các khung giờ bệnh nhân đã book
+    let patientTimeslots = [];
+    if (patientUserId) {
+      const patientTimeslotIds = patientAppointments.map(apt => apt.timeslotId._id);
+      if (patientTimeslotIds.length > 0) {
+        patientTimeslots = await Timeslot.find({
+          _id: { $in: patientTimeslotIds },
+          startTime: { $gte: startOfDay, $lte: endOfDay }
+        }).sort({ startTime: 1 });
+        
+        console.log('👤 Patient timeslots to exclude:', patientTimeslots.length);
+      }
+    }
+
     // 6. Tạo danh sách khoảng thời gian đã bận
     const busySlots = validAppointments.map(apt => {
       if (apt.timeslotId) {
@@ -189,6 +204,14 @@ class AvailableSlotService {
     
     busySlots.push(...patientBusySlots);
 
+    // ⭐ THÊM: Thêm timeslots của bệnh nhân vào busy slots (để exclude khung giờ họ đã book)
+    const patientTimeslotBusySlots = patientTimeslots.map(ts => ({
+      start: new Date(ts.startTime),
+      end: new Date(ts.endTime).getTime() + breakAfterMinutes * 60000
+    }));
+    
+    busySlots.push(...patientTimeslotBusySlots);
+
     // ⭐ THÊM: Thêm Reserved/Booked timeslots vào busySlots
     const reservedBusySlots = reservedTimeslots.map(ts => ({
       start: new Date(ts.startTime),
@@ -204,6 +227,7 @@ class AvailableSlotService {
     console.log('   - Ngày:', searchDate.toISOString().split('T')[0]);
     console.log('   - Số appointments của bác sĩ đã book:', validAppointments.length);
     console.log('   - Số appointments của bệnh nhân đã book:', patientAppointments.length);
+    console.log('   - Số timeslots của bệnh nhân cần exclude:', patientTimeslots.length);
     console.log('   - Số timeslots Reserved/Booked:', reservedTimeslots.length);
     console.log('🔴 DEBUG busySlots:', busySlots.map(b => ({
       start: new Date(b.start).toISOString(),
@@ -770,85 +794,4 @@ class AvailableSlotService {
         }
         
         await DoctorSchedule.insertMany(schedulesToCreate);
-        console.log(`✅ Tạo ${schedulesToCreate.length} schedules cho ${doctors.length} bác sĩ`);
-      } catch (createError) {
-        console.error(`❌ Lỗi tạo schedules: ${createError.message}`);
-      }
-    }
-
-    // 5. Generate slots từ schedules
-    const allSlots = [];
-
-    // Tạo schedules mặc định nếu chưa tạo
-    const schedules = [
-      {
-        shift: 'Morning',
-        startTime: new Date(searchDate).setHours(1, 0, 0),  // 1h UTC = 8h Vietnam time
-        endTime: new Date(searchDate).setHours(5, 0, 0)    // 5h UTC = 12h Vietnam time
-      },
-      {
-        shift: 'Afternoon',
-        startTime: new Date(searchDate).setHours(7, 0, 0),  // 7h UTC = 14h Vietnam time
-        endTime: new Date(searchDate).setHours(11, 0, 0)    // 11h UTC = 18h Vietnam time
-      }
-    ];
-
-    for (const schedule of schedules) {
-      const scheduleStart = new Date(schedule.startTime);
-      const scheduleEnd = new Date(schedule.endTime);
-
-      const slots = this._generateSlotsInRange(
-        scheduleStart,
-        scheduleEnd,
-        finalServiceDuration, // Sử dụng finalServiceDuration
-        breakAfterMinutes,
-        [] // Không có busySlots (chỉ generate toàn bộ)
-      );
-
-      allSlots.push(...slots);
-    }
-
-    console.log(`✅ Generate slots cho ngày ${searchDate.toISOString().split('T')[0]}`);
-    console.log(`   - Dịch vụ: ${service.serviceName} (${serviceDuration} phút)`);
-    console.log(`   - Tổng slots: ${allSlots.length}`);
-
-    // Log first 3 slots to see duration
-    console.log(`   📋 First 3 slots:`);
-    for (let i = 0; i < Math.min(3, allSlots.length); i++) {
-      const duration = (new Date(allSlots[i].endTime) - new Date(allSlots[i].startTime)) / 60000;
-      console.log(`      [${i+1}] ${allSlots[i].startTime} - ${allSlots[i].endTime} (${duration}min)`);
-    }
-
-    // Slots already have ISO strings from _generateSlotsInRange, just ensure displayTime is correct
-    const slotsWithISOStrings = allSlots.map(slot => ({
-      startTime: slot.startTime,  // Already ISO string
-      endTime: slot.endTime,      // Already ISO string
-      displayTime: slot.displayTime || ScheduleHelper.formatTimeSlot(new Date(slot.startTime), new Date(slot.endTime))
-    }));
-
-    return {
-      date: searchDate.toISOString().split('T')[0],
-      serviceId,
-      serviceName: service.serviceName,
-      serviceDuration: finalServiceDuration, // Sử dụng finalServiceDuration
-      breakAfterMinutes,
-      slots: slotsWithISOStrings,
-      totalSlots: slotsWithISOStrings.length,
-      schedules: [
-        {
-          shift: 'Morning',
-          startTime: schedules[0].startTime,
-          endTime: schedules[0].endTime
-        },
-        {
-          shift: 'Afternoon',
-          startTime: schedules[1].startTime,
-          endTime: schedules[1].endTime
-        }
-      ]
-    };
-  }
-}
-
-module.exports = new AvailableSlotService();
-
+        console.log(`

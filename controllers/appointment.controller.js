@@ -333,9 +333,66 @@ const getAllAppointments = async (req, res) => {
   }
 };
 
+/**
+ * Lấy tất cả ca khám của người dùng hiện tại
+ * GET /api/appointments/my-appointments
+ * 
+ * Logic:
+ *   - Mặc định: Lấy tất cả các ca khám đã hoàn tất đặt lịch (Pending, Approved, CheckedIn, Completed, Cancelled)
+ *     → Bao gồm cả đặt lịch khám (không cần thanh toán) và tư vấn đã thanh toán xong
+ *   - KHÔNG bao gồm: PendingPayment (các ca tư vấn đang chờ thanh toán)
+ * 
+ * Query params:
+ *   - includePendingPayment: true/false (có bao gồm cả ca đang chờ thanh toán không)
+ *   - status: Pending|Approved|CheckedIn|Completed|Cancelled|PendingPayment (lọc theo status cụ thể)
+ */
+const getMyAppointments = async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Vui lòng đăng nhập để xem ca khám'
+      });
+    }
+
+    // Lấy options từ query params
+    const options = {};
+    
+    // Có bao gồm cả ca đang chờ thanh toán không
+    if (req.query.includePendingPayment === 'true') {
+      options.includePendingPayment = true;
+    }
+
+    // Lọc theo status cụ thể
+    if (req.query.status) {
+      options.status = req.query.status;
+    }
+
+    const appointments = await appointmentService.getUserAppointments(userId, options);
+
+    res.status(200).json({
+      success: true,
+      message: `Tìm thấy ${appointments.length} ca khám`,
+      data: appointments,
+      count: appointments.length
+    });
+
+  } catch (error) {
+    console.error('❌ Lỗi lấy ca khám của user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server. Vui lòng thử lại sau',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = {
   createConsultationAppointment,
   reviewAppointment,
   getPendingAppointments,
-  getAllAppointments
+  getAllAppointments,
+  getMyAppointments
 };

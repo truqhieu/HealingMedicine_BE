@@ -539,6 +539,87 @@ class AppointmentService {
       throw error;
     }
   }
+
+  /**
+   * Lấy tất cả ca khám của một người dùng
+   */
+  async getUserAppointments(userId, options = {}) {
+    try {
+      // Build query
+      const query = { patientUserId: userId };
+
+      // Lọc theo status cụ thể nếu có
+      if (options.status) {
+        query.status = options.status;
+      } else {
+        // Mặc định: Lấy tất cả các ca khám ĐÃ HOÀN TẤT ĐẶT LỊCH
+        // (bao gồm cả đặt lịch khám không cần thanh toán trước và tư vấn đã thanh toán)
+        // NGOẠI TRỪ "PendingPayment" (đang chờ thanh toán cho tư vấn online)
+        if (options.includePendingPayment) {
+          // Lấy tất cả bao gồm cả PendingPayment
+          query.status = { $in: ['PendingPayment', 'Pending', 'Approved', 'CheckedIn', 'Completed', 'Cancelled'] };
+        } else {
+          // Mặc định: Chỉ lấy các ca đã hoàn tất đặt lịch (đã thanh toán nếu cần)
+          query.status = { $in: ['Pending', 'Approved', 'CheckedIn', 'Completed', 'Cancelled'] };
+        }
+      }
+
+      const appointments = await Appointment.find(query)
+        .populate('patientUserId', 'fullName email phoneNumber')
+        .populate('doctorUserId', 'fullName email specialization')
+        .populate('serviceId', 'serviceName price category durationMinutes')
+        .populate('timeslotId', 'startTime endTime')
+        .populate('customerId', 'fullName email phoneNumber')
+        .populate('paymentId', 'status amount method')
+        .sort({ createdAt: -1 }); // Sắp xếp theo thời gian tạo mới nhất
+
+      // Trả về đúng format mà frontend expect
+      return appointments.map(apt => ({
+        _id: apt._id.toString(),
+        status: apt.status,
+        type: apt.type,
+        mode: apt.mode,
+        appointmentFor: apt.appointmentFor || 'self',
+        patientUserId: apt.patientUserId ? {
+          fullName: apt.patientUserId.fullName,
+          email: apt.patientUserId.email,
+          phoneNumber: apt.patientUserId.phoneNumber
+        } : null,
+        doctorUserId: apt.doctorUserId ? {
+          fullName: apt.doctorUserId.fullName,
+          email: apt.doctorUserId.email,
+          specialization: apt.doctorUserId.specialization
+        } : null,
+        serviceId: apt.serviceId ? {
+          serviceName: apt.serviceId.serviceName,
+          price: apt.serviceId.price,
+          category: apt.serviceId.category,
+          durationMinutes: apt.serviceId.durationMinutes
+        } : null,
+        timeslotId: apt.timeslotId ? {
+          startTime: apt.timeslotId.startTime,
+          endTime: apt.timeslotId.endTime
+        } : null,
+        customerId: apt.customerId ? {
+          fullName: apt.customerId.fullName,
+          email: apt.customerId.email,
+          phoneNumber: apt.customerId.phoneNumber
+        } : null,
+        paymentId: apt.paymentId ? {
+          status: apt.paymentId.status,
+          amount: apt.paymentId.amount,
+          method: apt.paymentId.method
+        } : null,
+        notes: apt.notes || '',
+        linkMeetUrl: apt.linkMeetUrl || null,
+        createdAt: apt.createdAt,
+        updatedAt: apt.updatedAt
+      }));
+    } catch (error) {
+      console.error('❌ Lỗi lấy ca khám của user:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = new AppointmentService();
