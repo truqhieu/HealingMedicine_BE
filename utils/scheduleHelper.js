@@ -177,6 +177,54 @@ class ScheduleHelper {
     const slotWithBreak = slotDurationMinutes + breakMinutes;
     return Math.floor(totalMinutes / slotWithBreak);
   }
+
+  /**
+   * Generate simple time slots (chỉ startTime/endTime) cho một khoảng thời gian
+   * Dùng cho generateAvailableSlotsByDate
+   */
+  static generateTimeSlots(params) {
+    const {
+      scheduleStart,
+      scheduleEnd,
+      serviceDuration,
+      breakAfterMinutes = 10
+    } = params;
+
+    // Validate input
+    if (!scheduleStart || !scheduleEnd) {
+      throw new Error('Thiếu thông tin thời gian làm việc');
+    }
+
+    if (!serviceDuration || serviceDuration <= 0) {
+      throw new Error('Thời lượng dịch vụ không hợp lệ');
+    }
+
+    const slots = [];
+    let currentStartTime = new Date(scheduleStart);
+    const endTime = new Date(scheduleEnd);
+
+    // Tạo slots cho đến khi hết thời gian làm việc
+    while (currentStartTime < endTime) {
+      // Tính thời gian kết thúc của slot này (start + duration)
+      const currentEndTime = new Date(currentStartTime.getTime() + serviceDuration * 60000);
+
+      // Kiểm tra xem slot này có vượt quá thời gian làm việc không
+      if (currentEndTime > endTime) {
+        break;
+      }
+
+      // Tạo slot đơn giản (chỉ có thời gian)
+      slots.push({
+        startTime: new Date(currentStartTime),
+        endTime: new Date(currentEndTime)
+      });
+
+      // Tính thời gian bắt đầu slot tiếp theo (end + break)
+      currentStartTime = new Date(currentEndTime.getTime() + breakAfterMinutes * 60000);
+    }
+
+    return slots;
+  }
 }
 
 module.exports = ScheduleHelper;
