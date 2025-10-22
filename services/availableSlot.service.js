@@ -920,16 +920,35 @@ class AvailableSlotService {
 
       // ⭐ Thêm filter: Exclude slots mà user hiện tại đã đặt
       if (patientUserId && patientBookedSlots.length > 0) {
+        console.log(`🔍 [Doctor ${doctor.fullName}] Filtering user booked slots...`);
+        console.log(`   - patientBookedSlots count: ${patientBookedSlots.length}`);
+        patientBookedSlots.forEach((booked, idx) => {
+          console.log(`   - Booked slot ${idx}: ${booked.start.toISOString()} - ${booked.end.toISOString()}`);
+        });
+        
+        console.log(`   - availableSlots BEFORE filter: ${availableSlots.length}`);
+        availableSlots.forEach((slot, idx) => {
+          console.log(`     - Slot ${idx}: ${slot.startTime} - ${slot.endTime}`);
+        });
+        
         availableSlots = availableSlots.filter(slot => {
           const slotStart = new Date(slot.startTime);
           const slotEnd = new Date(slot.endTime);
           
           // Kiểm tra xem slot có trùng với slots user đã đặt không
-          return !patientBookedSlots.some(booked => {
+          const isBooked = patientBookedSlots.some(booked => {
             return (slotStart.getTime() === booked.start.getTime() && 
                     slotEnd.getTime() === booked.end.getTime());
           });
+          
+          if (isBooked) {
+            console.log(`     ❌ Excluding slot: ${slot.startTime} - ${slot.endTime}`);
+          }
+          
+          return !isBooked;
         });
+        
+        console.log(`   - availableSlots AFTER filter: ${availableSlots.length}`);
       }
 
       // Thêm thông tin doctor và format displayTime theo giờ Việt Nam
