@@ -1,6 +1,7 @@
 const Appointment = require('../models/appointment.model');
 const Timeslot = require('../models/timeslot.model');
 const User = require('../models/user.model');
+const Patient = require('../models/patient.model');
 
 /**
  * Lấy danh sách lịch hẹn của bác sĩ cho tuần hiện tại + tuần tiếp theo (2 tuần)
@@ -103,17 +104,20 @@ const getDoctorAppointmentsSchedule = async (req, res) => {
  */
 const getAppointmentDetail = async (req, res) => {
   try {
-    const doctorUserId = req.user.userId;
     const { appointmentId } = req.params;
 
     const appointment = await Appointment.findById(appointmentId)
       .populate({
+        path: 'doctorUserId',
+        select: 'fullName email specialization'
+      })
+      .populate({
         path: 'patientUserId',
-        select: 'fullName email phoneNumber dob gender address'
+        select: 'fullName email phoneNumber'
       })
       .populate({
         path: 'customerId',
-        select: 'fullName email phoneNumber dob gender address note'
+        select: 'fullName email phoneNumber'
       })
       .populate({
         path: 'serviceId',
@@ -137,7 +141,7 @@ const getAppointmentDetail = async (req, res) => {
     }
 
     // Kiểm tra xem bác sĩ có phải là bác sĩ của lịch hẹn này không
-    if (appointment.doctorUserId.toString() !== doctorUserId) {
+    if (appointment.doctorUserId._id.toString() !== req.user.userId) {
       return res.status(403).json({
         success: false,
         message: 'Bạn không có quyền xem lịch hẹn này'
@@ -146,25 +150,24 @@ const getAppointmentDetail = async (req, res) => {
 
     // Lấy thông tin bệnh nhân (từ Patient hoặc Customer)
     const patientInfo = appointment.patientUserId || appointment.customerId;
+    const timeslot = appointment.timeslotId;
 
+    // ⭐ Format response gọn gàng
     return res.status(200).json({
       success: true,
       message: 'Lấy chi tiết lịch hẹn thành công',
       data: {
         appointmentId: appointment._id,
-        type: appointment.type, // Consultation, Examination, FollowUp
-        status: appointment.status, // Pending, Approved, CheckedIn, Completed, etc.
-        mode: appointment.mode, // Online, Offline
-        patient: patientInfo,
-        service: appointment.serviceId,
-        timeslot: appointment.timeslotId,
-        payment: appointment.paymentId,
-        notes: appointment.notes,
-        linkMeetUrl: appointment.linkMeetUrl,
-        rescheduleCount: appointment.rescheduleCount,
-        replacedDoctorUserId: appointment.replacedDoctorUserId,
-        createdAt: appointment.createdAt,
-        updatedAt: appointment.updatedAt
+        patientName: patientInfo?.fullName || 'N/A',
+        patientEmail: patientInfo?.email || 'N/A',
+        serviceName: appointment.serviceId?.serviceName || 'N/A',
+        serviceDescription: appointment.serviceId?.description || '',
+        type: appointment.type,
+        status: appointment.status,
+        mode: appointment.mode,
+        appointmentDate: timeslot?.startTime ? new Date(timeslot.startTime).toISOString().split('T')[0] : 'N/A',
+        startTime: timeslot?.startTime ? new Date(timeslot.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
+        endTime: timeslot?.endTime ? new Date(timeslot.endTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'N/A'
       }
     });
 
@@ -184,77 +187,40 @@ const getAppointmentDetail = async (req, res) => {
  */
 const getPatientDetail = async (req, res) => {
   try {
-    const doctorUserId = req.user.userId;
     const { patientId } = req.params;
 
-    // Lấy thông tin bệnh nhân từ User model
-    const patient = await User.findById(patientId)
+    // ⭐ Lấy thông tin từ User model (patientId là userId)
+    const user = await User.findById(patientId)
       .select('fullName email phoneNumber dob gender address status')
       .lean();
 
-    if (!patient) {
+    if (!user) {
       return res.status(404).json({
         success: false,
         message: 'Không tìm thấy bệnh nhân'
       });
     }
 
-    // Lấy danh sách tất cả lịch hẹn của bệnh nhân với bác sĩ này
-    const appointmentHistory = await Appointment.find({
-      patientUserId: patientId,
-      doctorUserId: doctorUserId,
-      status: { $in: ['Completed', 'Finalized'] } // Chỉ lấy những lịch đã hoàn tất
-    })
-      .populate({
-        path: 'serviceId',
-        select: 'serviceName price'
-      })
-      .populate({
-        path: 'timeslotId',
-        select: 'startTime endTime'
-      })
-      .select('type status notes createdAt')
-      .sort({ createdAt: -1 })
+    // ⭐ Lấy thông tin từ Patient model nếu có
+    const patientRecord = await Patient.findOne({ patientUserId: patientId })
+      .select('emergencyContact lastVisitDate')
       .lean();
 
-    // Lấy danh sách lịch hẹn sắp tới
-    const upcomingAppointments = await Appointment.find({
-      patientUserId: patientId,
-      doctorUserId: doctorUserId,
-      status: { $in: ['Pending', 'Approved', 'CheckedIn'] } // Chưa hoàn tất
-    })
-      .populate({
-        path: 'serviceId',
-        select: 'serviceName'
-      })
-      .populate({
-        path: 'timeslotId',
-        select: 'startTime endTime'
-      })
-      .select('type status')
-      .sort({ 'timeslotId.startTime': 1 })
-      .lean();
-
+    // ⭐ Format response gọn gàng
     return res.status(200).json({
       success: true,
       message: 'Lấy chi tiết thông tin bệnh nhân thành công',
       data: {
-        patientId: patient._id,
-        fullName: patient.fullName,
-        email: patient.email,
-        phoneNumber: patient.phoneNumber,
-        dateOfBirth: patient.dob,
-        gender: patient.gender,
-        address: patient.address,
-        status: patient.status,
-        appointmentHistory: {
-          total: appointmentHistory.length,
-          list: appointmentHistory
-        },
-        upcomingAppointments: {
-          total: upcomingAppointments.length,
-          list: upcomingAppointments
-        }
+        patientId: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        phoneNumber: user.phoneNumber || 'N/A',
+        dateOfBirth: user.dob ? new Date(user.dob).toISOString().split('T')[0] : 'N/A',
+        gender: user.gender || 'N/A',
+        address: user.address || 'N/A',
+        status: user.status,
+        emergencyContact: patientRecord?.emergencyContact || 'N/A',
+        lastVisitDate: patientRecord?.lastVisitDate ? new Date(patientRecord.lastVisitDate).toISOString().split('T')[0] : 'N/A'
       }
     });
 

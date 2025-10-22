@@ -28,7 +28,7 @@ const serviceSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['Examination', 'Treatment', 'Consultation'],
+    enum: ['Examination', 'Consultation'],
   }
 }, {
   timestamps: true 
