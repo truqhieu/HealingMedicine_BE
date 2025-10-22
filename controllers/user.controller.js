@@ -473,7 +473,7 @@ const updateProfile = async (req, res) => {
           status: updatedUser.status,
           phone: updatedUser.phoneNumber,
           address: updatedUser.address,
-          dateOfBirth: updatedUser.dob,
+          dob: updatedUser.dob,
           gender: updatedUser.gender,
           avatar: updatedUser.avatar,
           createdAt: updatedUser.createdAt,
