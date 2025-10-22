@@ -225,7 +225,7 @@ const lockAcount = async (req,res) =>{
     try {
         const lockAcc = await User.findByIdAndUpdate(
             req.params.id,
-            {status : 'Inactive'},
+            {status : 'Lock'},
             {new : true, runValidators : true}
         );
         if(!lockAcc){

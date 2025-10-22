@@ -6,7 +6,6 @@ const adminRoutes = require('./admin.route');
 const serviceRoutes = require('./service.route')
 const clinicRoutes = require('./clinic.route')
 const tempRegisterRoutes = require('./tempRegister.route');
-const { deleteClinicRoom } = require('../controllers/clinic.controller');
 
 router.use('/auth', userRoutes);
 router.use('/admin', adminRoutes);
