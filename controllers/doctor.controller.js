@@ -39,7 +39,9 @@ const getDoctorAppointmentsSchedule = async (req, res) => {
         $gte: startOfWeek,
         $lt: endOfTwoWeeks
       },
-      status: { $ne: 'Cancelled' }
+      // ⭐ Chỉ hiển thị ca khám đã được Staff duyệt (Approved, CheckedIn, Completed, Finalized)
+      // Các ca Pending vẫn ở màn Staff nên không show
+      status: { $in: ['Approved', 'CheckedIn', 'Completed', 'Finalized'] }
     })
       .populate({
         path: 'patientUserId',
