@@ -32,7 +32,9 @@ const createAccount = async(req, res) =>{
             Doctor: 'Bác sĩ',
             Nurse: 'Y tá',
             Staff: 'Lễ tân',
-            Patient: 'Bệnh nhân'
+            Patient: 'Bệnh nhân',
+            Manager : 'Quản lý'
+
         };
         const newAccount = new User({fullName,email, passwordHash : password, role, phone, status : 'Active'})
         await newAccount.save();
