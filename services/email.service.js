@@ -52,17 +52,19 @@ class EmailService {
   }
 
   async sendResetPasswordEmail(fullName, email, resetLink) {
+    // Luôn gọi template để lấy subject, text, html
+    const emailTemplate = getResetPasswordEmailTemplate(fullName, resetLink);
+    
     if (this.useSendGrid) {
       return this._sendViaSendGrid(
         email,
-        'Đặt lại mật khẩu HealingMedicine',
-        `Xin chào ${fullName}!\n\nVui lòng nhấp vào link để đặt lại mật khẩu: ${resetLink}`,
-        `<a href="${resetLink}">Đặt lại mật khẩu</a>`
+        emailTemplate.subject,
+        emailTemplate.text,
+        emailTemplate.html
       );
     }
 
     const transporter = createTransporter();
-    const emailTemplate = getResetPasswordEmailTemplate(fullName, resetLink);
     await transporter.sendMail({
       from: process.env.EMAIL_USER || 'noreply@haianteeth.com',
       to: email,

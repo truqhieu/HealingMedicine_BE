@@ -9,9 +9,9 @@ const createConsultationAppointment = async (req, res) => {
       phoneNumber,
       appointmentFor,
       serviceId,
-      doctorUserId, // User._id của doctor (user có role="Doctor")
+      doctorUserId, 
       doctorScheduleId,
-      selectedSlot // { startTime, endTime }
+      selectedSlot 
     } = req.body;
 
     // Lấy thông tin user đã đăng nhập
@@ -75,15 +75,12 @@ const createConsultationAppointment = async (req, res) => {
 
     // Tạo appointment data
     const appointmentData = {
-      patientUserId: userId, // User._id của người đặt lịch
-      doctorUserId: doctorUserId, // User._id của bác sĩ (user có role="Doctor")
+      patientUserId: userId, 
+      doctorUserId: doctorUserId, 
       serviceId: serviceId,
       doctorScheduleId: doctorScheduleId,
-      selectedSlot: selectedSlot, // { startTime, endTime }
-      // mode sẽ tự động được set dựa vào service.category trong service layer
-      // Consultation → Online, Examination → Offline
+      selectedSlot: selectedSlot, 
       notes: req.body.notes || null,
-      // Thông tin từ form (để tạo customer nếu đặt cho người khác)
       formData: {
         fullName,
         email,
@@ -92,11 +89,8 @@ const createConsultationAppointment = async (req, res) => {
       }
     };
 
-    // Tạo appointment tư vấn qua service
     const appointment = await appointmentService.createConsultationAppointment(appointmentData);
 
-    // Xác định gửi email đến ai
-    // appointment đã được populate đầy đủ từ service
     let emailRecipient, recipientName;
     
     if (appointment.customerId) {

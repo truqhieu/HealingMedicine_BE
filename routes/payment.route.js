@@ -38,11 +38,10 @@ router.post('/webhook/test', verifyToken, testWebhook);
 // Check payment status (cho user/frontend check nếu muốn)
 router.get('/:paymentId/check', verifyToken, checkPaymentStatus);
 
-// Get payment info
+// Get payment info ( lấy QR Url để hiển thị lên FE)
 router.get('/:paymentId', verifyToken, getPaymentInfo);
 
-// Manual confirm payment (CHỈ dành cho admin khi webhook bị lỗi)
-// BẠN KHÔNG CẦN DÙNG ENDPOINT NÀY vì webhook đã tự động
+// Manual confirm payment ( dành cho admin khi webhook bị lỗi)
 router.post('/:paymentId/confirm', verifyToken, manualConfirmPayment);
 
 module.exports = router;

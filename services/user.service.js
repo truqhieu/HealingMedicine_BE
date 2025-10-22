@@ -250,15 +250,22 @@ class UserService {
     const salt = await bcrypt.genSalt(12);
     const newPasswordHash = await bcrypt.hash(newPassword, salt);
 
-    // Cập nhật password và xóa reset token
-    user.passwordHash = newPasswordHash;
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpire = undefined;
-    user.updatedAt = new Date();
+    // Cập nhật password trực tiếp vào database (bypass middleware)
+    await User.collection.updateOne(
+      { _id: user._id },
+      { 
+        $set: { 
+          passwordHash: newPasswordHash,
+          resetPasswordToken: undefined,
+          resetPasswordExpire: undefined,
+          updatedAt: new Date()
+        }
+      }
+    );
 
-    await user.save();
-
-    return user;
+    // Lấy user đã cập nhật
+    const updatedUser = await User.findById(user._id);
+    return updatedUser;
   }
 }
 

@@ -110,11 +110,11 @@ HealingMedicine Team
 
 const getResetPasswordEmailTemplate = (fullName, resetLink) => {
   return {
-    subject: `Đặt lại mật khẩu HealingMedicine`,
+    subject: `🔐 Yêu cầu đặt lại mật khẩu - HaiAnhTeeth`,
     text: `
 Xin chào ${fullName}!
 
-Bạn đã yêu cầu đặt lại mật khẩu cho tài khoản HealingMedicine.
+Bạn đã yêu cầu đặt lại mật khẩu cho tài khoản HaiAnhTeeth.
 
 Để đặt lại mật khẩu, vui lòng nhấp vào link sau:
 ${resetLink}
@@ -123,7 +123,7 @@ Link có hiệu lực trong 10 phút.
 
 Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.
 
-HealingMedicine Team
+HaiAnhTeeth Team
     `.trim(),
     html: `
 <!DOCTYPE html>
@@ -137,12 +137,12 @@ HealingMedicine Team
   <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);">
     
     <!-- Header -->
-    <div style="background: linear-gradient(135deg, rgb(38, 220, 84) 0%, rgb(38, 220, 84) 100%); padding: 30px; text-align: center;">
-      <h1 style="margin: 0; color: white; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">
-        🔒 Đặt lại mật khẩu
+    <div style="background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); padding: 30px; text-align: center;">
+      <h1 style="margin: 0; color: white; font-size: 26px; font-weight: 700; letter-spacing: -0.5px;">
+        🔐 Đặt lại mật khẩu
       </h1>
       <p style="margin: 8px 0 0 0; color: #fecaca; font-size: 14px; opacity: 0.9;">
-        HealingMedicine
+        HaiAnhTeeth - Nha khoa uy tín
       </p>
     </div>
     
@@ -153,40 +153,75 @@ HealingMedicine Team
       </h2>
       
       <p style="margin: 0 0 25px 0; color: #475569; font-size: 16px; line-height: 1.6;">
-        Bạn đã yêu cầu <strong style="color:rgb(38, 220, 84);">đặt lại mật khẩu</strong> cho tài khoản HealingMedicine của bạn.
+        Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản <strong style="color: #dc2626;">HaiAnhTeeth</strong> của bạn.
+      </p>
+
+      <p style="margin: 0 0 30px 0; color: #475569; font-size: 15px; line-height: 1.6;">
+        Nếu đó là bạn, vui lòng nhấp vào nút bên dưới để thiết lập mật khẩu mới. Nếu không phải, bạn có thể bỏ qua email này một cách an toàn.
       </p>
       
       <!-- CTA Button -->
       <div style="text-align: center; margin: 35px 0;">
         <a href="${resetLink}" 
-           style="display: inline-block; background: linear-gradient(135deg, rgb(38, 220, 84) 0%, rgb(38, 220, 84) 100%); color: white; text-decoration: none; padding: 16px 32px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);">
+           style="display: inline-block; background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); color: white; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3); transition: transform 0.2s; cursor: pointer;">
           🔄 Đặt lại mật khẩu
         </a>
       </div>
-      
-      <!-- Info Box -->
-      <div style="background: #fef2f2; border-left: 4px solidrgb(38, 220, 47); padding: 20px; border-radius: 0 8px 8px 0; margin: 30px 0;">
-        <div style="display: flex; align-items: center; margin-bottom: 8px;">
-          <span style="font-size: 18px; margin-right: 8px;">⏰</span>
-          <strong style="color: #1e293b; font-size: 14px;">Quan trọng</strong>
-        </div>
-        <p style="margin: 0; color: #64748b; font-size: 14px; line-height: 1.5;">
-          Link đặt lại có hiệu lực trong <strong style="color:rgb(235, 12, 12);">10 phút</strong>. 
-          Sau khi đặt lại thành công, bạn có thể đăng nhập với mật khẩu mới.
+
+      <p style="margin: 0 0 25px 0; color: #94a3b8; font-size: 13px; line-height: 1.5; text-align: center;">
+        hoặc sao chép link bên dưới vào trình duyệt của bạn:
+      </p>
+
+      <!-- Link Copy Box -->
+      <div style="background: #f1f5f9; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 15px; margin: 25px 0; word-break: break-all;">
+        <p style="margin: 0; color: #64748b; font-size: 12px; line-height: 1.4;">
+          <code style="color: #0369a1; font-family: 'Courier New', monospace;">${resetLink}</code>
         </p>
       </div>
       
-      <p style="margin: 25px 0 0 0; color: #94a3b8; font-size: 13px; line-height: 1.5;">
-        Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.
+      <!-- Security Info Box -->
+      <div style="background: #fee2e2; border-left: 4px solid #dc2626; padding: 20px; border-radius: 0 8px 8px 0; margin: 30px 0;">
+        <div style="display: flex; align-items: flex-start; margin-bottom: 0;">
+          <span style="font-size: 20px; margin-right: 12px; flex-shrink: 0;">🔒</span>
+          <div>
+            <strong style="color: #7f1d1d; font-size: 14px; display: block; margin-bottom: 8px;">Thông tin bảo mật quan trọng</strong>
+            <p style="margin: 0; color: #64748b; font-size: 13px; line-height: 1.6;">
+              • Link sẽ hết hạn trong <strong style="color: #dc2626;">10 phút</strong><br>
+              • Không chia sẻ link này với bất kỳ ai<br>
+              • HaiAnhTeeth sẽ không bao giờ yêu cầu bạn gửi mật khẩu qua email
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Additional Help -->
+      <div style="background: #f0f9ff; border-left: 4px solid #0284c7; padding: 20px; border-radius: 0 8px 8px 0; margin: 25px 0;">
+        <div style="display: flex; align-items: flex-start;">
+          <span style="font-size: 18px; margin-right: 12px; flex-shrink: 0;">❓</span>
+          <div>
+            <strong style="color: #0369a1; font-size: 14px; display: block; margin-bottom: 8px;">Cần giúp đỡ?</strong>
+            <p style="margin: 0; color: #64748b; font-size: 13px; line-height: 1.6;">
+              Nếu bạn không yêu cầu đặt lại mật khẩu này, có thể tài khoản của bạn đã bị truy cập trái phép. 
+              Vui lòng <strong>liên hệ hotline: 1900-xxxx</strong> ngay lập tức.
+            </p>
+          </div>
+        </div>
+      </div>
+      
+      <p style="margin: 25px 0 0 0; color: #94a3b8; font-size: 12px; line-height: 1.5; text-align: center;">
+        Đây là email tự động, vui lòng không trả lời email này.
       </p>
     </div>
     
     <!-- Footer -->
     <div style="background: #f8fafc; padding: 25px 30px; border-top: 1px solid #e2e8f0; text-align: center;">
       <p style="margin: 0 0 8px 0; color: #64748b; font-size: 14px; font-weight: 600;">
-        HealingMedicine Team
+        🦷 HaiAnhTeeth
       </p>
-      <p style="margin: 0; color: #94a3b8; font-size: 12px;">
+      <p style="margin: 0 0 4px 0; color: #94a3b8; font-size: 12px;">
+        Nha khoa uy tín - Nụ cười rạng rỡ
+      </p>
+      <p style="margin: 0; color: #cbd5e1; font-size: 11px;">
         Email tự động • Không trả lời
       </p>
     </div>
