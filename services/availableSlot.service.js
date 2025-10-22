@@ -474,7 +474,7 @@ class AvailableSlotService {
    * @param {Date} params.endTime - Giờ kết thúc khung giờ muốn chọn
    * @returns {Object} Danh sách bác sĩ có khung giờ khả dụng
    */
-  async getAvailableDoctorsForTimeSlot({ serviceId, date, startTime, endTime, patientUserId }) {
+  async getAvailableDoctorsForTimeSlot({ serviceId, date, startTime, endTime, patientUserId, appointmentFor }) {
     // 1. Validate input
     if (!serviceId || !date || !startTime || !endTime) {
       throw new Error('Vui lòng cung cấp đầy đủ serviceId, date, startTime và endTime');
@@ -524,6 +524,37 @@ class AvailableSlotService {
           message: 'Bạn đã có appointment vào khung giờ này. Vui lòng chọn khung giờ khác.'
         };
       }
+    }
+
+    // ⭐ THÊM: Lấy danh sách bác sĩ mà user (self) đã có appointment vào khung giờ này
+    // (nếu appointmentFor === 'other', sẽ exclude các bác sĩ này khỏi danh sách)
+    let userAppointedDoctorIds = [];
+    if (patientUserId && appointmentFor === 'other') {
+      console.log(`🔍 [${appointmentFor}] Lấy danh sách bác sĩ mà user ${patientUserId} đã đặt vào khung giờ này`);
+      
+      const slotStartTime = new Date(startTime);
+      const slotEndTime = new Date(endTime);
+      
+      const userAppointmentsInSlot = await Appointment.find({
+        patientUserId,
+        status: { $in: ['PendingPayment', 'Pending', 'Approved', 'CheckedIn'] },
+        timeslotId: { $exists: true }
+      })
+      .populate({
+        path: 'timeslotId',
+        select: 'startTime endTime doctorUserId',
+        match: {
+          startTime: { $gte: slotStartTime, $lt: slotEndTime },
+          endTime: { $gt: slotStartTime, $lte: slotEndTime }
+        }
+      });
+      
+      userAppointedDoctorIds = userAppointmentsInSlot
+        .filter(apt => apt.timeslotId)
+        .map(apt => apt.timeslotId.doctorUserId?.toString())
+        .filter(id => id);
+      
+      console.log(`   - Bác sĩ user đã đặt: ${userAppointedDoctorIds.length}`, userAppointedDoctorIds);
     }
 
     // ⭐ THÊM: Validate duration của slot phải khớp với service
@@ -670,6 +701,15 @@ class AvailableSlotService {
 
         // Bác sĩ này có khung giờ này rảnh
         console.log(`   ✅ AVAILABLE`);
+        
+        // ⭐ THÊM: Nếu appointmentFor === 'other', check xem bác sĩ này có trong danh sách user đã đặt không
+        if (appointmentFor === 'other' && userAppointedDoctorIds.length > 0) {
+          if (userAppointedDoctorIds.includes(doctor._id.toString())) {
+            console.log(`   ⭐ EXCLUDE: User đã đặt với bác sĩ này vào khung giờ này`);
+            continue; // Loại bỏ bác sĩ này
+          }
+        }
+        
         availableDoctors.push({
           doctorId: doctor._id,
           doctorScheduleId: schedule._id, // ← Schedule của ngày đó

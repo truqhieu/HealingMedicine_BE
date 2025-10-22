@@ -197,7 +197,7 @@ const getAvailableDoctors = async (req, res) => {
  */
 const getAvailableDoctorsForTimeSlot = async (req, res) => {
   try {
-    const { serviceId, date, startTime, endTime } = req.query;
+    const { serviceId, date, startTime, endTime, appointmentFor, userId } = req.query;
 
     // Validation
     if (!serviceId || !date || !startTime || !endTime) {
@@ -233,15 +233,23 @@ const getAvailableDoctorsForTimeSlot = async (req, res) => {
       });
     }
 
-    // Get current user ID from auth middleware
+    // ⭐ THÊM: Log info
+    console.log('🔍 [getAvailableDoctorsForTimeSlot]');
+    console.log('   - appointmentFor:', appointmentFor || 'not specified');
+    console.log('   - userId (from param):', userId || 'none');
+    console.log('   - req.user?.userId:', req.user?.userId || 'none');
+
+    // Get current user ID from auth middleware hoặc từ query param
     const patientUserId = req.user?.userId;
+    const userIdForExclusion = userId || patientUserId;
 
     const result = await availableSlotService.getAvailableDoctorsForTimeSlot({
       serviceId,
       date: searchDate,
       startTime: slotStart,
       endTime: slotEnd,
-      patientUserId
+      patientUserId: userIdForExclusion,
+      appointmentFor
     });
 
     res.status(200).json({
