@@ -48,6 +48,10 @@ const getAllClinicRooms = async(req,res) =>{
         const [total, clinicrooms] = await Promise.all([
             Clinicroom.countDocuments(filter),
             Clinicroom.find(filter)
+            .populate({
+                path : 'assignedDoctorId',
+                select : 'fullName'
+            })
             .skip(skip)
             .limit(limitNum)
             .lean()
@@ -80,7 +84,7 @@ const viewDetailClinicRoom = async(req,res) =>{
         if(!detailRoom){
             return res.status(400).json({
                 status : false,
-                message : 'Không tìm thấy dịch vụ này.'
+                message : 'Không tìm thấy phòng này.'
             });
         }
 
@@ -185,7 +189,10 @@ const assignDoctor = async(req,res) =>{
             req.params.id,
             {assignedDoctorId : doctorId},
             {new : true}
-        )
+        ).populate({
+            path : 'assignedDoctorId',
+            select : '_id fullName'
+        })
         const doctor = await User.findById(doctorId);
         res.status(200).json({
             status : true,
@@ -193,8 +200,8 @@ const assignDoctor = async(req,res) =>{
             data : clinic
         })
     } catch (error) {
-        console.log('Lỗi gán bác sĩ cho phòng khám'. error);
-        res.status(500).json({ status: false, message: 'Lỗi gán bác sĩ vào phòng khám' });
+        console.log('Lỗi gán bác sĩ cho phòng khám', error);
+        res.status(500).json({ status: false, message: 'Lỗi server' });
 
     }
 }
@@ -206,14 +213,20 @@ const unssignDoctor = async(req,res) =>{
             {assignedDoctorId : null},
             {new : true}
         )
+        if(!clinic){
+            return res.status(404).json({
+                status : false,
+                message : 'Không tìm thấy phòng khám'
+            })
+        }
         res.status(200).json({
             status : true,
-            message : `Gỡ bác sĩ ${doctor.fullName} khỏi phòng khám ${clinic.name} thành công.`,
+            message : `Gỡ bác sĩ khỏi phòng khám thành công.`,
             data : clinic
         })
     } catch (error) {
-        console.log('Lỗi gỡ bác sĩ cho phòng khám'. error);
-        res.status(500).json({ status: false, message: 'Lỗi gán bác sĩ vào phòng khám' });
+        console.log('Lỗi gỡ bác sĩ cho phòng khám', error);
+        res.status(500).json({ status: false, messge: 'Lỗi server' });
 
     }
 }

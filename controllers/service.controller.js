@@ -112,7 +112,8 @@ const updateService = async(req,res) =>{
             'price',
             'isPrepaid',
             'durationMinutes',
-            'category'
+            'category',
+            'status'
         ]
         
         const updates = {};

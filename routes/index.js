@@ -5,12 +5,14 @@ const userRoutes = require('./user.route');
 const adminRoutes = require('./admin.route');
 const serviceRoutes = require('./service.route')
 const clinicRoutes = require('./clinic.route')
+const scheduleRoute = require('./schedule.route')
 const tempRegisterRoutes = require('./tempRegister.route');
 
 router.use('/auth', userRoutes);
 router.use('/admin', adminRoutes);
 router.use('/manager', serviceRoutes);
-router.use('/manager', clinicRoutes)
+router.use('/manager', clinicRoutes);
+router.use('/manager', scheduleRoute);
 
 router.use('/temp-register', tempRegisterRoutes);
 
@@ -56,8 +58,14 @@ router.get('/', (req, res) => {
         updateClinicRoom : 'PATCH /api/manager/clinics/:id',
         deleteClinicRoom : 'DELETE /api/manager/clinics/:id',
         listDoctor : 'GET /api/manager/clinics/doctor',
-        assignDoctor : 'PACTH /api/manager/assign-doctor/:id',
-        unssignDoctor : 'PACTH /api/manager/unssign-doctor/:id',
+        assignDoctor : 'PATCH /api/manager/assign-doctor/:id',
+        unssignDoctor : 'PATCH /api/manager/unssign-doctor/:id',
+      },
+      schedule : {
+        checkAvailableDoctors : 'GET /api/manager/schedules/doctor-available',
+        createScheduleDoctor : 'POST /api/manager/schedules',
+        getAllScheduleDoctor : 'GET /api/manager/schedules',
+        deleteSchedule : 'DELETE /api/manager/schedules/:id'
       }
     }
   });
