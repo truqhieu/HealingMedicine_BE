@@ -1,5 +1,6 @@
 const User = require('../models/user.model');
 const TempRegister = require('../models/tempRegister.model');
+const Patient = require('../models/patient.model');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
@@ -100,6 +101,14 @@ class UserService {
 
     // Xóa tempUser sau khi tạo user thành công
     await TempRegister.deleteOne({ _id: tempUser._id });
+
+    // ⭐ Nếu là Patient, tự động tạo record trong bảng Patient
+    if (newUser.role === 'Patient') {
+      const newPatient = new Patient({
+        patientUserId: newUser._id
+      });
+      await newPatient.save();
+    }
 
     // Tạo JWT token
     const jwtToken = jwt.sign(

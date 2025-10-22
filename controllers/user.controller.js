@@ -426,10 +426,13 @@ const updateProfile = async (req, res) => {
       'phoneNumber', 
       'address',
       'dob',
-      'gender'
+      'gender',
+      'emergencyContact'  // ⭐ Thêm emergencyContact
     ];
     
     const updates = {};
+    let emergencyContactUpdate = null;  // ⭐ Lưu emergencyContact riêng
+    
     Object.keys(req.body).forEach(key => {
       if (allowedFields.includes(key)) {
         // Format date nếu là trường dob
@@ -450,13 +453,18 @@ const updateProfile = async (req, res) => {
             });
           }
           updates[key] = dateValue;
-        } else {
+        } 
+        // ⭐ Xử lý emergencyContact
+        else if (key === 'emergencyContact') {
+          emergencyContactUpdate = req.body[key];
+        }
+        else {
           updates[key] = req.body[key];
         }
       }
     });
     
-    if (Object.keys(updates).length === 0) {
+    if (Object.keys(updates).length === 0 && !emergencyContactUpdate) {
       return res.status(400).json({
         success: false,
         message: 'Không có trường hợp lệ để cập nhật'
@@ -474,6 +482,16 @@ const updateProfile = async (req, res) => {
         success: false,
         message: 'Không tìm thấy thông tin người dùng'
       });
+    }
+    
+    // ⭐ Nếu có emergencyContact và là Patient, update trong bảng Patient
+    if (emergencyContactUpdate && updatedUser.role === 'Patient') {
+      const Patient = require('../models/patient.model');
+      await Patient.findOneAndUpdate(
+        { patientUserId: userId },
+        { $set: { emergencyContact: emergencyContactUpdate } },
+        { new: true }
+      );
     }
     
     res.status(200).json({
@@ -495,7 +513,7 @@ const updateProfile = async (req, res) => {
           updatedAt: updatedUser.updatedAt
         }
       }
-    });
+
     
   } catch (error) {
     console.error('Lỗi cập nhật profile:', error);

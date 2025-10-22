@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const User = require('../models/user.model')
 const Doctor = require('../models/doctor.model');
+const Staff = require('../models/staff.model');
 const bcrypt = require('bcryptjs')
 
 const ROLE_ACCOUNT = ['Doctor', 'Nurse', 'Staff', 'Patient', 'Manager'];
@@ -61,6 +62,15 @@ const createAccount = async(req, res) =>{
             //     status: 'Available'
             // });
             // await newNurse.save();
+        }
+
+        // ⭐ Nếu role là Staff, tạo record trong Staff collection
+        if (role === 'Staff') {
+            const newStaff = new Staff({
+                staffUserId: newAccount._id,
+                status: 'Available'
+            });
+            await newStaff.save();
         }
         
         res.status(201).json({
