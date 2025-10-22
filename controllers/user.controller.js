@@ -454,9 +454,52 @@ const updateProfile = async (req, res) => {
           }
           updates[key] = dateValue;
         } 
-        // ⭐ Xử lý emergencyContact
+        // ⭐ Xử lý emergencyContact với validation
         else if (key === 'emergencyContact') {
-          emergencyContactUpdate = req.body[key];
+          const ec = req.body[key];
+          
+          // Validate emergencyContact fields
+          if (ec) {
+            // Kiểm tra name
+            if (!ec.name || typeof ec.name !== 'string' || ec.name.trim().length === 0) {
+              return res.status(400).json({
+                success: false,
+                message: 'emergencyContact.name không được để trống'
+              });
+            }
+            
+            // Kiểm tra phone
+            if (!ec.phone || typeof ec.phone !== 'string' || ec.phone.trim().length === 0) {
+              return res.status(400).json({
+                success: false,
+                message: 'emergencyContact.phone không được để trống'
+              });
+            }
+            
+            // Kiểm tra phone format (10-11 số)
+            const phoneRegex = /^[0-9]{10,11}$/;
+            if (!phoneRegex.test(ec.phone.replace(/\D/g, ''))) {
+              return res.status(400).json({
+                success: false,
+                message: 'emergencyContact.phone phải là 10-11 số'
+              });
+            }
+            
+            // Kiểm tra relationship
+            const validRelationships = ['Father', 'Mother', 'Brother', 'Sister', 'Spouse', 'Friend', 'Other'];
+            if (!ec.relationship || !validRelationships.includes(ec.relationship)) {
+              return res.status(400).json({
+                success: false,
+                message: `emergencyContact.relationship phải là một trong: ${validRelationships.join(', ')}`
+              });
+            }
+            
+            emergencyContactUpdate = {
+              name: ec.name.trim(),
+              phone: ec.phone.trim(),
+              relationship: ec.relationship
+            };
+          }
         }
         else {
           updates[key] = req.body[key];

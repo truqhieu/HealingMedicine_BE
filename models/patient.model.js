@@ -4,9 +4,23 @@ const patientSchema = new mongoose.Schema({
   patientUserId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
+    required: true
   },
   emergencyContact: {
-    type: Object
+    name: {
+      type: String,
+      trim: true
+    },
+    phone: {
+      type: String,
+      trim: true
+    },
+    relationship: {
+      type: String,
+      trim: true,
+      enum: ['Father', 'Mother', 'Brother', 'Sister', 'Spouse', 'Friend', 'Other'],
+      default: 'Other'
+    }
   },
   lastVisitDate: {
     type: Date
@@ -15,4 +29,4 @@ const patientSchema = new mongoose.Schema({
   timestamps: true
 });
 
-module.exports = mongoose.model('Patient', patientSchema,'patients');
+module.exports = mongoose.model('Patient', patientSchema, 'patients');

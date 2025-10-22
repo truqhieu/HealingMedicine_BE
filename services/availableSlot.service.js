@@ -634,14 +634,21 @@ class AvailableSlotService {
     console.log(`   - Dịch vụ: ${service.serviceName} (${serviceDuration} phút)`);
     console.log(`   - Tổng slots: ${allSlots.length}`);
 
+    // Convert Date objects to ISO strings for JSON serialization
+    const slotsWithISOStrings = allSlots.map(slot => ({
+      startTime: slot.startTime.toISOString(),
+      endTime: slot.endTime.toISOString(),
+      displayTime: slot.displayTime
+    }));
+
     return {
-      date: searchDate,
+      date: searchDate.toISOString().split('T')[0],
       serviceId,
       serviceName: service.serviceName,
       serviceDuration,
       breakAfterMinutes,
-      availableSlots: allSlots,
-      totalSlots: allSlots.length,
+      slots: slotsWithISOStrings,
+      totalSlots: slotsWithISOStrings.length,
       schedules: [
         {
           shift: 'Morning',
