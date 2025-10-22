@@ -282,47 +282,101 @@ class AvailableSlotService {
     const searchDate = new Date(date);
     searchDate.setHours(0, 0, 0, 0);
 
-    if (doctors.length === 0) {
-      return {
-        date: searchDate,
-        serviceId,
-        serviceName: service.serviceName,
-        serviceDuration,
-        availableDoctors: [],
-        totalDoctors: 0,
-        message: 'Không có bác sĩ nào hoạt động'
-      };
+    // ⭐ THÊM: Auto-create schedule cho TOÀN BỘ ngày (1 lần duy nhất)
+    // Kiểm tra xem ngày này đã có schedule nào chưa
+    const existingSchedules = await DoctorSchedule.findOne({
+      date: searchDate,
+      status: 'Available'
+    });
+
+    if (!existingSchedules) {
+      console.log(`⚠️  Ngày ${searchDate.toISOString().split('T')[0]} chưa có schedule, tự động tạo cho tất cả bác sĩ...`);
+      
+      try {
+        // Tạo schedule cho TẤT CẢ bác sĩ 1 lần
+        const schedulesToCreate = [];
+        for (const doctor of doctors) {
+          schedulesToCreate.push(
+            {
+              doctorUserId: doctor._id,
+              date: searchDate,
+              shift: 'Morning',
+              startTime: new Date(searchDate).setHours(8, 0, 0),
+              endTime: new Date(searchDate).setHours(12, 0, 0),
+              status: 'Available',
+              maxSlots: 4
+            },
+            {
+              doctorUserId: doctor._id,
+              date: searchDate,
+              shift: 'Afternoon',
+              startTime: new Date(searchDate).setHours(14, 0, 0),
+              endTime: new Date(searchDate).setHours(18, 0, 0),
+              status: 'Available',
+              maxSlots: 4
+            }
+          );
+        }
+        
+        await DoctorSchedule.insertMany(schedulesToCreate);
+        console.log(`✅ Tạo ${schedulesToCreate.length} schedules cho ${doctors.length} bác sĩ`);
+      } catch (createError) {
+        console.error(`❌ Lỗi tạo schedules: ${createError.message}`);
+      }
     }
 
-    // 5. Duyệt qua từng bác sĩ để kiểm tra có khung giờ rảnh không
+    // 5. Duyệt qua từng bác sĩ để kiểm tra khung giờ này có rảnh không
     const availableDoctors = [];
+    const Timeslot = require('../models/timeslot.model');
 
     for (const doctor of doctors) {
       try {
-        // Lấy available slots cho bác sĩ này
-        const slotsResult = await this.getAvailableSlots({
+        // Kiểm tra xem bác sĩ có schedule vào ngày đó không
+        let schedule = await DoctorSchedule.findOne({
           doctorUserId: doctor._id,
-          serviceId,
           date: searchDate,
-          breakAfterMinutes
+          status: 'Available'
         });
 
-        // Nếu bác sĩ này có khung giờ rảnh
-        if (slotsResult.availableSlots && slotsResult.availableSlots.length > 0) {
-          availableDoctors.push({
-            doctorId: doctor._id,
-            doctorScheduleId: slotsResult.scheduleId, 
-            doctorName: doctor.fullName,
-            email: doctor.email,
-            phoneNumber: doctor.phoneNumber,
-            availableSlots: slotsResult.availableSlots,
-            totalSlots: slotsResult.availableSlots.length,
-            totalSlotsToday: slotsResult.availableSlots.length
-          });
+        // ⭐ Nếu vẫn không có schedule (rare case) → skip
+        if (!schedule) {
+          console.warn(`⚠️  Bác sĩ ${doctor._id} không có schedule cho ngày này, skip...`);
+          continue;
         }
+
+        // Kiểm tra khung giờ có nằm trong schedule không
+        const scheduleStart = new Date(schedule.startTime);
+        const scheduleEnd = new Date(schedule.endTime);
+
+        if (slotStartTime < scheduleStart || slotEndTime > scheduleEnd) {
+          continue; // Khung giờ này nằm ngoài schedule
+        }
+
+        // Kiểm tra khung giờ có bị đặt trước không (kiểm tra Reserved hoặc Booked timeslots)
+        const conflictingTimeslot = await Timeslot.findOne({
+          doctorUserId: doctor._id,
+          status: { $in: ['Reserved', 'Booked'] },
+          // Kiểm tra có overlap: timeslot.startTime < slotEndTime AND timeslot.endTime > slotStartTime
+          startTime: { $lt: slotEndTime },
+          endTime: { $gt: slotStartTime }
+        });
+
+        if (conflictingTimeslot) {
+          continue; // Khung giờ này đã bị đặt
+        }
+
+        // Bác sĩ này có khung giờ này rảnh
+        availableDoctors.push({
+          doctorId: doctor._id,
+          doctorScheduleId: schedule._id, // ← Schedule của ngày đó
+          doctorName: doctor.fullName,
+          email: doctor.email,
+          phoneNumber: doctor.phoneNumber,
+          available: true
+        });
+
       } catch (error) {
-        // Nếu có lỗi với bác sĩ này, bỏ qua và tiếp tục với bác sĩ khác
-        console.warn(`⚠️  Lỗi lấy available slots cho bác sĩ ${doctor._id}:`, error.message);
+        console.warn(`⚠️  Lỗi kiểm tra bác sĩ ${doctor._id}:`, error.message);
       }
     }
 
