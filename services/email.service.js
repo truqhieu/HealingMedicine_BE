@@ -28,11 +28,12 @@ class EmailService {
 
   async sendVerificationEmail(fullName, email, verificationLink) {
     if (this.useSendGrid) {
+      const emailTemplate = getVerificationEmailTemplate(fullName, verificationLink);
       return this._sendViaSendGrid(
         email,
-        'Xác thực tài khoản HealingMedicine',
-        `Xin chào ${fullName}!\n\nVui lòng nhấp vào link để xác thực: ${verificationLink}`,
-        `<a href="${verificationLink}">Xác thực tài khoản</a>`
+        emailTemplate.subject,
+        emailTemplate.text,
+        emailTemplate.html
       );
     }
     
