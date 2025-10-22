@@ -82,10 +82,14 @@ const getAvailableSlots = async (req, res) => {
       });
     }
 
+    // Get current user ID from auth middleware
+    const patientUserId = req.user?.userId;
+
     const result = await availableSlotService.getAvailableSlots({
       doctorUserId,
       serviceId,
       date: searchDate,
+      patientUserId,
       breakAfterMinutes: breakAfterMinutes ? parseInt(breakAfterMinutes) : 10
     });
 
@@ -212,11 +216,15 @@ const getAvailableDoctorsForTimeSlot = async (req, res) => {
       });
     }
 
+    // Get current user ID from auth middleware
+    const patientUserId = req.user?.userId;
+
     const result = await availableSlotService.getAvailableDoctorsForTimeSlot({
       serviceId,
       date: searchDate,
       startTime: slotStart,
-      endTime: slotEnd
+      endTime: slotEnd,
+      patientUserId
     });
 
     res.status(200).json({

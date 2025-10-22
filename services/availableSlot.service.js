@@ -18,7 +18,7 @@ class AvailableSlotService {
    * @param {Date} params.date - Ngày muốn đặt lịch
    * @param {Number} params.breakAfterMinutes - Thời gian nghỉ giữa các ca (mặc định 10 phút)
    */
-  async getAvailableSlots({ doctorUserId, serviceId, date, breakAfterMinutes = 10 }) {
+  async getAvailableSlots({ doctorUserId, serviceId, date, patientUserId, breakAfterMinutes = 10 }) {
     
     // 1. Validate input
     if (!doctorUserId || !serviceId || !date) {
@@ -134,6 +134,28 @@ class AvailableSlotService {
     // Filter out appointments where timeslotId couldn't match (populate returned null)
     const validAppointments = bookedAppointments.filter(apt => apt.timeslotId !== null);
 
+    // ⭐ THÊM: Kiểm tra appointments của bệnh nhân hiện tại trong ngày (nếu đặt cho bản thân)
+    let patientAppointments = [];
+    if (patientUserId) {
+      patientAppointments = await Appointment.find({
+        patientUserId,
+        status: { $in: ['PendingPayment', 'Pending', 'Approved', 'CheckedIn'] },
+        timeslotId: { $exists: true }
+      })
+      .populate({
+        path: 'timeslotId',
+        select: 'startTime endTime',
+        match: {
+          startTime: { $gte: startOfDay, $lte: endOfDay }
+        }
+      })
+      .sort({ 'timeslotId.startTime': 1 });
+
+      patientAppointments = patientAppointments.filter(apt => apt.timeslotId !== null);
+
+      console.log('👤 Appointments của bệnh nhân hiện tại trong ngày:', patientAppointments.length);
+    }
+
     // ⭐ THÊM: Lấy tất cả timeslots đã được Reserved hoặc Booked trong ngày
     // Để tránh conflict ngay cả khi chưa confirm appointment
     const Timeslot = require('../models/timeslot.model');
@@ -154,6 +176,19 @@ class AvailableSlotService {
       return null;
     }).filter(slot => slot !== null);
 
+    // ⭐ THÊM: Thêm appointments của bệnh nhân vào busy slots
+    const patientBusySlots = patientAppointments.map(apt => {
+      if (apt.timeslotId) {
+        return {
+          start: new Date(apt.timeslotId.startTime),
+          end: new Date(apt.timeslotId.endTime).getTime() + breakAfterMinutes * 60000
+        };
+      }
+      return null;
+    }).filter(slot => slot !== null);
+    
+    busySlots.push(...patientBusySlots);
+
     // ⭐ THÊM: Thêm Reserved/Booked timeslots vào busySlots
     const reservedBusySlots = reservedTimeslots.map(ts => ({
       start: new Date(ts.startTime),
@@ -164,9 +199,11 @@ class AvailableSlotService {
 
     console.log('📅 Tính toán available slots:');
     console.log('   - Bác sĩ:', doctorUserId);
+    console.log('   - Bệnh nhân:', patientUserId || 'N/A');
     console.log('   - Dịch vụ:', service.serviceName, `(${serviceDuration} phút)`);
     console.log('   - Ngày:', searchDate.toISOString().split('T')[0]);
-    console.log('   - Số appointments đã book:', validAppointments.length);
+    console.log('   - Số appointments của bác sĩ đã book:', validAppointments.length);
+    console.log('   - Số appointments của bệnh nhân đã book:', patientAppointments.length);
     console.log('   - Số timeslots Reserved/Booked:', reservedTimeslots.length);
     console.log('🔴 DEBUG busySlots:', busySlots.map(b => ({
       start: new Date(b.start).toISOString(),
@@ -239,8 +276,8 @@ class AvailableSlotService {
 
       if (!isConflict) {
         slots.push({
-          startTime: new Date(currentStart),
-          endTime: new Date(currentEnd),
+          startTime: currentStart.toISOString(),
+          endTime: currentEnd.toISOString(),
           displayTime: ScheduleHelper.formatTimeSlot(currentStart, currentEnd)
         });
       }
@@ -413,7 +450,7 @@ class AvailableSlotService {
    * @param {Date} params.endTime - Giờ kết thúc khung giờ muốn chọn
    * @returns {Object} Danh sách bác sĩ có khung giờ khả dụng
    */
-  async getAvailableDoctorsForTimeSlot({ serviceId, date, startTime, endTime }) {
+  async getAvailableDoctorsForTimeSlot({ serviceId, date, startTime, endTime, patientUserId }) {
     // 1. Validate input
     if (!serviceId || !date || !startTime || !endTime) {
       throw new Error('Vui lòng cung cấp đầy đủ serviceId, date, startTime và endTime');
@@ -427,6 +464,42 @@ class AvailableSlotService {
 
     if (service.status !== 'Active') {
       throw new Error('Dịch vụ này hiện không hoạt động');
+    }
+
+    // ⭐ THÊM: Check nếu bệnh nhân hiện tại đã có appointment vào khung giờ này
+    if (patientUserId) {
+      const slotStartTime = new Date(startTime);
+      const slotEndTime = new Date(endTime);
+
+      const existingPatientAppointment = await Appointment.findOne({
+        patientUserId,
+        status: { $in: ['PendingPayment', 'Pending', 'Approved', 'CheckedIn'] },
+        timeslotId: { $exists: true }
+      })
+      .populate({
+        path: 'timeslotId',
+        select: 'startTime endTime',
+        match: {
+          startTime: { $gte: slotStartTime, $lt: slotEndTime },
+          endTime: { $gt: slotStartTime, $lte: slotEndTime }
+        }
+      });
+
+      if (existingPatientAppointment && existingPatientAppointment.timeslotId) {
+        console.log(`⚠️  Bệnh nhân ${patientUserId} đã có appointment vào khung giờ này`);
+        return {
+          date: new Date(date),
+          serviceId,
+          serviceName: service.serviceName,
+          requestedTime: {
+            startTime: new Date(startTime),
+            endTime: new Date(endTime)
+          },
+          availableDoctors: [],
+          totalDoctors: 0,
+          message: 'Bạn đã có appointment vào khung giờ này. Vui lòng chọn khung giờ khác.'
+        };
+      }
     }
 
     // ⭐ THÊM: Validate duration của slot phải khớp với service
