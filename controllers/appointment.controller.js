@@ -4,15 +4,17 @@ const emailService = require('../services/email.service');
 const createConsultationAppointment = async (req, res) => {
   try {
     const {
-      fullName,
-      email,
       phoneNumber,
       appointmentFor,
       serviceId,
       doctorUserId, 
       doctorScheduleId,
-      selectedSlot 
+      selectedSlot,
+      notes
     } = req.body;
+
+    // fullName và email có thể không được gửi nếu appointmentFor là 'self'
+    let { fullName, email } = req.body;
 
     console.log('🔍 DEBUG createConsultationAppointment:');
     console.log('   - req.user:', req.user);
@@ -97,10 +99,10 @@ const createConsultationAppointment = async (req, res) => {
       serviceId: serviceId,
       doctorScheduleId: doctorScheduleId,
       selectedSlot: selectedSlot, 
-      notes: req.body.notes || null,
+      notes: notes || null,
       formData: {
-        fullName,
-        email,
+        fullName: fullName || '',
+        email: email || '',
         phoneNumber,
         appointmentFor: appointmentFor || 'self'
       }

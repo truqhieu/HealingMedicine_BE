@@ -14,10 +14,8 @@ class AppointmentService {
       serviceId,
       doctorScheduleId,
       selectedSlot, // { startTime, endTime } từ available slots
-      consultationType,
       notes,
-      phoneNumber,
-      appointmentFor
+      formData // This contains fullName, email, phoneNumber, appointmentFor
     } = appointmentData;
 
     // Validate required fields
@@ -67,16 +65,16 @@ class AppointmentService {
     // appointmentFor: 'self' | 'other'
     let customerId = null;
     
-    // Formdata lấy từ request
-    const formData = { phoneNumber, appointmentFor };
-    if (formData?.appointmentFor === 'other') {
-      // TODO: Lấy customerId từ request
-      customerId = null; // Tạm thời null
-    }
-
-    if (formData.phoneNumber) {
-      console.log('   - SĐT:', formData.phoneNumber);
-    }
+    // Log thông tin để kiểm tra
+    console.log('📋 Thông tin đặt lịch:');
+    console.log('- Service:', service.serviceName);
+    console.log('- Category:', service.category);
+    console.log('- isPrepaid:', service.isPrepaid);
+    console.log('- Mode được set:', appointmentMode);
+    console.log('- Họ tên từ form:', formData?.fullName);
+    console.log('- SĐT từ form:', formData?.phoneNumber);
+    console.log('- Email từ user đăng nhập:', patient.email);
+    console.log('- Đặt cho:', formData?.appointmentFor || 'self');
 
     // ⭐ THÊM: CHECK TIMESLOT TRƯỚC KHI TẠO ❌
     // Để tránh race condition: 2 request cùng lúc
@@ -123,17 +121,6 @@ class AppointmentService {
     if (doctor.status !== 'Active') {
       throw new Error('Bác sĩ này hiện không hoạt động');
     }
-
-    // Log thông tin để kiểm tra
-    console.log('📋 Thông tin đặt lịch:');
-    console.log('- Service:', service.serviceName);
-    console.log('- Category:', service.category);
-    console.log('- isPrepaid:', service.isPrepaid);
-    console.log('- Mode được set:', appointmentMode);
-    console.log('- Họ tên từ form:', formData?.fullName);
-    console.log('- SĐT từ form:', formData?.phoneNumber);
-    console.log('- Email từ user đăng nhập:', patient.email);
-    console.log('- Đặt cho:', formData?.appointmentFor || 'self');
 
     // Nếu đặt cho người khác, tạo Customer
     if (formData?.appointmentFor === 'other') {
