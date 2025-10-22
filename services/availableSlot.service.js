@@ -707,8 +707,17 @@ class AvailableSlotService {
    * ⭐ NEW: Generate danh sách khung giờ trống cho một ngày (không cần chọn bác sĩ)
    * FE dùng để hiển thị các slot khả dụng sau khi chọn dịch vụ + ngày
    * @param {string} patientUserId - ID của user đang đặt lịch (để exclude slots đã đặt)
+   * @param {string} customerFullName - Tên người khác (để validate conflict)
+   * @param {string} customerEmail - Email người khác (để validate conflict)
    */
-  async generateAvailableSlotsByDate({ serviceId, date, breakAfterMinutes = 10, patientUserId = null }) {
+  async generateAvailableSlotsByDate({ 
+    serviceId, 
+    date, 
+    breakAfterMinutes = 10, 
+    patientUserId = null,
+    customerFullName = null,
+    customerEmail = null
+  }) {
     // 1. Validate input
     if (!serviceId || !date) {
       throw new Error('Vui lòng cung cấp đầy đủ serviceId và date');
@@ -872,6 +881,40 @@ class AvailableSlotService {
       console.log(`👤 User ${patientUserId} đã đặt ${patientBookedSlots.length} slots`);
     }
 
+    // 6.6. ⭐ THÊM: Nếu đặt cho người khác, lấy appointments của người khác này để exclude
+    let customerBookedSlots = [];
+    if (customerFullName && customerEmail) {
+      console.log(`👤 Tìm appointments của customer: ${customerFullName} <${customerEmail}>`);
+      
+      const Customer = require('../models/customer.model');
+      
+      // Tìm customer có fullName + email match (case-insensitive)
+      const customer = await Customer.findOne({
+        fullName: new RegExp(`^${customerFullName}$`, 'i'),
+        email: new RegExp(`^${customerEmail}$`, 'i')
+      });
+
+      if (customer) {
+        console.log(`✅ Tìm thấy customer: ${customer._id}`);
+        
+        const customerAppointments = await Appointment.find({
+          customerId: customer._id,
+          status: { $in: ['Pending', 'Approved', 'CheckedIn', 'Completed'] }
+        }).populate('timeslotId', 'startTime endTime');
+
+        customerBookedSlots = customerAppointments
+          .filter(apt => apt.timeslotId)
+          .map(apt => ({
+            start: new Date(apt.timeslotId.startTime),
+            end: new Date(apt.timeslotId.endTime)
+          }));
+
+        console.log(`👤 Customer ${customerFullName} đã đặt ${customerBookedSlots.length} slots`);
+      } else {
+        console.log(`⚠️ Không tìm thấy customer: ${customerFullName} <${customerEmail}>`);
+      }
+    }
+
     // 7. Tạo map của booked timeslots theo doctorId
     const bookedSlotsByDoctor = {};
     for (const apt of appointments) {
@@ -949,6 +992,35 @@ class AvailableSlotService {
         });
         
         console.log(`   - availableSlots AFTER filter: ${availableSlots.length}`);
+      }
+
+      // ⭐ Thêm filter: Exclude slots mà customer hiện tại đã đặt (nếu đặt cho người khác)
+      if (customerBookedSlots.length > 0) {
+        console.log(`🔍 [Doctor ${doctor.fullName}] Filtering customer booked slots...`);
+        console.log(`   - customerBookedSlots count: ${customerBookedSlots.length}`);
+        customerBookedSlots.forEach((booked, idx) => {
+          console.log(`   - Booked slot ${idx}: ${booked.start.toISOString()} - ${booked.end.toISOString()}`);
+        });
+        
+        console.log(`   - availableSlots BEFORE customer filter: ${availableSlots.length}`);
+        
+        availableSlots = availableSlots.filter(slot => {
+          const slotStart = new Date(slot.startTime);
+          const slotEnd = new Date(slot.endTime);
+          
+          const isBooked = customerBookedSlots.some(booked => {
+            return (slotStart.getTime() === booked.start.getTime() && 
+                    slotEnd.getTime() === booked.end.getTime());
+          });
+          
+          if (isBooked) {
+            console.log(`     ❌ Excluding slot: ${slot.startTime} - ${slot.endTime}`);
+          }
+          
+          return !isBooked;
+        });
+        
+        console.log(`   - availableSlots AFTER customer filter: ${availableSlots.length}`);
       }
 
       // Thêm thông tin doctor và format displayTime theo giờ Việt Nam

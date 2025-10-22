@@ -7,7 +7,7 @@ const availableSlotService = require('../services/availableSlot.service');
  */
 const generateSlotsByDate = async (req, res) => {
   try {
-    const { serviceId, date, breakAfterMinutes } = req.query;
+    const { serviceId, date, breakAfterMinutes, appointmentFor, customerFullName, customerEmail } = req.query;
     const userId = req.user?.userId || null; // Lấy userId nếu user đã login
 
     // Validation
@@ -28,12 +28,25 @@ const generateSlotsByDate = async (req, res) => {
     }
 
     console.log('🔍 [generateSlotsByDate] User ID:', userId ? userId : 'Guest');
+    console.log('🔍 [generateSlotsByDate] appointmentFor:', appointmentFor || 'not specified');
+    if (appointmentFor === 'other') {
+      console.log('🔍 [generateSlotsByDate] Customer:', customerFullName, '<' + customerEmail + '>');
+    }
+
+    // ⭐ Chỉ pass userId nếu appointmentFor === 'self' hoặc không specify (default là self)
+    // Nếu appointmentFor === 'other', không pass userId để không exclude
+    const patientUserIdForExclusion = (appointmentFor === 'self' || !appointmentFor) && userId ? userId : null;
 
     const result = await availableSlotService.generateAvailableSlotsByDate({
       serviceId,
       date: searchDate,
       breakAfterMinutes: breakAfterMinutes ? parseInt(breakAfterMinutes) : 10,
-      patientUserId: userId // Pass userId để exclude slots đã đặt
+      patientUserId: patientUserIdForExclusion, // ⭐ Chỉ exclude khi appointmentFor === 'self'
+      // ⭐ Pass customer info nếu appointmentFor === 'other'
+      ...(appointmentFor === 'other' && {
+        customerFullName: customerFullName ? decodeURIComponent(customerFullName) : null,
+        customerEmail: customerEmail ? decodeURIComponent(customerEmail) : null,
+      }),
     });
 
     res.status(200).json({
