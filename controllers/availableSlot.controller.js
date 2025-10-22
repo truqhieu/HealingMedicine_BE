@@ -1,6 +1,63 @@
 const availableSlotService = require('../services/availableSlot.service');
 
 /**
+ * ⭐ NEW: Generate danh sách khung giờ trống cho một ngày
+ * GET /api/available-slots/generate?serviceId=xxx&date=2025-10-25
+ * Dùng để FE hiển thị các slot khả dụng sau khi chọn dịch vụ + ngày
+ */
+const generateSlotsByDate = async (req, res) => {
+  try {
+    const { serviceId, date, breakAfterMinutes } = req.query;
+
+    // Validation
+    if (!serviceId || !date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp đầy đủ serviceId và date'
+      });
+    }
+
+    // Validate date format
+    const searchDate = new Date(date);
+    if (isNaN(searchDate.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Định dạng ngày không hợp lệ. Vui lòng sử dụng format: YYYY-MM-DD'
+      });
+    }
+
+    const result = await availableSlotService.generateAvailableSlotsByDate({
+      serviceId,
+      date: searchDate,
+      breakAfterMinutes: breakAfterMinutes ? parseInt(breakAfterMinutes) : 10
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result
+    });
+
+  } catch (error) {
+    console.error('Lỗi generate slots by date:', error);
+
+    if (error.message.includes('Không tìm thấy') ||
+        error.message.includes('không hoạt động') ||
+        error.message.includes('Vui lòng cung cấp')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi generate danh sách khung giờ',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
  * Lấy danh sách khung giờ available động
  * GET /api/available-slots?doctorUserId=xxx&serviceId=yyy&date=2025-10-21
  */
@@ -188,6 +245,7 @@ const getAvailableDoctorsForTimeSlot = async (req, res) => {
 };
 
 module.exports = {
+  generateSlotsByDate,
   getAvailableSlots,
   getAvailableDoctors,
   getAvailableDoctorsForTimeSlot

@@ -55,23 +55,57 @@ class AvailableSlotService {
     const searchDate = new Date(date);
     searchDate.setHours(0, 0, 0, 0);
 
-    const schedules = await DoctorSchedule.find({
+    let schedules = await DoctorSchedule.find({
       doctorUserId,
       date: searchDate,
       status: 'Available'
     }).sort({ startTime: 1 });
 
+    // ⭐ THÊM: Nếu chưa có schedule cho ngày này → Tự động tạo mặc định
     if (schedules.length === 0) {
-      return {
-        date: searchDate,
-        doctorUserId,
-        serviceId,
-        serviceName: service.serviceName,
-        serviceDuration,
-        availableSlots: [],
-        message: 'Bác sĩ không có lịch làm việc trong ngày này'
-      };
+      console.log(`⚠️  Không tìm thấy DoctorSchedule cho ngày ${searchDate.toISOString().split('T')[0]}, tự động tạo...`);
+      
+      try {
+        // Tạo 2 schedule mặc định (Morning 8:00-12:00, Afternoon 14:00-18:00)
+        const defaultSchedules = [
+          {
+            doctorUserId,
+            date: searchDate,
+            shift: 'Morning',
+            startTime: new Date(searchDate).setHours(8, 0, 0),
+            endTime: new Date(searchDate).setHours(12, 0, 0),
+            status: 'Available',
+            maxSlots: 4
+          },
+          {
+            doctorUserId,
+            date: searchDate,
+            shift: 'Afternoon',
+            startTime: new Date(searchDate).setHours(14, 0, 0),
+            endTime: new Date(searchDate).setHours(18, 0, 0),
+            status: 'Available',
+            maxSlots: 4
+          }
+        ];
+        
+        schedules = await DoctorSchedule.insertMany(defaultSchedules);
+        console.log(`✅ Tạo mới 2 schedule mặc định cho ngày ${searchDate.toISOString().split('T')[0]}`);
+      } catch (insertError) {
+        console.error(`❌ Lỗi tạo schedule mặc định:`, insertError.message);
+        return {
+          date: searchDate,
+          doctorUserId,
+          serviceId,
+          serviceName: service.serviceName,
+          serviceDuration,
+          availableSlots: [],
+          message: 'Không thể tạo lịch làm việc mặc định. Vui lòng liên hệ admin.'
+        };
+      }
     }
+
+    // ⭐ Lúc này schedules luôn có dữ liệu (auto-created nếu cần)
+    // Không cần check schedules.length === 0 nữa
 
     // 5. Lấy tất cả appointments đã book của bác sĩ trong ngày đó
     const startOfDay = new Date(searchDate);
@@ -337,6 +371,20 @@ class AvailableSlotService {
       throw new Error('Dịch vụ này hiện không hoạt động');
     }
 
+    // ⭐ THÊM: Validate duration của slot phải khớp với service
+    const slotStartTime = new Date(startTime);
+    const slotEndTime = new Date(endTime);
+    const slotDurationMinutes = (slotEndTime - slotStartTime) / 60000;
+    const serviceDurationMinutes = service.durationMinutes;
+
+    if (slotDurationMinutes !== serviceDurationMinutes) {
+      throw new Error(
+        `Thời lượng khung giờ không khớp với dịch vụ. ` +
+        `Dịch vụ "${service.serviceName}" yêu cầu ${serviceDurationMinutes} phút, ` +
+        `nhưng bạn đã chọn ${slotDurationMinutes} phút.`
+      );
+    }
+
     // 3. Lấy tất cả bác sĩ ACTIVE
     const doctors = await User.find({
       role: 'Doctor',
@@ -362,8 +410,8 @@ class AvailableSlotService {
     const searchDate = new Date(date);
     searchDate.setHours(0, 0, 0, 0);
 
-    const slotStartTime = new Date(startTime);
-    const slotEndTime = new Date(endTime);
+    // ⭐ slotStartTime và slotEndTime đã được khai báo ở trên (dòng 375-376)
+    // Không cần khai báo lại
 
     // 5. Duyệt qua từng bác sĩ để kiểm tra khung giờ này có rảnh không
     const availableDoctors = [];
@@ -434,6 +482,91 @@ class AvailableSlotService {
       },
       availableDoctors: availableDoctors,
       totalDoctors: availableDoctors.length
+    };
+  }
+
+  /**
+   * ⭐ NEW: Generate danh sách khung giờ trống cho một ngày (không cần chọn bác sĩ)
+   * FE dùng để hiển thị các slot khả dụng sau khi chọn dịch vụ + ngày
+   */
+  async generateAvailableSlotsByDate({ serviceId, date, breakAfterMinutes = 10 }) {
+    // 1. Validate input
+    if (!serviceId || !date) {
+      throw new Error('Vui lòng cung cấp đầy đủ serviceId và date');
+    }
+
+    // 2. Lấy thông tin dịch vụ
+    const service = await Service.findById(serviceId);
+    if (!service) {
+      throw new Error('Không tìm thấy dịch vụ');
+    }
+
+    if (service.status !== 'Active') {
+      throw new Error('Dịch vụ này hiện không hoạt động');
+    }
+
+    const serviceDuration = service.durationMinutes;
+
+    // 3. Chuẩn bị ngày tìm kiếm
+    const searchDate = new Date(date);
+    searchDate.setHours(0, 0, 0, 0);
+
+    // 4. Tạo schedule mặc định nếu chưa có
+    const schedules = [
+      {
+        shift: 'Morning',
+        startTime: new Date(searchDate).setHours(8, 0, 0),
+        endTime: new Date(searchDate).setHours(12, 0, 0)
+      },
+      {
+        shift: 'Afternoon',
+        startTime: new Date(searchDate).setHours(14, 0, 0),
+        endTime: new Date(searchDate).setHours(18, 0, 0)
+      }
+    ];
+
+    // 5. Generate slots từ schedules
+    const allSlots = [];
+
+    for (const schedule of schedules) {
+      const scheduleStart = new Date(schedule.startTime);
+      const scheduleEnd = new Date(schedule.endTime);
+
+      const slots = this._generateSlotsInRange(
+        scheduleStart,
+        scheduleEnd,
+        serviceDuration,
+        breakAfterMinutes,
+        [] // Không có busySlots (chỉ generate toàn bộ)
+      );
+
+      allSlots.push(...slots);
+    }
+
+    console.log(`✅ Generate slots cho ngày ${searchDate.toISOString().split('T')[0]}`);
+    console.log(`   - Dịch vụ: ${service.serviceName} (${serviceDuration} phút)`);
+    console.log(`   - Tổng slots: ${allSlots.length}`);
+
+    return {
+      date: searchDate,
+      serviceId,
+      serviceName: service.serviceName,
+      serviceDuration,
+      breakAfterMinutes,
+      availableSlots: allSlots,
+      totalSlots: allSlots.length,
+      schedules: [
+        {
+          shift: 'Morning',
+          startTime: schedules[0].startTime,
+          endTime: schedules[0].endTime
+        },
+        {
+          shift: 'Afternoon',
+          startTime: schedules[1].startTime,
+          endTime: schedules[1].endTime
+        }
+      ]
     };
   }
 }
