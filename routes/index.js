@@ -66,7 +66,7 @@ router.get('/', (req, res) => {
         deleteService: 'DELETE /api/manager/services/:id',
       },
       clinic: {
-        createClinicRoom: 'POST /api/manager/clinics',
+        createClinicRoom: 'POST /api/manager/clinics ',
         getAllServices: 'GET /api/manager/clinics',
         viewDetailClinicRoom: 'GET /api/manager/clinics/:id',
         updateClinicRoom: 'PATCH /api/manager/clinics/:id',
