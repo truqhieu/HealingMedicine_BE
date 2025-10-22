@@ -5,7 +5,7 @@ const Staff = require('../models/staff.model');
 const bcrypt = require('bcryptjs')
 
 const ROLE_ACCOUNT = ['Doctor', 'Nurse', 'Staff', 'Patient', 'Manager'];
-// const ASSIN_ROLE = ['Doctor', 'Nurse', 'Staff'];
+const GENDER = User.schema.path('gender').enumValues;
 const STATUS = User.schema.path('status').enumValues;
 
 const createAccount = async(req, res) =>{
@@ -101,6 +101,8 @@ const getAllAccounts = async(req,res) =>{
             limit = 10,
             status,
             search,
+            gender,
+            role,
         }   = req.query
 
         const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -109,6 +111,8 @@ const getAllAccounts = async(req,res) =>{
 
         const filter = {};
         if(status && STATUS.includes(status)) filter.status = status;
+        if(gender && GENDER.includes(gender)) filter.gender = gender;
+        if(role && ROLE_ACCOUNT.includes(role)) filter.role = role;
 
         if(search && String(search).trim().length > 0){
             const searchKey = String(search).trim();
@@ -148,7 +152,7 @@ const getAllAccounts = async(req,res) =>{
 
 const viewDetailAccount = async(req,res) =>{
     try {
-        const detailAccount = await User.findById(req.params.id).select('-passwordHash -__v');
+        const detailAccount = await User.findById(req.params.id).select('role -passwordHash -__v');
         if(!detailAccount){
             return res.status(400).json({
                 status : false,

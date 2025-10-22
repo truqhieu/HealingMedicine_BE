@@ -40,6 +40,8 @@ const getAllServices = async(req,res) =>{
             status,
             category,
             search,
+            sortPrice,
+            sortTime,
         } = req.query
 
         const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -47,9 +49,23 @@ const getAllServices = async(req,res) =>{
         const skip = (pageNum -1) * limitNum;
 
         const filter = {};
-        if(isPrepaid && REPAID.includes(isPrepaid)) filter.isPrepaid = isPrepaid;
+        // if(isPrepaid && REPAID.includes(isPrepaid)) filter.isPrepaid = isPrepaid;
+        if (isPrepaid !== undefined) {
+        filter.isPrepaid = isPrepaid === 'true';}
         if(status && STATUS.includes(status)) filter.status = status;
         if(category && CATEGORY.includes(category)) filter.category = category;
+
+        let sortP = {};
+        if(sortPrice){
+            if(sortPrice === "asc") sortP.price = 1;
+            else if (sortPrice === "desc") sortP.price = -1;
+        }
+
+        let sortT = {};
+        if(sortTime){
+            if(sortTime === "asc") sortT.durationMinutes = 1;
+            else if (sortTime === "desc") sortT.durationMinutes = -1;
+        }
 
         if(search && String(search).trim().length > 0){
             const searchKey = String(search).trim();
@@ -63,6 +79,8 @@ const getAllServices = async(req,res) =>{
         const[total, services] = await Promise.all([
             Service.countDocuments(filter),
             Service.find(filter)
+            .sort(sortP)
+            .sort(sortT)
             .skip(skip)
             .limit(limitNum)
             .lean()

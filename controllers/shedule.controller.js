@@ -37,9 +37,7 @@ const checkAvailableDoctors = async (req, res) => {
     console.log("Lỗi lấy danh sách bác sĩ trống ca làm.", error);
     res.status(500).json({ status: false, message: "Lỗi server" });
   }
-};
-
-
+}
 
 const createScheduleDoctor = async(req,res) =>{
   try {
@@ -66,13 +64,6 @@ const createScheduleDoctor = async(req,res) =>{
       maxSlots,
     })
 
-    // if(newSchedule){
-    //   return res.status(400).json({
-    //     status : false,
-    //     messge : 'Lịch làm việc đã tồn tại'
-    //   })
-    // }
-
     await newSchedule.save();
 
     res.status(201).json({
@@ -87,13 +78,47 @@ const createScheduleDoctor = async(req,res) =>{
 }
 
 
-const getAllScheduleDoctor = async(req,res) =>{
+const SHIFT = SchedulesDoctor.schema.path('shift').enumValues;
+const STATUS = SchedulesDoctor.schema.path('status').enumValues;
+const getAllScheduleDoctors = async(req,res) =>{
   try {
-    const listScheduleDoctor = await SchedulesDoctor.find();
-    res.status(200).json({
+    const {
+      page = 1,
+      limit = 10,
+      shift,
+      status,
+    } = req.query
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1)
+    const limitNum = Math.min(100, parseInt(limit, 10) || 10);
+    const skip = (pageNum - 1) * limitNum;    
+
+    const filter = {};
+    if(shift && SHIFT.includes(shift)) filter.shift = shift;
+    if(status && STATUS.includes(status)) filter.status = status;   
+    
+    
+    const [total, schedules] = await Promise.all([
+      SchedulesDoctor.countDocuments(filter),
+      SchedulesDoctor.find(filter)
+      .populate({
+        path :'doctorUserId',
+        select : 'fullName'
+      })
+      .skip(skip)
+      .limit(limitNum)
+      .lean()
+    ])
+
+    const totalPages = Math.max(1, Math.ceil(total/ limitNum));
+
+    return res.status(200).json({
       status : true,
-      message : 'Danh sách lịch làm việc của các bác sĩ.',
-      data : listScheduleDoctor
+      total,
+      totalPages,
+      page  : pageNum,
+      limit : limitNum,
+      data : schedules
     })
   } catch (error) {
     console.log('Lỗi khi lấy danh sách lịch làm việc cho bác sĩ.', error);
@@ -101,7 +126,69 @@ const getAllScheduleDoctor = async(req,res) =>{
   }
 }
 
-const
+const viewDetailScheduleDoctor = async(req,res)=>{
+  try {
+    const findScheduleDetail = await SchedulesDoctor.findById(re.params.id);
+    if(!findScheduleDetail){
+      return res.status(400).json({
+        status : false,
+        message : 'Lịch làm việc không tồn tại'
+      })
+    }
+    res.status(200).json({
+      status : true,
+      message : 'Chi tiết lịch làm việc',
+      data : findScheduleDetail
+    })
+  } catch (error) {
+    console.log('Lỗi khi xe lịch làm việc chi tiết của bác sĩ.', error);
+    res.status(500).json({status : false , message : 'Lỗi server'})
+  }
+}
+
+const updateScheduleDoctor = async(req,res) =>{
+  try {
+    const updateFields = [
+    'shift',
+    'startTime',
+    'endTime',
+    'status',
+  ]
+
+  const updates = {};
+  Object.keys(req.body).forEach(key =>{
+    if(updateFields.includes(key)){
+      updates[key] = req.body[key]
+    }
+  });
+  if(Object.keys(updates).length === 0){
+    return res.status(400).json({
+      status : false,
+      message : 'Không có trường hợp lệ để cập nhật'
+    });   
+  }
+
+  const schedule = await SchedulesDoctor.findByIdAndUpdate(
+    req.params.id,
+    {$set : updates},
+    {new : true, runValidators : true}
+  )
+
+  if(!schedule){
+    return res.status(400).json({
+      status : false,
+      message : 'Không tìm thấy lịch làm việc.'
+    })
+  }
+  res.status(200).json({
+    status : true,
+    message : 'Cập nhật lịch làm việc thành công',
+    data : schedule
+  })
+  } catch (error) {
+    
+  }
+}
 
 const deleteSchedule = async(req,res) =>{
   try {
@@ -116,4 +203,4 @@ const deleteSchedule = async(req,res) =>{
   }
 }
 
-module.exports = {checkAvailableDoctors,createScheduleDoctor, getAllScheduleDoctor, deleteSchedule}
+module.exports = {checkAvailableDoctors,createScheduleDoctor, getAllScheduleDoctors,viewDetailScheduleDoctor, updateScheduleDoctor,deleteSchedule}

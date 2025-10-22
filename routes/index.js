@@ -14,7 +14,6 @@ const appointmentRoutes = require('./appointment.route');
 const availableSlotRoutes = require('./availableSlot.route');
 const paymentRoutes = require('./payment.route');
 
-const { deleteClinicRoom } = require('../controllers/clinic.controller');
 
 // --- ROUTES ---
 router.use('/auth', userRoutes);
@@ -79,7 +78,9 @@ router.get('/', (req, res) => {
       schedule: {
         checkAvailableDoctors: 'GET /api/manager/schedules/doctor-available',
         createScheduleDoctor: 'POST /api/manager/schedules',
-        getAllScheduleDoctor: 'GET /api/manager/schedules',
+        getAllScheduleDoctors: 'GET /api/manager/schedules',
+        viewDetailScheduleDoctor : 'GET /api/manager/schedules/:id',
+        updateScheduleDoctor : 'PATCH /api/manager/schedules/:id',
         deleteSchedule: 'DELETE /api/manager/schedules/:id',
       },
       doctor: {
