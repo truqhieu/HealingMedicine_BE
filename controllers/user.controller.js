@@ -155,9 +155,9 @@ const login = async (req, res) => {
           email: user.email,
           role: user.role,
           status: user.status,
-          phone: user.phone,
+          phone: user.phoneNumber,
           address: user.address,
-          dateOfBirth: user.dateOfBirth,
+          dateOfBirth: user.dob,
           gender: user.gender,
           avatar: user.avatar,
           createdAt: user.createdAt,
@@ -195,7 +195,22 @@ const getProfile = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: { user }
+      data: { 
+        user: {
+          id: user._id,
+          fullName: user.fullName,
+          email: user.email,
+          role: user.role,
+          status: user.status,
+          phone: user.phoneNumber,
+          address: user.address,
+          dateOfBirth: user.dob,
+          gender: user.gender,
+          avatar: user.avatar,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt
+        }
+      }
     });
 
   } catch (error) {
@@ -473,7 +488,7 @@ const updateProfile = async (req, res) => {
           status: updatedUser.status,
           phone: updatedUser.phoneNumber,
           address: updatedUser.address,
-          dob: updatedUser.dob,
+          dateOfBirth: updatedUser.dob,
           gender: updatedUser.gender,
           avatar: updatedUser.avatar,
           createdAt: updatedUser.createdAt,
