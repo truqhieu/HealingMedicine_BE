@@ -149,10 +149,16 @@ class ScheduleHelper {
   static formatTimeSlot(startTime, endTime) {
     const formatTime = (date) => {
       // Format theo timezone Việt Nam (UTC+7)
-      const vnTime = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
-      const hours = String(vnTime.getHours()).padStart(2, '0');
-      const minutes = String(vnTime.getMinutes()).padStart(2, '0');
-      return `${hours}:${minutes}`;
+      const options = {
+        timeZone: 'Asia/Ho_Chi_Minh',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      };
+      
+      const formatted = new Date(date).toLocaleString('vi-VN', options);
+      // formatted = "HH:mm" hoặc "H:mm"
+      return formatted;
     };
 
     return `${formatTime(startTime)} - ${formatTime(endTime)}`;

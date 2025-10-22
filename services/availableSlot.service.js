@@ -420,14 +420,47 @@ class AvailableSlotService {
     for (const doctor of doctors) {
       try {
         // Kiểm tra xem bác sĩ có schedule vào ngày đó không
-        const schedule = await DoctorSchedule.findOne({
+        let schedule = await DoctorSchedule.findOne({
           doctorUserId: doctor._id,
           date: searchDate,
           status: 'Available'
         });
 
+        // ⭐ THÊM: Nếu không có schedule → Tự động tạo
         if (!schedule) {
-          continue; // Bác sĩ không có schedule ngày này
+          console.log(`⚠️  Bác sĩ ${doctor._id} không có schedule cho ngày ${searchDate.toISOString().split('T')[0]}, tự động tạo...`);
+          
+          try {
+            const defaultSchedules = [
+              {
+                doctorUserId: doctor._id,
+                date: searchDate,
+                shift: 'Morning',
+                startTime: new Date(searchDate).setHours(8, 0, 0),
+                endTime: new Date(searchDate).setHours(12, 0, 0),
+                status: 'Available',
+                maxSlots: 4
+              },
+              {
+                doctorUserId: doctor._id,
+                date: searchDate,
+                shift: 'Afternoon',
+                startTime: new Date(searchDate).setHours(14, 0, 0),
+                endTime: new Date(searchDate).setHours(18, 0, 0),
+                status: 'Available',
+                maxSlots: 4
+              }
+            ];
+            
+            const created = await DoctorSchedule.insertMany(defaultSchedules);
+            console.log(`✅ Tạo mới 2 schedule mặc định`);
+            
+            // Lấy schedule Morning (shift đầu tiên)
+            schedule = created[0];
+          } catch (createError) {
+            console.error(`❌ Lỗi tạo schedule: ${createError.message}`);
+            continue;
+          }
         }
 
         // Kiểm tra khung giờ có nằm trong schedule không
