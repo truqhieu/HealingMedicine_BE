@@ -1,6 +1,6 @@
-const SchedulesDoctor = require("../models/schedule.model")
+const DoctorSchedule = require("../models/doctorSchedule.model")
 const User = require('../models/user.model')
-const Clinicroom = require('../models/clinic.model')
+const Room = require('../models/clinic.model')
 
 const checkAvailableDoctors = async (req, res) => {
   try {
@@ -10,7 +10,7 @@ const checkAvailableDoctors = async (req, res) => {
     const endOfDay = new Date();
     endOfDay.setHours(23, 59, 59, 999);
 
-    const scheduleToday = await SchedulesDoctor.find({
+    const scheduleToday = await DoctorSchedule.find({
       date: { $gte: startOfDay, $lte: endOfDay },
     }).select("doctorUserId shift");
 
@@ -42,8 +42,6 @@ const checkAvailableDoctors = async (req, res) => {
 const createScheduleDoctor = async(req,res) =>{
   try {
     const {doctorId, date, shift, startTime, endTime, roomId, maxSlots} = req.body
-    const checkDoctorRoom = await Clinicroom.findOne({assignedDoctorId : doctorId})
-
     const checkDoctor = await User.findById(doctorId)
     if(!checkDoctor){
       return res.status(400).json({
@@ -52,15 +50,26 @@ const createScheduleDoctor = async(req,res) =>{
       })
     }
 
-    const checkRoomId = checkDoctorRoom ? checkDoctorRoom._id : roomId === null;
+    // ⭐ Kiểm tra roomId nếu được cung cấp
+    let validRoomId = roomId;
+    if(roomId) {
+      const checkRoom = await Room.findById(roomId);
+      if(!checkRoom) {
+        return res.status(400).json({
+          status: false,
+          message: 'Phòng không tồn tại'
+        })
+      }
+      validRoomId = checkRoom._id;
+    }
 
-    const newSchedule = new SchedulesDoctor({
+    const newSchedule = new DoctorSchedule({
       doctorUserId : doctorId,
       date,
       shift,
       startTime,
       endTime,
-      roomId : checkRoomId ,
+      roomId: validRoomId || null,
       maxSlots,
     })
 
@@ -78,8 +87,8 @@ const createScheduleDoctor = async(req,res) =>{
 }
 
 
-const SHIFT = SchedulesDoctor.schema.path('shift').enumValues;
-const STATUS = SchedulesDoctor.schema.path('status').enumValues;
+const SHIFT = DoctorSchedule.schema.path('shift').enumValues;
+const STATUS = DoctorSchedule.schema.path('status').enumValues;
 const getAllScheduleDoctors = async(req,res) =>{
   try {
     const {
@@ -99,11 +108,15 @@ const getAllScheduleDoctors = async(req,res) =>{
     
     
     const [total, schedules] = await Promise.all([
-      SchedulesDoctor.countDocuments(filter),
-      SchedulesDoctor.find(filter)
+      DoctorSchedule.countDocuments(filter),
+      DoctorSchedule.find(filter)
       .populate({
         path :'doctorUserId',
         select : 'fullName'
+      })
+      .populate({
+        path: 'roomId',
+        select: 'roomName'
       })
       .skip(skip)
       .limit(limitNum)
@@ -128,7 +141,7 @@ const getAllScheduleDoctors = async(req,res) =>{
 
 const viewDetailScheduleDoctor = async(req,res)=>{
   try {
-    const findScheduleDetail = await SchedulesDoctor.findById(re.params.id);
+    const findScheduleDetail = await DoctorSchedule.findById(req.params.id);
     if(!findScheduleDetail){
       return res.status(400).json({
         status : false,
@@ -153,6 +166,7 @@ const updateScheduleDoctor = async(req,res) =>{
     'startTime',
     'endTime',
     'status',
+    'roomId'
   ]
 
   const updates = {};
@@ -168,7 +182,7 @@ const updateScheduleDoctor = async(req,res) =>{
     });   
   }
 
-  const schedule = await SchedulesDoctor.findByIdAndUpdate(
+  const schedule = await DoctorSchedule.findByIdAndUpdate(
     req.params.id,
     {$set : updates},
     {new : true, runValidators : true}
@@ -192,7 +206,7 @@ const updateScheduleDoctor = async(req,res) =>{
 
 const deleteSchedule = async(req,res) =>{
   try {
-    const deleteS = await SchedulesDoctor.findByIdAndDelete(req.params.id)
+    const deleteS = await DoctorSchedule.findByIdAndDelete(req.params.id)
     res.status(200).json({
       status : true,
       message : "Xóa lịch thành công"
