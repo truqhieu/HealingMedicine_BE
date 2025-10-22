@@ -1,9 +1,11 @@
 const Appointment = require('../models/appointment.model');
 const User = require('../models/user.model');
+const Patient = require('../models/patient.model');
 
 /**
  * Lấy danh sách lịch hẹn của TẤT CẢ các bác sĩ cho tuần hiện tại + tuần tiếp theo (2 tuần)
  * GET /api/nurse/appointments-schedule
+ * Format: Array dạng bảng để UI hiển thị
  */
 const getNurseSchedule = async (req, res) => {
   try {
@@ -30,29 +32,29 @@ const getNurseSchedule = async (req, res) => {
     const endOfTwoWeeks = new Date(startOfWeek);
     endOfTwoWeeks.setDate(endOfTwoWeeks.getDate() + 14);
 
-    // Lấy tất cả appointments trong 2 tuần từ tất cả bác sĩ
+    // Lấy tất cả appointments trong 2 tuần - Nurse xem được tất cả ca khám (Approved, CheckedIn, Completed, Finalized)
     const appointments = await Appointment.find({
       createdAt: {
         $gte: startOfWeek,
         $lt: endOfTwoWeeks
       },
-      status: { $ne: 'Cancelled' } // Không lấy những lịch đã hủy
+      status: { $in: ['Approved', 'CheckedIn', 'Completed', 'Finalized'] }
     })
       .populate({
         path: 'doctorUserId',
-        select: 'fullName email specialization'
+        select: 'fullName'
       })
       .populate({
         path: 'patientUserId',
-        select: 'fullName email phoneNumber'
+        select: 'fullName'
       })
       .populate({
         path: 'customerId',
-        select: 'fullName email phoneNumber'
+        select: 'fullName'
       })
       .populate({
         path: 'serviceId',
-        select: 'serviceName price'
+        select: 'serviceName'
       })
       .populate({
         path: 'timeslotId',
@@ -61,61 +63,30 @@ const getNurseSchedule = async (req, res) => {
       .sort({ 'timeslotId.startTime': 1 })
       .lean();
 
-    // Nhóm lịch theo bác sĩ → theo ngày
-    const appointmentsByDoctor = {};
-    
-    appointments.forEach(appointment => {
-      const doctor = appointment.doctorUserId;
-      const doctorKey = doctor._id.toString();
-      
-      if (!appointmentsByDoctor[doctorKey]) {
-        appointmentsByDoctor[doctorKey] = {
-          doctorInfo: {
-            _id: doctor._id,
-            fullName: doctor.fullName,
-            email: doctor.email,
-            specialization: doctor.specialization
-          },
-          appointmentsByDay: {}
-        };
-      }
-
+    // ⭐ Format response thành array dạng bảng
+    const appointmentsList = appointments.map(appointment => {
       const timeslot = appointment.timeslotId;
-      if (timeslot && timeslot.startTime) {
-        const appointmentDate = new Date(timeslot.startTime);
-        const dateKey = appointmentDate.toISOString().split('T')[0];
-        
-        if (!appointmentsByDoctor[doctorKey].appointmentsByDay[dateKey]) {
-          appointmentsByDoctor[doctorKey].appointmentsByDay[dateKey] = [];
-        }
-        
-        appointmentsByDoctor[doctorKey].appointmentsByDay[dateKey].push({
-          appointmentId: appointment._id,
-          type: appointment.type,
-          status: appointment.status,
-          startTime: timeslot.startTime,
-          endTime: timeslot.endTime,
-          patient: appointment.patientUserId || appointment.customerId,
-          service: appointment.serviceId,
-          notes: appointment.notes,
-          mode: appointment.mode
-        });
-      }
+      const patient = appointment.patientUserId || appointment.customerId;
+      
+      return {
+        appointmentId: appointment._id,
+        doctorName: appointment.doctorUserId?.fullName || 'N/A',
+        serviceName: appointment.serviceId?.serviceName || 'N/A',
+        patientName: patient?.fullName || 'N/A',
+        appointmentDate: timeslot?.startTime ? new Date(timeslot.startTime).toISOString().split('T')[0] : 'N/A',
+        startTime: timeslot?.startTime ? new Date(timeslot.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
+        endTime: timeslot?.endTime ? new Date(timeslot.endTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
+        type: appointment.type,
+        status: appointment.status,
+        mode: appointment.mode
+      };
     });
 
     // Tạo response
     return res.status(200).json({
       success: true,
       message: 'Lấy lịch khám thành công',
-      data: {
-        nurseName: nurse.fullName,
-        nurseId: nurseUserId,
-        periodStart: startOfWeek.toISOString().split('T')[0],
-        periodEnd: new Date(endOfTwoWeeks.getTime() - 1).toISOString().split('T')[0],
-        appointmentsByDoctor: appointmentsByDoctor,
-        totalAppointments: appointments.length,
-        totalDoctors: Object.keys(appointmentsByDoctor).length
-      }
+      data: appointmentsList
     });
 
   } catch (error) {
@@ -139,27 +110,23 @@ const getAppointmentDetail = async (req, res) => {
     const appointment = await Appointment.findById(appointmentId)
       .populate({
         path: 'doctorUserId',
-        select: 'fullName email specialization'
+        select: 'fullName'
       })
       .populate({
         path: 'patientUserId',
-        select: 'fullName email phoneNumber dob gender address'
+        select: 'fullName email'
       })
       .populate({
         path: 'customerId',
-        select: 'fullName email phoneNumber dob gender address note'
+        select: 'fullName email'
       })
       .populate({
         path: 'serviceId',
-        select: 'serviceName price description'
+        select: 'serviceName description'
       })
       .populate({
         path: 'timeslotId',
         select: 'startTime endTime'
-      })
-      .populate({
-        path: 'paymentId',
-        select: 'status amount method'
       })
       .lean();
 
@@ -172,24 +139,25 @@ const getAppointmentDetail = async (req, res) => {
 
     // Lấy thông tin bệnh nhân (từ Patient hoặc Customer)
     const patientInfo = appointment.patientUserId || appointment.customerId;
+    const timeslot = appointment.timeslotId;
 
+    // ⭐ Format response gọn gàng
     return res.status(200).json({
       success: true,
       message: 'Lấy chi tiết lịch hẹn thành công',
       data: {
         appointmentId: appointment._id,
+        doctorName: appointment.doctorUserId?.fullName || 'N/A',
+        patientName: patientInfo?.fullName || 'N/A',
+        patientEmail: patientInfo?.email || 'N/A',
+        serviceName: appointment.serviceId?.serviceName || 'N/A',
+        serviceDescription: appointment.serviceId?.description || '',
         type: appointment.type,
         status: appointment.status,
         mode: appointment.mode,
-        doctor: appointment.doctorUserId,
-        patient: patientInfo,
-        service: appointment.serviceId,
-        timeslot: appointment.timeslotId,
-        payment: appointment.paymentId,
-        notes: appointment.notes,
-        rescheduleCount: appointment.rescheduleCount,
-        createdAt: appointment.createdAt,
-        updatedAt: appointment.updatedAt
+        appointmentDate: timeslot?.startTime ? new Date(timeslot.startTime).toISOString().split('T')[0] : 'N/A',
+        startTime: timeslot?.startTime ? new Date(timeslot.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
+        endTime: timeslot?.endTime ? new Date(timeslot.endTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'N/A'
       }
     });
 
@@ -211,80 +179,38 @@ const getPatientDetail = async (req, res) => {
   try {
     const { patientId } = req.params;
 
-    // Lấy thông tin bệnh nhân từ User model
-    const patient = await User.findById(patientId)
+    // ⭐ Lấy thông tin từ User model (patientId là userId)
+    const user = await User.findById(patientId)
       .select('fullName email phoneNumber dob gender address status')
       .lean();
 
-    if (!patient) {
+    if (!user) {
       return res.status(404).json({
         success: false,
         message: 'Không tìm thấy bệnh nhân'
       });
     }
 
-    // Lấy danh sách tất cả lịch hẹn của bệnh nhân (từ tất cả bác sĩ)
-    const appointmentHistory = await Appointment.find({
-      patientUserId: patientId,
-      status: { $in: ['Completed', 'Finalized'] }
-    })
-      .populate({
-        path: 'doctorUserId',
-        select: 'fullName specialization'
-      })
-      .populate({
-        path: 'serviceId',
-        select: 'serviceName price'
-      })
-      .populate({
-        path: 'timeslotId',
-        select: 'startTime endTime'
-      })
-      .select('type status notes createdAt')
-      .sort({ createdAt: -1 })
+    // ⭐ Lấy thông tin từ Patient model nếu có
+    const patientRecord = await Patient.findOne({ patientUserId: patientId })
+      .select('emergencyContact lastVisitDate')
       .lean();
 
-    // Lấy danh sách lịch hẹn sắp tới
-    const upcomingAppointments = await Appointment.find({
-      patientUserId: patientId,
-      status: { $in: ['Pending', 'Approved', 'CheckedIn'] }
-    })
-      .populate({
-        path: 'doctorUserId',
-        select: 'fullName specialization'
-      })
-      .populate({
-        path: 'serviceId',
-        select: 'serviceName'
-      })
-      .populate({
-        path: 'timeslotId',
-        select: 'startTime endTime'
-      })
-      .select('type status')
-      .sort({ 'timeslotId.startTime': 1 })
-      .lean();
-
+    // ⭐ Format response gọn gàng
     return res.status(200).json({
       success: true,
       message: 'Lấy chi tiết thông tin bệnh nhân thành công',
       data: {
-        patientId: patient._id,
-        fullName: patient.fullName,
-        email: patient.email,
-        phoneNumber: patient.phoneNumber,
-        dateOfBirth: patient.dob,
-        gender: patient.gender,
-        address: patient.address,
-        status: patient.status,
-        appointmentHistory: {
-          total: appointmentHistory.length,
-          list: appointmentHistory
-        },
-        upcomingAppointments: {
-          total: upcomingAppointments.length,
-          list: upcomingAppointments
-        }
+        patientId: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        phoneNumber: user.phoneNumber || 'N/A',
+        dateOfBirth: user.dob ? new Date(user.dob).toISOString().split('T')[0] : 'N/A',
+        gender: user.gender || 'N/A',
+        address: user.address || 'N/A',
+        status: user.status,
+        emergencyContact: patientRecord?.emergencyContact || 'N/A',
+        lastVisitDate: patientRecord?.lastVisitDate ? new Date(patientRecord.lastVisitDate).toISOString().split('T')[0] : 'N/A'
       }
     });
 
