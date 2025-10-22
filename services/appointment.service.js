@@ -76,6 +76,72 @@ class AppointmentService {
     console.log('- Email từ user đăng nhập:', patient.email);
     console.log('- Đặt cho:', formData?.appointmentFor || 'self');
 
+    // ⭐ THÊM: Validate customer conflict khi đặt cho người khác
+    if (formData?.appointmentFor === 'other' && formData?.fullName && formData?.email) {
+      console.log(`🔍 Checking customer conflict for: ${formData.fullName} <${formData.email}>`);
+      
+      // Normalize name và email (lowercase, remove extra spaces/diacritics)
+      const normalizeString = (str) => {
+        return str
+          .toLowerCase()
+          .trim()
+          .replace(/\s+/g, ' ') // Normalize spaces
+          .normalize('NFD') // Remove diacritics
+          .replace(/[\u0300-\u036f]/g, '');
+      };
+      
+      const normalizedFullName = normalizeString(formData.fullName);
+      const normalizedEmail = normalizeString(formData.email);
+      
+      console.log(`   - Normalized: ${normalizedFullName} <${normalizedEmail}>`);
+      
+      // Tìm customer với matching fullName + email
+      const Customer = require('../models/customer.model');
+      const existingCustomer = await Customer.findOne({
+        fullName: new RegExp(`^${formData.fullName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+        email: new RegExp(`^${formData.email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
+      });
+      
+      if (existingCustomer) {
+        console.log(`✅ Tìm thấy existing customer: ${existingCustomer._id}`);
+        
+        // Kiểm tra xem customer này đã có appointment vào khung giờ này chưa
+        const conflictAppointment = await Appointment.findOne({
+          customerId: existingCustomer._id,
+          status: { $in: ['Pending', 'Approved', 'CheckedIn', 'Completed'] },
+          'timeslotId': {
+            $elemMatch: {
+              startTime: new Date(selectedSlot.startTime),
+              endTime: new Date(selectedSlot.endTime)
+            }
+          }
+        }).populate('timeslotId');
+
+        // Nếu không tìm được qua $elemMatch, thử cách khác
+        if (!conflictAppointment) {
+          const conflictAppt = await Appointment.findOne({
+            customerId: existingCustomer._id,
+            status: { $in: ['Pending', 'Approved', 'CheckedIn', 'Completed'] }
+          }).populate('timeslotId');
+
+          if (conflictAppt && conflictAppt.timeslotId) {
+            const appointmentStartTime = new Date(conflictAppt.timeslotId.startTime).getTime();
+            const appointmentEndTime = new Date(conflictAppt.timeslotId.endTime).getTime();
+            const slotStartTime = new Date(selectedSlot.startTime).getTime();
+            const slotEndTime = new Date(selectedSlot.endTime).getTime();
+            
+            if (appointmentStartTime === slotStartTime && appointmentEndTime === slotEndTime) {
+              console.log(`❌ Customer ${formData.fullName} đã có lịch khám vào khung giờ này`);
+              throw new Error(`${formData.fullName} đã có lịch khám vào khung giờ này rồi. Vui lòng chọn khung giờ khác!`);
+            }
+          }
+        } else {
+          console.log(`❌ Customer ${formData.fullName} đã có lịch khám vào khung giờ này`);
+          throw new Error(`${formData.fullName} đã có lịch khám vào khung giờ này rồi. Vui lòng chọn khung giờ khác!`);
+        }
+      }
+    }
+
     // ⭐ THÊM: CHECK TIMESLOT TRƯỚC KHI TẠO ❌
     // Để tránh race condition: 2 request cùng lúc
     const existingTimeslot = await Timeslot.findOne({
