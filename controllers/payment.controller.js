@@ -1,5 +1,6 @@
 const paymentService = require('../services/payment.service');
 const sepayService = require('../services/sepay.service');
+const Appointment = require('../models/appointment.model');
 
 /**
  * Webhook từ Sepay khi có giao dịch mới
@@ -51,7 +52,6 @@ const handleSepayWebhook = async (req, res) => {
     console.log('🔍 Tìm kiếm appointment với Short ID:', shortId);
 
     // Tìm appointment theo short ID (8 ký tự cuối)
-    const Appointment = require('../models/appointment.model');
     const appointments = await Appointment.find({
       status: 'PendingPayment'
     }).populate('paymentId');
@@ -124,27 +124,41 @@ const checkPaymentStatus = async (req, res) => {
   try {
     const { paymentId } = req.params;
 
-    // Check và confirm payment nếu đã có giao dịch
-    const result = await paymentService.checkAndConfirmPayment(paymentId);
+    console.log('🔍 CHECK PAYMENT STATUS:', paymentId);
 
-    if (result && result.appointment) {
+    // Lấy payment info
+    const payment = await paymentService.getPaymentInfo(paymentId);
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment không tồn tại'
+      });
+    }
+
+    console.log('💳 Payment status:', payment.status);
+
+    // Nếu payment đã completed, return confirmed
+    if (payment.status === 'Completed') {
+      const appointment = await Appointment.findById(payment.appointmentId)
+        .select('status')
+        .lean();
+      
       return res.status(200).json({
         success: true,
         message: 'Thanh toán thành công',
         data: {
-          payment: result.payment,
-          appointment: result.appointment,
+          payment,
+          appointment,
           confirmed: true
         }
       });
     }
 
-    // Chưa có giao dịch
-    const payment = await paymentService.getPaymentInfo(paymentId);
-    
+    // Chưa có giao dịch hoặc đang pending
     res.status(200).json({
       success: true,
-      message: 'Chưa nhận được thanh toán',
+      message: 'Chưa nhận được thanh toán hoặc đang xử lý',
       data: {
         payment,
         confirmed: false
@@ -231,7 +245,6 @@ const testWebhook = async (req, res) => {
     console.log('='.repeat(70));
 
     // Lấy appointment pending payment đầu tiên
-    const Appointment = require('../models/appointment.model');
     const appointments = await Appointment.find({
       status: 'PendingPayment'
     })
