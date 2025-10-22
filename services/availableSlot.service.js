@@ -706,8 +706,9 @@ class AvailableSlotService {
   /**
    * ⭐ NEW: Generate danh sách khung giờ trống cho một ngày (không cần chọn bác sĩ)
    * FE dùng để hiển thị các slot khả dụng sau khi chọn dịch vụ + ngày
+   * @param {string} patientUserId - ID của user đang đặt lịch (để exclude slots đã đặt)
    */
-  async generateAvailableSlotsByDate({ serviceId, date, breakAfterMinutes = 10 }) {
+  async generateAvailableSlotsByDate({ serviceId, date, breakAfterMinutes = 10, patientUserId = null }) {
     // 1. Validate input
     if (!serviceId || !date) {
       throw new Error('Vui lòng cung cấp đầy đủ serviceId và date');
@@ -853,6 +854,24 @@ class AvailableSlotService {
       status: { $in: ['Pending', 'Approved', 'CheckedIn'] }
     }).populate('timeslotId', 'startTime endTime doctorUserId');
 
+    // 6.5. ⭐ Nếu có patientUserId, lấy thêm các appointments của user này để exclude
+    let patientBookedSlots = [];
+    if (patientUserId) {
+      const patientAppointments = await Appointment.find({
+        patientUserId: patientUserId,
+        status: { $in: ['Pending', 'Approved', 'CheckedIn', 'Completed'] }
+      }).populate('timeslotId', 'startTime endTime');
+
+      patientBookedSlots = patientAppointments
+        .filter(apt => apt.timeslotId)
+        .map(apt => ({
+          start: new Date(apt.timeslotId.startTime),
+          end: new Date(apt.timeslotId.endTime)
+        }));
+
+      console.log(`👤 User ${patientUserId} đã đặt ${patientBookedSlots.length} slots`);
+    }
+
     // 7. Tạo map của booked timeslots theo doctorId
     const bookedSlotsByDoctor = {};
     for (const apt of appointments) {
@@ -887,9 +906,9 @@ class AvailableSlotService {
         breakAfterMinutes
       });
 
-      // Lọc bỏ các slots đã được book
+      // Lọc bỏ các slots đã được book (bởi bất kỳ ai)
       const bookedSlots = bookedSlotsByDoctor[doctorId] || [];
-      const availableSlots = slots.filter(slot => {
+      let availableSlots = slots.filter(slot => {
         const slotStart = new Date(slot.startTime);
         const slotEnd = new Date(slot.endTime);
         
@@ -898,6 +917,20 @@ class AvailableSlotService {
           return (slotStart < booked.end && slotEnd > booked.start);
         });
       });
+
+      // ⭐ Thêm filter: Exclude slots mà user hiện tại đã đặt
+      if (patientUserId && patientBookedSlots.length > 0) {
+        availableSlots = availableSlots.filter(slot => {
+          const slotStart = new Date(slot.startTime);
+          const slotEnd = new Date(slot.endTime);
+          
+          // Kiểm tra xem slot có trùng với slots user đã đặt không
+          return !patientBookedSlots.some(booked => {
+            return (slotStart.getTime() === booked.start.getTime() && 
+                    slotEnd.getTime() === booked.end.getTime());
+          });
+        });
+      }
 
       // Thêm thông tin doctor và format displayTime theo giờ Việt Nam
       availableSlots.forEach(slot => {

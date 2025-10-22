@@ -6,10 +6,12 @@ const {
   getAvailableDoctors,
   getAvailableDoctorsForTimeSlot
 } = require('../controllers/availableSlot.controller');
+const { optionalAuth } = require('../middleware/auth.middleware');
 
 // ⭐ NEW: Generate danh sách khung giờ cho một ngày (không cần bác sĩ)
 // GET /api/available-slots/generate?serviceId=xxx&date=2025-10-25
-router.get('/generate', generateSlotsByDate);
+// optionalAuth: Nếu user đã login thì exclude slots đã đặt
+router.get('/generate', optionalAuth, generateSlotsByDate);
 
 // API lấy khung giờ available động cho một bác sĩ cụ thể - Public
 // GET /api/available-slots?doctorUserId=xxx&serviceId=xxx&date=2025-10-25

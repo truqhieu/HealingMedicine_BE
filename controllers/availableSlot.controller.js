@@ -8,6 +8,7 @@ const availableSlotService = require('../services/availableSlot.service');
 const generateSlotsByDate = async (req, res) => {
   try {
     const { serviceId, date, breakAfterMinutes } = req.query;
+    const userId = req.user?.userId || null; // Lấy userId nếu user đã login
 
     // Validation
     if (!serviceId || !date) {
@@ -26,10 +27,13 @@ const generateSlotsByDate = async (req, res) => {
       });
     }
 
+    console.log('🔍 [generateSlotsByDate] User ID:', userId ? userId : 'Guest');
+
     const result = await availableSlotService.generateAvailableSlotsByDate({
       serviceId,
       date: searchDate,
-      breakAfterMinutes: breakAfterMinutes ? parseInt(breakAfterMinutes) : 10
+      breakAfterMinutes: breakAfterMinutes ? parseInt(breakAfterMinutes) : 10,
+      patientUserId: userId // Pass userId để exclude slots đã đặt
     });
 
     res.status(200).json({

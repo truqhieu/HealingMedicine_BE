@@ -85,7 +85,50 @@ const verifyRole = (...allowedRoles) => {
   };
 };
 
+/**
+ * Optional auth middleware - Decode token nếu có, nhưng không reject nếu không có
+ * Dùng cho các route public nhưng có thể personalize nếu user đã login
+ */
+const optionalAuth = (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      // Không có token, tiếp tục nhưng không có req.user
+      req.user = null;
+      return next();
+    }
+
+    const token = authHeader.split(' ')[1];
+    
+    try {
+      // Verify token
+      const decoded = jwt.verify(token, JWT_SECRET);
+      
+      // Gắn thông tin user vào request
+      req.user = {
+        userId: decoded.userId,
+        email: decoded.email,
+        role: decoded.role
+      };
+      
+      console.log('✅ [OptionalAuth] User authenticated:', req.user.userId);
+    } catch (error) {
+      // Token không hợp lệ hoặc expired, vẫn cho phép request
+      console.log('⚠️ [OptionalAuth] Invalid token, continuing as guest');
+      req.user = null;
+    }
+    
+    next();
+  } catch (error) {
+    console.error('OptionalAuth error:', error);
+    req.user = null;
+    next();
+  }
+};
+
 module.exports = {
   verifyToken,
-  verifyRole
+  verifyRole,
+  optionalAuth
 };
