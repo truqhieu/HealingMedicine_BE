@@ -66,14 +66,15 @@ class AvailableSlotService {
       console.log(`⚠️  Không tìm thấy DoctorSchedule cho ngày ${searchDate.toISOString().split('T')[0]}, tự động tạo...`);
       
       try {
-        // Tạo 2 schedule mặc định (Morning 8:00-12:00, Afternoon 14:00-18:00)
+        // Tạo 2 schedule mặc định (Morning 8:00-12:00, Afternoon 14:00-18:00 Việt Nam)
+        // ⭐ Chuyển đổi từ giờ Việt Nam sang UTC: trừ 7 tiếng
         const defaultSchedules = [
           {
             doctorUserId,
             date: searchDate,
             shift: 'Morning',
-            startTime: new Date(searchDate).setHours(8, 0, 0),
-            endTime: new Date(searchDate).setHours(12, 0, 0),
+            startTime: new Date(searchDate).setHours(1, 0, 0),  // 1h UTC = 8h Vietnam time
+            endTime: new Date(searchDate).setHours(5, 0, 0),    // 5h UTC = 12h Vietnam time
             status: 'Available',
             maxSlots: 4
           },
@@ -81,8 +82,8 @@ class AvailableSlotService {
             doctorUserId,
             date: searchDate,
             shift: 'Afternoon',
-            startTime: new Date(searchDate).setHours(14, 0, 0),
-            endTime: new Date(searchDate).setHours(18, 0, 0),
+            startTime: new Date(searchDate).setHours(7, 0, 0),  // 7h UTC = 14h Vietnam time
+            endTime: new Date(searchDate).setHours(11, 0, 0),   // 11h UTC = 18h Vietnam time
             status: 'Available',
             maxSlots: 4
           }
@@ -490,8 +491,8 @@ class AvailableSlotService {
                 doctorUserId: doctor._id,
                 date: searchDate,
                 shift: 'Morning',
-                startTime: new Date(searchDate).setHours(8, 0, 0),
-                endTime: new Date(searchDate).setHours(12, 0, 0),
+                startTime: new Date(searchDate).setHours(1, 0, 0),  // 1h UTC = 8h Vietnam time
+                endTime: new Date(searchDate).setHours(5, 0, 0),    // 5h UTC = 12h Vietnam time
                 status: 'Available',
                 maxSlots: 4
               },
@@ -499,8 +500,8 @@ class AvailableSlotService {
                 doctorUserId: doctor._id,
                 date: searchDate,
                 shift: 'Afternoon',
-                startTime: new Date(searchDate).setHours(14, 0, 0),
-                endTime: new Date(searchDate).setHours(18, 0, 0),
+                startTime: new Date(searchDate).setHours(7, 0, 0),  // 7h UTC = 14h Vietnam time
+                endTime: new Date(searchDate).setHours(11, 0, 0),   // 11h UTC = 18h Vietnam time
                 status: 'Available',
                 maxSlots: 4
               }
@@ -599,16 +600,22 @@ class AvailableSlotService {
     searchDate.setHours(0, 0, 0, 0);
 
     // 4. Tạo schedule mặc định nếu chưa có
+    // ⭐ Note: 8-12h là theo giờ Việt Nam (UTC+7)
+    // Khi lưu vào DB dưới dạng UTC, cần trừ 7 tiếng
+    const VIETNAM_TIMEZONE_OFFSET = 7 * 60 * 60 * 1000; // 7 hours in milliseconds
+    
     const schedules = [
       {
         shift: 'Morning',
-        startTime: new Date(searchDate).setHours(8, 0, 0),
-        endTime: new Date(searchDate).setHours(12, 0, 0)
+        // 8h Việt Nam = 1h UTC (8 - 7 = 1)
+        startTime: new Date(searchDate).setHours(1, 0, 0), // 1h UTC = 8h Vietnam time
+        endTime: new Date(searchDate).setHours(5, 0, 0)    // 5h UTC = 12h Vietnam time
       },
       {
         shift: 'Afternoon',
-        startTime: new Date(searchDate).setHours(14, 0, 0),
-        endTime: new Date(searchDate).setHours(18, 0, 0)
+        // 14h Việt Nam = 7h UTC (14 - 7 = 7)
+        startTime: new Date(searchDate).setHours(7, 0, 0),  // 7h UTC = 14h Vietnam time
+        endTime: new Date(searchDate).setHours(11, 0, 0)    // 11h UTC = 18h Vietnam time
       }
     ];
 
@@ -638,7 +645,7 @@ class AvailableSlotService {
     const slotsWithISOStrings = allSlots.map(slot => ({
       startTime: slot.startTime.toISOString(),
       endTime: slot.endTime.toISOString(),
-      displayTime: slot.displayTime
+      displayTime: ScheduleHelper.formatTimeSlot(slot.startTime, slot.endTime)
     }));
 
     return {
