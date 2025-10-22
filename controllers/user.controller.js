@@ -155,9 +155,9 @@ const login = async (req, res) => {
           email: user.email,
           role: user.role,
           status: user.status,
-          phone: user.phone,
+          phone: user.phoneNumber,
           address: user.address,
-          dateOfBirth: user.dateOfBirth,
+          dateOfBirth: user.dob,
           gender: user.gender,
           avatar: user.avatar,
           createdAt: user.createdAt,
@@ -195,7 +195,22 @@ const getProfile = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: { user }
+      data: { 
+        user: {
+          id: user._id,
+          fullName: user.fullName,
+          email: user.email,
+          role: user.role,
+          status: user.status,
+          phone: user.phoneNumber,
+          address: user.address,
+          dateOfBirth: user.dob,
+          gender: user.gender,
+          avatar: user.avatar,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt
+        }
+      }
     });
 
   } catch (error) {
@@ -411,10 +426,13 @@ const updateProfile = async (req, res) => {
       'phoneNumber', 
       'address',
       'dob',
-      'gender'
+      'gender',
+      'emergencyContact'  // ⭐ Thêm emergencyContact
     ];
     
     const updates = {};
+    let emergencyContactUpdate = null;  // ⭐ Lưu emergencyContact riêng
+    
     Object.keys(req.body).forEach(key => {
       if (allowedFields.includes(key)) {
         // Format date nếu là trường dob
@@ -435,13 +453,61 @@ const updateProfile = async (req, res) => {
             });
           }
           updates[key] = dateValue;
-        } else {
+        } 
+        // ⭐ Xử lý emergencyContact với validation
+        else if (key === 'emergencyContact') {
+          const ec = req.body[key];
+          
+          // Validate emergencyContact fields
+          if (ec) {
+            // Kiểm tra name
+            if (!ec.name || typeof ec.name !== 'string' || ec.name.trim().length === 0) {
+              return res.status(400).json({
+                success: false,
+                message: 'emergencyContact.name không được để trống'
+              });
+            }
+            
+            // Kiểm tra phone
+            if (!ec.phone || typeof ec.phone !== 'string' || ec.phone.trim().length === 0) {
+              return res.status(400).json({
+                success: false,
+                message: 'emergencyContact.phone không được để trống'
+              });
+            }
+            
+            // Kiểm tra phone format (10-11 số)
+            const phoneRegex = /^[0-9]{10,11}$/;
+            if (!phoneRegex.test(ec.phone.replace(/\D/g, ''))) {
+              return res.status(400).json({
+                success: false,
+                message: 'emergencyContact.phone phải là 10-11 số'
+              });
+            }
+            
+            // Kiểm tra relationship
+            const validRelationships = ['Father', 'Mother', 'Brother', 'Sister', 'Spouse', 'Friend', 'Other'];
+            if (!ec.relationship || !validRelationships.includes(ec.relationship)) {
+              return res.status(400).json({
+                success: false,
+                message: `emergencyContact.relationship phải là một trong: ${validRelationships.join(', ')}`
+              });
+            }
+            
+            emergencyContactUpdate = {
+              name: ec.name.trim(),
+              phone: ec.phone.trim(),
+              relationship: ec.relationship
+            };
+          }
+        }
+        else {
           updates[key] = req.body[key];
         }
       }
     });
     
-    if (Object.keys(updates).length === 0) {
+    if (Object.keys(updates).length === 0 && !emergencyContactUpdate) {
       return res.status(400).json({
         success: false,
         message: 'Không có trường hợp lệ để cập nhật'
@@ -461,6 +527,16 @@ const updateProfile = async (req, res) => {
       });
     }
     
+    // ⭐ Nếu có emergencyContact và là Patient, update trong bảng Patient
+    if (emergencyContactUpdate && updatedUser.role === 'Patient') {
+      const Patient = require('../models/patient.model');
+      await Patient.findOneAndUpdate(
+        { patientUserId: userId },
+        { $set: { emergencyContact: emergencyContactUpdate } },
+        { new: true }
+      );
+    }
+    
     res.status(200).json({
       success: true,
       message: 'Cập nhật thông tin cá nhân thành công',
@@ -473,7 +549,7 @@ const updateProfile = async (req, res) => {
           status: updatedUser.status,
           phone: updatedUser.phoneNumber,
           address: updatedUser.address,
-          dob: updatedUser.dob,
+          dateOfBirth: updatedUser.dob,
           gender: updatedUser.gender,
           avatar: updatedUser.avatar,
           createdAt: updatedUser.createdAt,

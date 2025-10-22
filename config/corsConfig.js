@@ -9,9 +9,10 @@ const corsOptions = {
       'http://127.0.0.1:3000',
       'http://127.0.0.1:5173',
       'http://127.0.0.1:8080',
-      
-
-    ];
+      // Production frontend URLs
+      process.env.FRONTEND_URL,
+      process.env.FRONTEND_PRODUCTION_URL,
+    ].filter(Boolean); // Remove undefined values
 
     if (process.env.NODE_ENV === 'development') {
       return callback(null, true);

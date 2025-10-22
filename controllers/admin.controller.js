@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 const User = require('../models/user.model')
+const Doctor = require('../models/doctor.model');
+const Staff = require('../models/staff.model');
 const bcrypt = require('bcryptjs')
 
 const ROLE_ACCOUNT = ['Doctor', 'Nurse', 'Staff', 'Patient', 'Manager'];
@@ -8,7 +10,7 @@ const STATUS = User.schema.path('status').enumValues;
 
 const createAccount = async(req, res) =>{
     try {
-        const {fullName, email, password, role, phone} = req.body
+        const {fullName, email, password, role, phone, specialization, yearsOfExperience} = req.body
         const checkEmail = await User.findOne({email})
         if(checkEmail){
             return res.status(400).json({
@@ -33,14 +35,54 @@ const createAccount = async(req, res) =>{
             Nurse: 'Y tá',
             Staff: 'Lễ tân',
             Patient: 'Bệnh nhân',
-            Manager : 'Quản lý'
+            Manager: 'Quản lý'
 
         };
-        const newAccount = new User({fullName,email, passwordHash : password, role, phone, status : 'Active'})
+        
+        // ⭐ Tạo User account
+        const newAccount = new User({fullName, email, passwordHash : password, role, phone, status : 'Active'})
         await newAccount.save();
+        
+        // ⭐ Nếu role là Doctor, tạo record trong Doctor collection
+        if (role === 'Doctor') {
+            const newDoctor = new Doctor({
+                doctorUserId: newAccount._id,
+                specialization: specialization || null,
+                yearsOfExperience: yearsOfExperience || 0,
+                status: 'Available'
+            });
+            await newDoctor.save();
+        }
+        
+        // ⭐ Nếu role là Nurse, tạo record trong Nurse collection (nếu có)
+        if (role === 'Nurse') {
+            // Nếu có model Nurse, thêm code tương tự ở đây
+            // const Nurse = require('../models/nurse.model');
+            // const newNurse = new Nurse({
+            //     nurseUserId: newAccount._id,
+            //     status: 'Available'
+            // });
+            // await newNurse.save();
+        }
+
+        // ⭐ Nếu role là Staff, tạo record trong Staff collection
+        if (role === 'Staff') {
+            const newStaff = new Staff({
+                staffUserId: newAccount._id,
+                status: 'Available'
+            });
+            await newStaff.save();
+        }
+        
         res.status(201).json({
             status : true,
-            message : `Tạo tài khoản cho ${roleMap[role]} thành công`
+            message : `Tạo tài khoản cho ${roleMap[role]} thành công`,
+            data: {
+                userId: newAccount._id,
+                email: newAccount.email,
+                fullName: newAccount.fullName,
+                role: newAccount.role
+            }
         });
 
     } catch (error) {
@@ -63,7 +105,7 @@ const getAllAccounts = async(req,res) =>{
 
         const pageNum = Math.max(1, parseInt(page, 10) || 1);
         const limitNum = Math.min(100, parseInt(limit, 10) || 10);
-        const skip = (page -1) * limitNum;
+        const skip = (pageNum - 1) * limitNum;  // ⭐ Sửa: dùng pageNum thay vì page
 
         const filter = {};
         if(status && STATUS.includes(status)) filter.status = status;
@@ -82,7 +124,7 @@ const getAllAccounts = async(req,res) =>{
         const[total, users] = await Promise.all([
             User.countDocuments(filter),
             User.find(filter)
-            .select('-passwordHash -__v')
+            .select('-passwordHash -__v')  // ⭐ Thêm role vào để xem được role
             .skip(skip)
             .limit(limitNum)
             .lean()

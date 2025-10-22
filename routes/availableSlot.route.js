@@ -1,0 +1,29 @@
+const express = require('express');
+const router = express.Router();
+const { 
+  generateSlotsByDate,
+  getAvailableSlots,
+  getAvailableDoctors,
+  getAvailableDoctorsForTimeSlot
+} = require('../controllers/availableSlot.controller');
+const { optionalAuth } = require('../middleware/auth.middleware');
+
+// ⭐ NEW: Generate danh sách khung giờ cho một ngày (không cần bác sĩ)
+// GET /api/available-slots/generate?serviceId=xxx&date=2025-10-25
+// optionalAuth: Nếu user đã login thì exclude slots đã đặt
+router.get('/generate', optionalAuth, generateSlotsByDate);
+
+// API lấy khung giờ available động cho một bác sĩ cụ thể - Public
+// GET /api/available-slots?doctorUserId=xxx&serviceId=xxx&date=2025-10-25
+router.get('/', getAvailableSlots);
+
+//  API lấy danh sách tất cả bác sĩ có khung giờ rảnh vào một ngày cụ thể - Public
+// GET /api/available-slots/doctors/list?serviceId=xxx&date=2025-10-25
+router.get('/doctors/list', getAvailableDoctors);
+
+// API lấy danh sách bác sĩ có khung giờ rảnh tại một khung giờ cụ thể - Public
+// GET /api/available-slots/doctors/time-slot?serviceId=xxx&date=2025-10-25&startTime=2025-10-25T08:00:00Z&endTime=2025-10-25T08:30:00Z
+router.get('/doctors/time-slot', getAvailableDoctorsForTimeSlot);
+
+module.exports = router;
+
