@@ -5,6 +5,7 @@ const User = require('../models/user.model');
 /**
  * Lấy danh sách lịch hẹn của bác sĩ cho tuần hiện tại + tuần tiếp theo (2 tuần)
  * GET /api/doctor/appointments-schedule
+ * Format: Array dạng bảng để UI hiển thị
  */
 const getDoctorAppointmentsSchedule = async (req, res) => {
   try {
@@ -24,7 +25,7 @@ const getDoctorAppointmentsSchedule = async (req, res) => {
     today.setHours(0, 0, 0, 0);
     
     const dayOfWeek = today.getDay();
-    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Điều chỉnh để bắt đầu từ Thứ 2
+    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
     const startOfWeek = new Date(today.setDate(diff));
     
     // Ngày kết thúc = 2 tuần từ đầu tuần (14 ngày)
@@ -38,19 +39,19 @@ const getDoctorAppointmentsSchedule = async (req, res) => {
         $gte: startOfWeek,
         $lt: endOfTwoWeeks
       },
-      status: { $ne: 'Cancelled' } // Không lấy những lịch đã hủy
+      status: { $ne: 'Cancelled' }
     })
       .populate({
         path: 'patientUserId',
-        select: 'fullName email phoneNumber'
+        select: 'fullName'
       })
       .populate({
         path: 'customerId',
-        select: 'fullName email phoneNumber'
+        select: 'fullName'
       })
       .populate({
         path: 'serviceId',
-        select: 'serviceName price'
+        select: 'serviceName'
       })
       .populate({
         path: 'timeslotId',
@@ -59,47 +60,29 @@ const getDoctorAppointmentsSchedule = async (req, res) => {
       .sort({ 'timeslotId.startTime': 1 })
       .lean();
 
-    // Nhóm lịch theo ngày
-    const appointmentsByDay = {};
-    
-    appointments.forEach(appointment => {
+    // ⭐ Format response thành array dạng bảng
+    const appointmentsList = appointments.map(appointment => {
       const timeslot = appointment.timeslotId;
-      if (timeslot && timeslot.startTime) {
-        const appointmentDate = new Date(timeslot.startTime);
-        const dateKey = appointmentDate.toISOString().split('T')[0]; // Format: YYYY-MM-DD
-        
-        if (!appointmentsByDay[dateKey]) {
-          appointmentsByDay[dateKey] = [];
-        }
-        
-        appointmentsByDay[dateKey].push({
-          appointmentId: appointment._id,
-          type: appointment.type, // Consultation, Examination, FollowUp
-          status: appointment.status, // Pending, Approved, CheckedIn, Completed, etc.
-          startTime: timeslot.startTime,
-          endTime: timeslot.endTime,
-          patient: appointment.patientUserId || appointment.customerId,
-          service: appointment.serviceId,
-          notes: appointment.notes,
-          mode: appointment.mode, // Online, Offline
-          linkMeetUrl: appointment.linkMeetUrl
-        });
-      }
+      const patient = appointment.patientUserId || appointment.customerId;
+      
+      return {
+        appointmentId: appointment._id,
+        serviceName: appointment.serviceId?.serviceName || 'N/A',
+        patientName: patient?.fullName || 'N/A',
+        appointmentDate: timeslot?.startTime ? new Date(timeslot.startTime).toISOString().split('T')[0] : 'N/A',
+        startTime: timeslot?.startTime ? new Date(timeslot.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
+        endTime: timeslot?.endTime ? new Date(timeslot.endTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
+        type: appointment.type,
+        status: appointment.status,
+        mode: appointment.mode
+      };
     });
 
-    // Tạo response với thông tin chi tiết
+    // Tạo response
     return res.status(200).json({
       success: true,
       message: 'Lấy lịch khám thành công',
-      data: {
-        doctorName: doctor.fullName,
-        doctorId: doctorUserId,
-        periodStart: startOfWeek.toISOString().split('T')[0],
-        periodEnd: new Date(endOfTwoWeeks.getTime() - 1).toISOString().split('T')[0],
-        appointmentsByDay: appointmentsByDay,
-        totalAppointments: appointments.length,
-        appointmentsList: appointments // Nếu FE muốn danh sách dạng array thay vì object
-      }
+      data: appointmentsList  // ⭐ Chỉ trả về mảng appointments
     });
 
   } catch (error) {
