@@ -370,7 +370,12 @@ const getMyAppointments = async (req, res) => {
       options.status = req.query.status;
     }
 
+    console.log('🔍 [getMyAppointments] Fetching appointments for userId:', userId);
+    console.log('🔍 [getMyAppointments] Options:', options);
+    
     const appointments = await appointmentService.getUserAppointments(userId, options);
+
+    console.log('✅ [getMyAppointments] Returning:', appointments.length, 'appointments');
 
     res.status(200).json({
       success: true,

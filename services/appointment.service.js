@@ -184,6 +184,16 @@ class AppointmentService {
     }
 
     // Tạo appointment mới
+    console.log('✅ Tạo appointment với data:', {
+      patientUserId,
+      customerId,
+      doctorUserId,
+      serviceId,
+      status: appointmentStatus,
+      type: appointmentType,
+      mode: appointmentMode
+    });
+
     const newAppointment = await Appointment.create({
       patientUserId, // Người đặt lịch (booker)
       customerId, // null nếu đặt cho bản thân, có giá trị nếu đặt cho người khác
@@ -196,6 +206,12 @@ class AppointmentService {
       notes: notes || null,
       bookedByUserId: patientUserId,
       paymentHoldExpiresAt: paymentHoldExpiresAt
+    });
+
+    console.log('✅ Appointment đã được tạo:', {
+      id: newAppointment._id,
+      patientUserId: newAppointment.patientUserId,
+      status: newAppointment.status
     });
 
     // Update timeslot với appointmentId
@@ -548,6 +564,8 @@ class AppointmentService {
       // Build query
       const query = { patientUserId: userId };
 
+      console.log('🔍 [getUserAppointments] Query với userId:', userId);
+
       // Lọc theo status cụ thể nếu có
       if (options.status) {
         query.status = options.status;
@@ -564,6 +582,8 @@ class AppointmentService {
         }
       }
 
+      console.log('🔍 [getUserAppointments] Final query:', JSON.stringify(query));
+
       const appointments = await Appointment.find(query)
         .populate('patientUserId', 'fullName email phoneNumber')
         .populate('doctorUserId', 'fullName email specialization')
@@ -572,6 +592,14 @@ class AppointmentService {
         .populate('customerId', 'fullName email phoneNumber')
         .populate('paymentId', 'status amount method')
         .sort({ createdAt: -1 }); // Sắp xếp theo thời gian tạo mới nhất
+
+      console.log('✅ [getUserAppointments] Tìm thấy:', appointments.length, 'appointments');
+      console.log('📋 [getUserAppointments] Appointments:', appointments.map(apt => ({
+        id: apt._id,
+        status: apt.status,
+        patientUserId: apt.patientUserId?._id,
+        serviceName: apt.serviceId?.serviceName
+      })));
 
       // Trả về đúng format mà frontend expect
       return appointments.map(apt => ({
