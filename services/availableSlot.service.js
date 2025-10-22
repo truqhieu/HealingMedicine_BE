@@ -80,14 +80,24 @@ class AvailableSlotService {
     const endOfDay = new Date(searchDate);
     endOfDay.setHours(23, 59, 59, 999);
 
+    // ⭐ FIXED: Query appointments có timeslot rảnh trong ngày (không dùng createdAt)
     const bookedAppointments = await Appointment.find({
       doctorUserId,
       status: { $in: ['PendingPayment', 'Pending', 'Approved', 'CheckedIn'] },
-      createdAt: { $gte: startOfDay, $lte: endOfDay }
+      timeslotId: { $exists: true }
+    })
+    .populate({
+      path: 'timeslotId',
+      select: 'startTime endTime',
+      match: {
+        startTime: { $gte: startOfDay, $lte: endOfDay }
+      }
     })
     .populate('serviceId', 'durationMinutes')
-    .populate('timeslotId', 'startTime endTime')
     .sort({ 'timeslotId.startTime': 1 });
+
+    // Filter out appointments where timeslotId couldn't match (populate returned null)
+    const validAppointments = bookedAppointments.filter(apt => apt.timeslotId !== null);
 
     // ⭐ THÊM: Lấy tất cả timeslots đã được Reserved hoặc Booked trong ngày
     // Để tránh conflict ngay cả khi chưa confirm appointment
@@ -99,7 +109,7 @@ class AvailableSlotService {
     }).sort({ startTime: 1 });
 
     // 6. Tạo danh sách khoảng thời gian đã bận
-    const busySlots = bookedAppointments.map(apt => {
+    const busySlots = validAppointments.map(apt => {
       if (apt.timeslotId) {
         return {
           start: new Date(apt.timeslotId.startTime),
@@ -121,7 +131,7 @@ class AvailableSlotService {
     console.log('   - Bác sĩ:', doctorUserId);
     console.log('   - Dịch vụ:', service.serviceName, `(${serviceDuration} phút)`);
     console.log('   - Ngày:', searchDate.toISOString().split('T')[0]);
-    console.log('   - Số appointments đã book:', bookedAppointments.length);
+    console.log('   - Số appointments đã book:', validAppointments.length);
     console.log('   - Số timeslots Reserved/Booked:', reservedTimeslots.length);
     console.log('🔴 DEBUG busySlots:', busySlots.map(b => ({
       start: new Date(b.start).toISOString(),
@@ -159,7 +169,9 @@ class AvailableSlotService {
       serviceDuration,
       breakAfterMinutes,
       availableSlots: allAvailableSlots,
-      totalSlots: allAvailableSlots.length
+      totalSlots: allAvailableSlots.length,
+      // ⭐ Thêm scheduleId từ DoctorSchedule đầu tiên (có thể có multiple schedules)
+      scheduleId: schedules.length > 0 ? schedules[0]._id : null
     };
   }
 
@@ -232,9 +244,13 @@ class AvailableSlotService {
       status: 'Active'
     }).select('_id fullName email phoneNumber');
 
+    // 4. Chuẩn bị ngày tìm kiếm
+    const searchDate = new Date(date);
+    searchDate.setHours(0, 0, 0, 0);
+
     if (doctors.length === 0) {
       return {
-        date: new Date(date),
+        date: searchDate,
         serviceId,
         serviceName: service.serviceName,
         serviceDuration,
@@ -243,10 +259,6 @@ class AvailableSlotService {
         message: 'Không có bác sĩ nào hoạt động'
       };
     }
-
-    // 4. Chuẩn bị ngày tìm kiếm
-    const searchDate = new Date(date);
-    searchDate.setHours(0, 0, 0, 0);
 
     // 5. Duyệt qua từng bác sĩ để kiểm tra có khung giờ rảnh không
     const availableDoctors = [];
@@ -265,6 +277,7 @@ class AvailableSlotService {
         if (slotsResult.availableSlots && slotsResult.availableSlots.length > 0) {
           availableDoctors.push({
             doctorId: doctor._id,
+            doctorScheduleId: slotsResult.scheduleId, 
             doctorName: doctor.fullName,
             email: doctor.email,
             phoneNumber: doctor.phoneNumber,
@@ -393,6 +406,7 @@ class AvailableSlotService {
         // Bác sĩ này có khung giờ này rảnh
         availableDoctors.push({
           doctorId: doctor._id,
+          doctorScheduleId: schedule._id, // ← Schedule của ngày đó
           doctorName: doctor.fullName,
           email: doctor.email,
           phoneNumber: doctor.phoneNumber,
