@@ -8,7 +8,7 @@ const User = require('../models/user.model');
  */
 const getDoctorAppointmentsSchedule = async (req, res) => {
   try {
-    const doctorUserId = req.user.id; // Từ token đã xác thực
+    const doctorUserId = req.user.userId; // Từ token đã xác thực
 
     // Kiểm tra bác sĩ có tồn tại không
     const doctor = await User.findById(doctorUserId);
@@ -118,7 +118,7 @@ const getDoctorAppointmentsSchedule = async (req, res) => {
  */
 const getAppointmentDetail = async (req, res) => {
   try {
-    const doctorUserId = req.user.id;
+    const doctorUserId = req.user.userId;
     const { appointmentId } = req.params;
 
     const appointment = await Appointment.findById(appointmentId)
@@ -199,7 +199,7 @@ const getAppointmentDetail = async (req, res) => {
  */
 const getPatientDetail = async (req, res) => {
   try {
-    const doctorUserId = req.user.id;
+    const doctorUserId = req.user.userId;
     const { patientId } = req.params;
 
     // Lấy thông tin bệnh nhân từ User model

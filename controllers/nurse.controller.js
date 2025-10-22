@@ -7,7 +7,7 @@ const User = require('../models/user.model');
  */
 const getNurseSchedule = async (req, res) => {
   try {
-    const nurseUserId = req.user.id; // Từ token đã xác thực
+    const nurseUserId = req.user.userId; // Từ token đã xác thực
 
     // Kiểm tra có phải Nurse không
     const nurse = await User.findById(nurseUserId);
