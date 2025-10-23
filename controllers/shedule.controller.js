@@ -118,6 +118,10 @@ const getAllScheduleDoctors = async(req,res) =>{
         path: 'roomId',
         select: 'roomName'
       })
+      .populate({
+          path : 'roomId',
+        select : 'name'
+      })
       .skip(skip)
       .limit(limitNum)
       .lean()

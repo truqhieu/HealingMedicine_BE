@@ -4,7 +4,7 @@ const { verifyToken, verifyRole } = require('../middleware/auth.middleware');
 const { createClinicRoom, getAllClinicRooms, viewDetailClinicRoom, updateClinicRoom, deleteClinicRoom, listDoctor, assignDoctor, unssignDoctor } = require('../controllers/clinic.controller');
 
 router.post('/clinics', verifyToken, verifyRole('Manager'), createClinicRoom)
-router.get('/clinics', verifyToken, verifyRole('Manager'), getAllClinicRooms)
+router.get('/clinics',  getAllClinicRooms)
 router.get('/clinics/doctor', verifyToken, verifyRole('Manager'), listDoctor)
 router.get('/clinics/:id', verifyToken, verifyRole('Manager'), viewDetailClinicRoom)
 router.patch('/clinics/:id', verifyToken, verifyRole('Manager'), updateClinicRoom)

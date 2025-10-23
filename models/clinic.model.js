@@ -25,4 +25,4 @@ const clinicroomSchema = new mongoose.Schema({
   timestamps: true
 });
 
-module.exports = mongoose.model('Clinicroom', clinicroomSchema);
+module.exports = mongoose.model('Clinicroom', clinicroomSchema,'clinicrooms');

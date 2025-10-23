@@ -4,8 +4,8 @@ const { verifyToken, verifyRole } = require('../middleware/auth.middleware');
 const {createAccount, getAllAccounts, viewDetailAccount, updateAccount,lockAcount, unlockAcount, changePassword, assignRole} = require('../controllers/admin.controller');
 
 // ⭐ Chỉ Admin được phép quản lý tài khoản
-router.post('/accounts', verifyToken, verifyRole('Admin'), createAccount)
-router.get('/accounts', verifyToken, verifyRole('Admin'), getAllAccounts)
+router.post('/accounts', createAccount)
+router.get('/accounts',  getAllAccounts)
 router.get('/accounts/:id', verifyToken, verifyRole('Admin'), viewDetailAccount)
 router.patch('/accounts/:id', verifyToken, verifyRole('Admin'), updateAccount)
 router.patch('/accounts/lock/:id', verifyToken, verifyRole('Admin'), lockAcount)
