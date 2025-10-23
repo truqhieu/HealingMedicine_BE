@@ -158,7 +158,16 @@ class UserService {
     user.updatedAt = new Date();
     await user.save();
 
-    return { user, token };
+    // ⭐ Lấy emergencyContact từ bảng Patient nếu user là Patient
+    let emergencyContact = null;
+    if (user.role === 'Patient') {
+      const patient = await Patient.findOne({ patientUserId: user._id });
+      if (patient && patient.emergencyContact) {
+        emergencyContact = patient.emergencyContact;
+      }
+    }
+
+    return { user, token, emergencyContact };
   }
 
   async getUserProfile(userId) {
@@ -168,7 +177,16 @@ class UserService {
       throw new Error('Không tìm thấy thông tin người dùng');
     }
 
-    return user;
+    // ⭐ Lấy emergencyContact từ bảng Patient nếu user là Patient
+    let emergencyContact = null;
+    if (user.role === 'Patient') {
+      const patient = await Patient.findOne({ patientUserId: userId });
+      if (patient && patient.emergencyContact) {
+        emergencyContact = patient.emergencyContact;
+      }
+    }
+
+    return { ...user.toObject(), emergencyContact };
   }
 
   verifyJWTToken(token) {

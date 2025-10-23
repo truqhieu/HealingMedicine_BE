@@ -143,7 +143,7 @@ const login = async (req, res) => {
     const { email, password } = req.body;
 
     // Xử lý đăng nhập qua service
-    const { user, token } = await userService.loginUser(email, password);
+    const { user, token, emergencyContact } = await userService.loginUser(email, password);
 
     res.status(200).json({
       success: true,
@@ -160,6 +160,7 @@ const login = async (req, res) => {
           dateOfBirth: user.dob,
           gender: user.gender,
           avatar: user.avatar,
+          emergencyContact: emergencyContact,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt
         },
@@ -207,6 +208,7 @@ const getProfile = async (req, res) => {
           dateOfBirth: user.dob,
           gender: user.gender,
           avatar: user.avatar,
+          emergencyContact: user.emergencyContact,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt
         }
@@ -552,6 +554,7 @@ const updateProfile = async (req, res) => {
           dateOfBirth: updatedUser.dob,
           gender: updatedUser.gender,
           avatar: updatedUser.avatar,
+          emergencyContact: emergencyContactUpdate,
           createdAt: updatedUser.createdAt,
           updatedAt: updatedUser.updatedAt
         }
