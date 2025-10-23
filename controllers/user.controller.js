@@ -533,12 +533,25 @@ const updateProfile = async (req, res) => {
     if (emergencyContactUpdate && updatedUser.role === 'Patient') {
       const Patient = require('../models/patient.model');
       console.log('🔍 [UPDATE PROFILE] Saving emergencyContact to Patient:', JSON.stringify(emergencyContactUpdate));
-      const updatedPatient = await Patient.findOneAndUpdate(
-        { patientUserId: userId },
-        { $set: { emergencyContact: emergencyContactUpdate } },
-        { new: true }
-      );
-      console.log('🔍 [UPDATE PROFILE] Patient after update:', updatedPatient ? 'Found' : 'Not found');
+      
+      // ⭐ Kiểm tra xem Patient record có tồn tại không
+      let patient = await Patient.findOne({ patientUserId: userId });
+      
+      if (!patient) {
+        // ⭐ Nếu không tồn tại, tự động tạo mới
+        console.log('🔍 [UPDATE PROFILE] Patient record not found, creating new one');
+        patient = new Patient({
+          patientUserId: userId,
+          emergencyContact: emergencyContactUpdate
+        });
+        await patient.save();
+        console.log('🔍 [UPDATE PROFILE] Created new Patient record');
+      } else {
+        // ⭐ Nếu đã tồn tại, update emergencyContact
+        patient.emergencyContact = emergencyContactUpdate;
+        await patient.save();
+        console.log('🔍 [UPDATE PROFILE] Updated existing Patient record');
+      }
     }
     
     // ⭐ Luôn lấy emergencyContact mới nhất từ Patient collection khi response

@@ -161,8 +161,18 @@ class UserService {
     // ⭐ Lấy emergencyContact từ bảng Patient nếu user là Patient
     let emergencyContact = null;
     if (user.role === 'Patient') {
-      const patient = await Patient.findOne({ patientUserId: user._id });
+      let patient = await Patient.findOne({ patientUserId: user._id });
       console.log('🔍 [LOGIN] Patient record found:', patient ? 'Yes' : 'No');
+      
+      if (!patient) {
+        // ⭐ Tự động tạo Patient record nếu chưa có (cho user cũ)
+        console.log('🔍 [LOGIN] Creating Patient record for existing user');
+        patient = new Patient({
+          patientUserId: user._id
+        });
+        await patient.save();
+      }
+      
       if (patient) {
         console.log('🔍 [LOGIN] EmergencyContact data:', JSON.stringify(patient.emergencyContact));
         emergencyContact = patient.emergencyContact || null;
@@ -182,8 +192,18 @@ class UserService {
     // ⭐ Lấy emergencyContact từ bảng Patient nếu user là Patient
     let emergencyContact = null;
     if (user.role === 'Patient') {
-      const patient = await Patient.findOne({ patientUserId: userId });
+      let patient = await Patient.findOne({ patientUserId: userId });
       console.log('🔍 [GET PROFILE] Patient record found:', patient ? 'Yes' : 'No');
+      
+      if (!patient) {
+        // ⭐ Tự động tạo Patient record nếu chưa có (cho user cũ)
+        console.log('🔍 [GET PROFILE] Creating Patient record for existing user');
+        patient = new Patient({
+          patientUserId: userId
+        });
+        await patient.save();
+      }
+      
       if (patient) {
         console.log('🔍 [GET PROFILE] EmergencyContact data:', JSON.stringify(patient.emergencyContact));
         emergencyContact = patient.emergencyContact || null;
