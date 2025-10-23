@@ -162,8 +162,10 @@ class UserService {
     let emergencyContact = null;
     if (user.role === 'Patient') {
       const patient = await Patient.findOne({ patientUserId: user._id });
-      if (patient && patient.emergencyContact) {
-        emergencyContact = patient.emergencyContact;
+      console.log('🔍 [LOGIN] Patient record found:', patient ? 'Yes' : 'No');
+      if (patient) {
+        console.log('🔍 [LOGIN] EmergencyContact data:', JSON.stringify(patient.emergencyContact));
+        emergencyContact = patient.emergencyContact || null;
       }
     }
 
@@ -181,8 +183,10 @@ class UserService {
     let emergencyContact = null;
     if (user.role === 'Patient') {
       const patient = await Patient.findOne({ patientUserId: userId });
-      if (patient && patient.emergencyContact) {
-        emergencyContact = patient.emergencyContact;
+      console.log('🔍 [GET PROFILE] Patient record found:', patient ? 'Yes' : 'No');
+      if (patient) {
+        console.log('🔍 [GET PROFILE] EmergencyContact data:', JSON.stringify(patient.emergencyContact));
+        emergencyContact = patient.emergencyContact || null;
       }
     }
 
