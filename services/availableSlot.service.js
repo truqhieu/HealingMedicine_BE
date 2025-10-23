@@ -1001,9 +1001,10 @@ class AvailableSlotService {
         });
       });
 
-      // ⭐ Thêm filter: Exclude slots mà user hiện tại đã đặt
+      // ⭐ Exclude slots mà user hiện tại đã đặt (CHỈ khi appointmentFor === 'self')
+      // Khi appointmentFor === 'other', patientUserId sẽ là null → skip bước này
       if (patientUserId && patientBookedSlots.length > 0) {
-        console.log(`🔍 [Doctor ${doctor.fullName}] Filtering user booked slots...`);
+        console.log(`🔍 [Doctor ${doctor.fullName}] Filtering user booked slots (appointmentFor=self)...`);
         console.log(`   - patientBookedSlots count: ${patientBookedSlots.length}`);
         patientBookedSlots.forEach((booked, idx) => {
           console.log(`   - Booked slot ${idx}: ${booked.start.toISOString()} - ${booked.end.toISOString()}`);
@@ -1033,8 +1034,9 @@ class AvailableSlotService {
         
         console.log(`   - availableSlots AFTER filter: ${availableSlots.length}`);
       }
-
-      // ⭐ Thêm filter: Exclude slots mà customer hiện tại đã đặt (nếu đặt cho người khác)
+      
+      // ⭐ Exclude slots của customer (nếu đặt cho người khác và customer đã có appointment)
+      // để tránh conflict double booking cho cùng 1 người
       if (customerBookedSlots.length > 0) {
         console.log(`🔍 [Doctor ${doctor.fullName}] Filtering customer booked slots...`);
         console.log(`   - customerBookedSlots count: ${customerBookedSlots.length}`);
