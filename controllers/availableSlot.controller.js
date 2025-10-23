@@ -10,6 +10,11 @@ const generateSlotsByDate = async (req, res) => {
     const { serviceId, date, breakAfterMinutes, appointmentFor, customerFullName, customerEmail } = req.query;
     const userId = req.user?.userId || null; // Lấy userId nếu user đã login
 
+    // ⭐ IMPORTANT: Ensure appointmentFor always has a value (default to 'self')
+    const appointmentForValue = appointmentFor || 'self';
+    console.log('🔍 [generateSlotsByDate] appointmentFor received:', appointmentFor);
+    console.log('🔍 [generateSlotsByDate] appointmentForValue (with default):', appointmentForValue);
+
     // Validation
     if (!serviceId || !date) {
       return res.status(400).json({
@@ -28,24 +33,24 @@ const generateSlotsByDate = async (req, res) => {
     }
 
     console.log('🔍 [generateSlotsByDate] User ID:', userId ? userId : 'Guest');
-    console.log('🔍 [generateSlotsByDate] appointmentFor:', appointmentFor || 'not specified');
-    if (appointmentFor === 'other') {
+    console.log('🔍 [generateSlotsByDate] appointmentFor:', appointmentForValue);
+    if (appointmentForValue === 'other') {
       console.log('🔍 [generateSlotsByDate] Customer:', customerFullName, '<' + customerEmail + '>');
     }
 
     // ⭐⭐⭐ LOGIC:
     // - appointmentFor === 'self' (hoặc không specify): Pass userId để EXCLUDE slots user đã đặt
     // - appointmentFor === 'other': Không pass userId để KHÔNG exclude slots (chỉ exclude customer nếu có)
-    const patientUserIdForExclusion = (appointmentFor === 'self' || !appointmentFor) && userId ? userId : null;
+    const patientUserIdForExclusion = (appointmentForValue === 'self') && userId ? userId : null;
     console.log('🔍 [generateSlotsByDate] patientUserIdForExclusion:', patientUserIdForExclusion || 'none (will not exclude slots)');
 
     const result = await availableSlotService.generateAvailableSlotsByDate({
       serviceId,
       date: searchDate,
       breakAfterMinutes: breakAfterMinutes ? parseInt(breakAfterMinutes) : 10,
-      patientUserId: patientUserIdForExclusion, // ⭐ Chỉ exclude khi appointmentFor !== 'other'
+      patientUserId: patientUserIdForExclusion, // ⭐ Chỉ exclude khi appointmentFor === 'self'
       // ⭐ Pass customer info nếu appointmentFor === 'other'
-      ...(appointmentFor === 'other' && {
+      ...(appointmentForValue === 'other' && {
         customerFullName: customerFullName ? decodeURIComponent(customerFullName) : null,
         customerEmail: customerEmail ? decodeURIComponent(customerEmail) : null,
       }),
