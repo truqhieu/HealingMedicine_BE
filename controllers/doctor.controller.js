@@ -73,8 +73,16 @@ const getDoctorAppointmentsSchedule = async (req, res) => {
         serviceName: appointment.serviceId?.serviceName || 'N/A',
         patientName: patient?.fullName || 'N/A',
         appointmentDate: timeslot?.startTime ? new Date(timeslot.startTime).toISOString().split('T')[0] : 'N/A',
-        startTime: timeslot?.startTime ? new Date(timeslot.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
-        endTime: timeslot?.endTime ? new Date(timeslot.endTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
+        startTime: timeslot?.startTime ? new Date(timeslot.startTime).toLocaleTimeString('vi-VN', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          timeZone: 'Asia/Ho_Chi_Minh'
+        }) : 'N/A',
+        endTime: timeslot?.endTime ? new Date(timeslot.endTime).toLocaleTimeString('vi-VN', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          timeZone: 'Asia/Ho_Chi_Minh'
+        }) : 'N/A',
         type: appointment.type,
         status: appointment.status,
         mode: appointment.mode
@@ -158,6 +166,7 @@ const getAppointmentDetail = async (req, res) => {
       message: 'Lấy chi tiết lịch hẹn thành công',
       data: {
         appointmentId: appointment._id,
+        patientId: patientInfo?._id || 'N/A',
         patientName: patientInfo?.fullName || 'N/A',
         patientEmail: patientInfo?.email || 'N/A',
         serviceName: appointment.serviceId?.serviceName || 'N/A',
@@ -166,8 +175,16 @@ const getAppointmentDetail = async (req, res) => {
         status: appointment.status,
         mode: appointment.mode,
         appointmentDate: timeslot?.startTime ? new Date(timeslot.startTime).toISOString().split('T')[0] : 'N/A',
-        startTime: timeslot?.startTime ? new Date(timeslot.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
-        endTime: timeslot?.endTime ? new Date(timeslot.endTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'N/A'
+        startTime: timeslot?.startTime ? new Date(timeslot.startTime).toLocaleTimeString('vi-VN', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          timeZone: 'Asia/Ho_Chi_Minh'
+        }) : 'N/A',
+        endTime: timeslot?.endTime ? new Date(timeslot.endTime).toLocaleTimeString('vi-VN', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          timeZone: 'Asia/Ho_Chi_Minh'
+        }) : 'N/A'
       }
     });
 
@@ -214,13 +231,12 @@ const getPatientDetail = async (req, res) => {
         patientId: user._id,
         fullName: user.fullName,
         email: user.email,
-        phoneNumber: user.phoneNumber || 'N/A',
-        dateOfBirth: user.dob ? new Date(user.dob).toISOString().split('T')[0] : 'N/A',
-        gender: user.gender || 'N/A',
-        address: user.address || 'N/A',
+        phoneNumber: user.phoneNumber || 'Trống',
+        dateOfBirth: user.dob ? new Date(user.dob).toISOString().split('T')[0] : 'Trống',
+        gender: user.gender || 'Trống',
+        address: user.address || 'Trống',
         status: user.status,
-        emergencyContact: patientRecord?.emergencyContact || 'N/A',
-        lastVisitDate: patientRecord?.lastVisitDate ? new Date(patientRecord.lastVisitDate).toISOString().split('T')[0] : 'N/A'
+        emergencyContact: patientRecord?.emergencyContact || 'Trống'
       }
     });
 

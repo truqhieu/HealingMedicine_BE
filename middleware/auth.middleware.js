@@ -68,19 +68,30 @@ const verifyToken = (req, res, next) => {
 const verifyRole = (...allowedRoles) => {
   return (req, res, next) => {
     if (!req.user) {
+      console.error('❌ verifyRole: No user found in request');
       return res.status(401).json({
         success: false,
         message: 'Vui lòng đăng nhập'
       });
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
+    // ⭐ Flatten array nếu phần tử đầu tiên là array (hỗ trợ cả verifyRole('Staff') và verifyRole(['Staff']))
+    const roles = Array.isArray(allowedRoles[0]) ? allowedRoles[0] : allowedRoles;
+    
+    console.log('🔍 verifyRole check:');
+    console.log('   - User role:', req.user.role);
+    console.log('   - Allowed roles:', roles);
+    console.log('   - Has permission?', roles.includes(req.user.role));
+
+    if (!roles.includes(req.user.role)) {
+      console.error('❌ Permission denied for role:', req.user.role);
       return res.status(403).json({
         success: false,
         message: 'Bạn không có quyền truy cập'
       });
     }
 
+    console.log('✅ Permission granted');
     next();
   };
 };

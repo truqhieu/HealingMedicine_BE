@@ -138,7 +138,24 @@ const checkPaymentStatus = async (req, res) => {
 
     console.log('💳 Payment status:', payment.status);
 
-    // Nếu payment đã completed, return confirmed
+    // ⚠️ Nếu payment đã expired hoặc cancelled, return expired
+    if (payment.status === 'Expired' || payment.status === 'Cancelled') {
+      const message = payment.status === 'Cancelled' 
+        ? 'Thanh toán đã bị hủy' 
+        : 'Thanh toán đã hết hạn';
+      
+      return res.status(200).json({
+        success: true,
+        message: message,
+        data: {
+          payment,
+          confirmed: false,
+          expired: true // ⭐ Flag để FE biết đã hết hạn hoặc bị hủy
+        }
+      });
+    }
+
+    // ✅ Nếu payment đã completed, return confirmed
     if (payment.status === 'Completed') {
       const appointment = await Appointment.findById(payment.appointmentId)
         .select('status')
@@ -150,18 +167,20 @@ const checkPaymentStatus = async (req, res) => {
         data: {
           payment,
           appointment,
-          confirmed: true
+          confirmed: true,
+          expired: false
         }
       });
     }
 
-    // Chưa có giao dịch hoặc đang pending
+    // ⏳ Chưa có giao dịch hoặc đang pending
     res.status(200).json({
       success: true,
       message: 'Chưa nhận được thanh toán hoặc đang xử lý',
       data: {
         payment,
-        confirmed: false
+        confirmed: false,
+        expired: false
       }
     });
 

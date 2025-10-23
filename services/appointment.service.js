@@ -243,9 +243,9 @@ class AppointmentService {
     let paymentHoldExpiresAt = null;
     
     if (service.isPrepaid) {
-      // Nếu cần thanh toán trước, set status PendingPayment và expire sau 15 phút
+      // Nếu cần thanh toán trước, set status PendingPayment và expire sau 3 phút (cho demo)
       appointmentStatus = 'PendingPayment';
-      paymentHoldExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 phút
+      paymentHoldExpiresAt = new Date(Date.now() + 3 * 60 * 1000); // 3 phút (demo)
       console.log('💳 Appointment cần thanh toán trước, giữ slot đến:', paymentHoldExpiresAt);
     }
 
