@@ -43,6 +43,13 @@ const generateSlotsByDate = async (req, res) => {
     // - appointmentFor === 'other': Không pass userId để KHÔNG exclude slots (chỉ exclude customer nếu có)
     const patientUserIdForExclusion = (appointmentForValue === 'self') && userId ? userId : null;
     console.log('🔍 [generateSlotsByDate] patientUserIdForExclusion:', patientUserIdForExclusion || 'none (will not exclude slots)');
+    
+    // ⭐ DEBUG: Show detailed info
+    console.log('🔍 [generateSlotsByDate] DETAILED DEBUG:');
+    console.log('   - appointmentForValue:', appointmentForValue);
+    console.log('   - userId:', userId);
+    console.log('   - appointmentForValue === "self":', appointmentForValue === 'self');
+    console.log('   - Decision: patientUserIdForExclusion =', patientUserIdForExclusion === null ? 'null' : patientUserIdForExclusion);
 
     const result = await availableSlotService.generateAvailableSlotsByDate({
       serviceId,
