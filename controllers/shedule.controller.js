@@ -1,4 +1,4 @@
-const SchedulesDoctor = require("../models/schedule.model")
+const SchedulesDoctor = require("../models/doctorSchedule.model")
 const User = require('../models/user.model')
 const Clinicroom = require('../models/clinic.model')
 
@@ -104,6 +104,10 @@ const getAllScheduleDoctors = async(req,res) =>{
       .populate({
         path :'doctorUserId',
         select : 'fullName'
+      })
+      .populate({
+        path : 'roomId',
+        select : 'name'
       })
       .skip(skip)
       .limit(limitNum)
