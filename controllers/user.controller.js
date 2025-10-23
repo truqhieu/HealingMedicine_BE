@@ -539,6 +539,16 @@ const updateProfile = async (req, res) => {
       );
     }
     
+    // ⭐ Luôn lấy emergencyContact mới nhất từ Patient collection khi response
+    let emergencyContactResponse = null;
+    if (updatedUser.role === 'Patient') {
+      const Patient = require('../models/patient.model');
+      const patient = await Patient.findOne({ patientUserId: userId });
+      if (patient && patient.emergencyContact) {
+        emergencyContactResponse = patient.emergencyContact;
+      }
+    }
+    
     res.status(200).json({
       success: true,
       message: 'Cập nhật thông tin cá nhân thành công',
@@ -554,7 +564,7 @@ const updateProfile = async (req, res) => {
           dateOfBirth: updatedUser.dob,
           gender: updatedUser.gender,
           avatar: updatedUser.avatar,
-          emergencyContact: emergencyContactUpdate,
+          emergencyContact: emergencyContactResponse,
           createdAt: updatedUser.createdAt,
           updatedAt: updatedUser.updatedAt
         }
