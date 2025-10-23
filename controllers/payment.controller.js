@@ -138,15 +138,19 @@ const checkPaymentStatus = async (req, res) => {
 
     console.log('💳 Payment status:', payment.status);
 
-    // ⚠️ Nếu payment đã expired, return expired
-    if (payment.status === 'Expired') {
+    // ⚠️ Nếu payment đã expired hoặc cancelled, return expired
+    if (payment.status === 'Expired' || payment.status === 'Cancelled') {
+      const message = payment.status === 'Cancelled' 
+        ? 'Thanh toán đã bị hủy' 
+        : 'Thanh toán đã hết hạn';
+      
       return res.status(200).json({
         success: true,
-        message: 'Thanh toán đã hết hạn',
+        message: message,
         data: {
           payment,
           confirmed: false,
-          expired: true // ⭐ Flag để FE biết đã hết hạn
+          expired: true // ⭐ Flag để FE biết đã hết hạn hoặc bị hủy
         }
       });
     }
