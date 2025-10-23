@@ -35,7 +35,7 @@ const generateSlotsByDate = async (req, res) => {
 
     // ⭐⭐⭐ LOGIC:
     // - appointmentFor === 'self' (hoặc không specify): Pass userId để EXCLUDE slots user đã đặt
-.    // - appointmentFor === 'other': Không pass userId để KHÔNG exclude slots (chỉ exclude customer nếu có)
+    // - appointmentFor === 'other': Không pass userId để KHÔNG exclude slots (chỉ exclude customer nếu có)
     // ⭐ KEY FIX: Chỉ exclude user's slots khi appointmentFor === 'self' hoặc KHÔNG được specify
     // 
     // ⭐ IMPORTANT: Nếu đặt cho người khác (appointmentFor === 'other'), PHẢI set patientUserIdForExclusion = null
