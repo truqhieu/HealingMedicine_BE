@@ -21,7 +21,7 @@ const getDoctorAppointmentsSchedule = async (req, res) => {
       });
     }
 
-    // Tính toán ngày bắt đầu tuần (Thứ 2)
+    // ⭐ Tính toán tuần hiện tại + tuần tiếp theo (2 tuần)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
@@ -33,15 +33,13 @@ const getDoctorAppointmentsSchedule = async (req, res) => {
     const endOfTwoWeeks = new Date(startOfWeek);
     endOfTwoWeeks.setDate(endOfTwoWeeks.getDate() + 14);
 
-    // Lấy tất cả appointments trong 2 tuần
-    const appointments = await Appointment.find({
+    console.log(`📅 Doctor ${doctorUserId} - Lấy lịch từ ${startOfWeek.toISOString().split('T')[0]} đến ${endOfTwoWeeks.toISOString().split('T')[0]}`);
+
+    // ⭐ Lấy TẤT CẢ appointments đã duyệt của doctor (không filter theo thời gian ở đây)
+    // Vì không thể query trực tiếp trên populated field, ta sẽ filter sau
+    const allAppointments = await Appointment.find({
       doctorUserId: doctorUserId,
-      createdAt: {
-        $gte: startOfWeek,
-        $lt: endOfTwoWeeks
-      },
-      // ⭐ Chỉ hiển thị ca khám đã được Staff duyệt (Approved, CheckedIn, Completed, Finalized)
-      // Các ca Pending vẫn ở màn Staff nên không show
+      // ⭐ Chỉ hiển thị ca khám đã được Staff duyệt
       status: { $in: ['Approved', 'CheckedIn', 'Completed', 'Finalized'] }
     })
       .populate({
@@ -60,8 +58,25 @@ const getDoctorAppointmentsSchedule = async (req, res) => {
         path: 'timeslotId',
         select: 'startTime endTime'
       })
-      .sort({ 'timeslotId.startTime': 1 })
       .lean();
+
+    // ⚠️ FILTER theo timeslotId.startTime (ngày giờ khám thực tế) - CHỈ 2 TUẦN
+    const appointments = allAppointments.filter(appointment => {
+      if (!appointment.timeslotId || !appointment.timeslotId.startTime) {
+        return false;
+      }
+      const appointmentDate = new Date(appointment.timeslotId.startTime);
+      return appointmentDate >= startOfWeek && appointmentDate < endOfTwoWeeks;
+    });
+
+    console.log(`✅ Lọc được ${appointments.length}/${allAppointments.length} lịch hẹn trong 2 tuần`);
+
+    // Sắp xếp theo startTime
+    appointments.sort((a, b) => {
+      const timeA = a.timeslotId?.startTime ? new Date(a.timeslotId.startTime).getTime() : 0;
+      const timeB = b.timeslotId?.startTime ? new Date(b.timeslotId.startTime).getTime() : 0;
+      return timeA - timeB;
+    });
 
     // ⭐ Format response thành array dạng bảng
     const appointmentsList = appointments.map(appointment => {

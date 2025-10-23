@@ -537,25 +537,24 @@ class AppointmentService {
 
   /**
    * Lấy danh sách lịch hẹn chờ duyệt (Pending)
-   * Dùng cho staff review
+   * Dùng cho staff review - HIỂN THỊ TẤT CẢ (không giới hạn thời gian)
+   * ⚠️ CHỈ hiển thị lịch "Pending" - không hiển thị "PendingPayment"
+   * (PendingPayment đang chờ thanh toán, chưa cần Staff duyệt)
    */
   async getPendingAppointments(filters = {}) {
     try {
       const query = {
-        status: { $in: ['Pending', 'PendingPayment'] }
+        status: 'Pending' // ⭐ CHỈ lấy Pending, KHÔNG lấy PendingPayment
       };
 
-      // Có thể filter theo doctor, ngày, v.v
+      // ⭐ Có thể filter theo doctor (nếu cần)
       if (filters.doctorUserId) {
         query.doctorUserId = filters.doctorUserId;
       }
 
-      if (filters.startDate && filters.endDate) {
-        query.createdAt = {
-          $gte: new Date(filters.startDate),
-          $lte: new Date(filters.endDate)
-        };
-      }
+      // ⚠️ BỎ FILTER THEO THỜI GIAN - Staff cần xem TẤT CẢ lịch pending
+      // Staff cần duyệt/từ chối tất cả các yêu cầu bệnh nhân gửi đến,
+      // không quan tâm ngày gửi là bao giờ
 
       const appointments = await Appointment.find(query)
         .populate('patientUserId', 'fullName email phoneNumber')
@@ -563,7 +562,9 @@ class AppointmentService {
         .populate('doctorUserId', 'fullName email')
         .populate('serviceId', 'serviceName price durationMinutes category')
         .populate('timeslotId', 'startTime endTime')
-        .sort({ createdAt: -1 });
+        .sort({ createdAt: -1 }); // Sắp xếp mới nhất trước
+
+      console.log(`📋 Staff - Lấy ${appointments.length} lịch hẹn "Pending" (TẤT CẢ thời gian, không bao gồm PendingPayment)`);
 
       return {
         success: true,
