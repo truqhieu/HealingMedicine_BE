@@ -763,6 +763,13 @@ class AvailableSlotService {
       throw new Error('Vui lòng cung cấp đầy đủ serviceId và date');
     }
 
+    // ⭐ DEBUG: Log input parameters
+    console.log('🔍 [generateAvailableSlotsByDate] INPUT PARAMS:');
+    console.log('   - patientUserId:', patientUserId || 'NULL (WILL NOT EXCLUDE USER SLOTS)');
+    console.log('   - customerFullName:', customerFullName || 'NULL');
+    console.log('   - customerEmail:', customerEmail || 'NULL');
+    console.log('   - breakAfterMinutes:', breakAfterMinutes);
+
     // 2. Lấy thông tin dịch vụ
     const service = await Service.findById(serviceId);
     if (!service) {
