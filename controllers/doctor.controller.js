@@ -231,13 +231,12 @@ const getPatientDetail = async (req, res) => {
         patientId: user._id,
         fullName: user.fullName,
         email: user.email,
-        phoneNumber: user.phoneNumber || 'N/A',
-        dateOfBirth: user.dob ? new Date(user.dob).toISOString().split('T')[0] : 'N/A',
-        gender: user.gender || 'N/A',
-        address: user.address || 'N/A',
+        phoneNumber: user.phoneNumber || 'Trống',
+        dateOfBirth: user.dob ? new Date(user.dob).toISOString().split('T')[0] : 'Trống',
+        gender: user.gender || 'Trống',
+        address: user.address || 'Trống',
         status: user.status,
-        emergencyContact: patientRecord?.emergencyContact || 'N/A',
-        lastVisitDate: patientRecord?.lastVisitDate ? new Date(patientRecord.lastVisitDate).toISOString().split('T')[0] : 'N/A'
+        emergencyContact: patientRecord?.emergencyContact || 'Trống'
       }
     });
 

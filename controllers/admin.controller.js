@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const User = require('../models/user.model')
 const Doctor = require('../models/doctor.model');
 const Staff = require('../models/staff.model');
+const Patient = require('../models/patient.model');
 const bcrypt = require('bcryptjs')
 
 const ROLE_ACCOUNT = ['Doctor', 'Nurse', 'Staff', 'Patient', 'Manager'];
@@ -52,6 +53,7 @@ const createAccount = async(req, res) =>{
                 status: 'Available'
             });
             await newDoctor.save();
+            console.log(`✅ Tạo Doctor record thành công cho user: ${newAccount._id}`);
         }
         
         // ⭐ Nếu role là Nurse, tạo record trong Nurse collection (nếu có)
@@ -68,10 +70,25 @@ const createAccount = async(req, res) =>{
         // ⭐ Nếu role là Staff, tạo record trong Staff collection
         if (role === 'Staff') {
             const newStaff = new Staff({
-                staffUserId: newAccount._id,
-                status: 'Available'
+                userId: newAccount._id,  // ⚠️ Sửa: staffUserId -> userId (theo model)
+                status: 'Active'
             });
             await newStaff.save();
+            console.log(`✅ Tạo Staff record thành công cho user: ${newAccount._id}`);
+        }
+
+        // ⭐ Nếu role là Patient, tạo record trong Patient collection
+        if (role === 'Patient') {
+            const newPatient = new Patient({
+                patientUserId: newAccount._id,
+                emergencyContact: {
+                    name: '',
+                    phone: '',
+                    relationship: 'Other'
+                }
+            });
+            await newPatient.save();
+            console.log(`✅ Tạo Patient record thành công cho user: ${newAccount._id}`);
         }
         
         res.status(201).json({
