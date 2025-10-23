@@ -1011,17 +1011,19 @@ class AvailableSlotService {
       // ⭐ Exclude slots mà user hiện tại đã đặt (CHỈ khi appointmentFor === 'self')
       // Khi appointmentFor === 'other', patientUserId sẽ là null → skip bước này
       if (patientUserId && patientBookedSlots.length > 0) {
-        console.log(`🔍 [Doctor ${doctor.fullName}] Filtering user booked slots (appointmentFor=self)...`);
+        console.log(`\n🔴 [Doctor ${doctor.fullName}] EXCLUDING USER BOOKED SLOTS (appointmentFor=self):`);
+        console.log(`   - patientUserId: ${patientUserId}`);
         console.log(`   - patientBookedSlots count: ${patientBookedSlots.length}`);
         patientBookedSlots.forEach((booked, idx) => {
           console.log(`   - Booked slot ${idx}: ${booked.start.toISOString()} - ${booked.end.toISOString()}`);
         });
         
-        console.log(`   - availableSlots BEFORE filter: ${availableSlots.length}`);
+        console.log(`   - availableSlots BEFORE exclude: ${availableSlots.length}`);
         availableSlots.forEach((slot, idx) => {
-          console.log(`     - Slot ${idx}: ${slot.startTime} - ${slot.endTime}`);
+          console.log(`     [${idx}] ${slot.startTime} - ${slot.endTime}`);
         });
         
+        const slotsBeforeFilter = availableSlots.length;
         availableSlots = availableSlots.filter(slot => {
           const slotStart = new Date(slot.startTime);
           const slotEnd = new Date(slot.endTime);
@@ -1033,26 +1035,34 @@ class AvailableSlotService {
           });
           
           if (isBooked) {
-            console.log(`     ❌ Excluding slot: ${slot.startTime} - ${slot.endTime}`);
+            console.log(`     ❌ EXCLUDED: ${slot.startTime} - ${slot.endTime}`);
           }
           
           return !isBooked;
         });
         
-        console.log(`   - availableSlots AFTER filter: ${availableSlots.length}`);
+        console.log(`   - availableSlots AFTER exclude: ${availableSlots.length} (removed ${slotsBeforeFilter - availableSlots.length})`);
+      } else if (patientUserId && patientBookedSlots.length === 0) {
+        console.log(`\n✅ [Doctor ${doctor.fullName}] NO USER BOOKED SLOTS TO EXCLUDE (appointmentFor=self, user has no appointments)`);
+      } else if (!patientUserId) {
+        console.log(`\n🟢 [Doctor ${doctor.fullName}] NOT EXCLUDING USER SLOTS (appointmentFor=other, patientUserId=null)`);
       }
       
       // ⭐ Exclude slots của customer (nếu đặt cho người khác và customer đã có appointment)
       // để tránh conflict double booking cho cùng 1 người
       if (customerBookedSlots.length > 0) {
-        console.log(`🔍 [Doctor ${doctor.fullName}] Filtering customer booked slots...`);
+        console.log(`\n🔴 [Doctor ${doctor.fullName}] EXCLUDING CUSTOMER BOOKED SLOTS:`);
         console.log(`   - customerBookedSlots count: ${customerBookedSlots.length}`);
         customerBookedSlots.forEach((booked, idx) => {
           console.log(`   - Booked slot ${idx}: ${booked.start.toISOString()} - ${booked.end.toISOString()}`);
         });
         
-        console.log(`   - availableSlots BEFORE customer filter: ${availableSlots.length}`);
+        console.log(`   - availableSlots BEFORE exclude: ${availableSlots.length}`);
+        availableSlots.forEach((slot, idx) => {
+          console.log(`     [${idx}] ${slot.startTime} - ${slot.endTime}`);
+        });
         
+        const slotsBeforeFilter = availableSlots.length;
         availableSlots = availableSlots.filter(slot => {
           const slotStart = new Date(slot.startTime);
           const slotEnd = new Date(slot.endTime);
@@ -1063,13 +1073,15 @@ class AvailableSlotService {
           });
           
           if (isBooked) {
-            console.log(`     ❌ Excluding slot: ${slot.startTime} - ${slot.endTime}`);
+            console.log(`     ❌ EXCLUDED: ${slot.startTime} - ${slot.endTime}`);
           }
           
           return !isBooked;
         });
         
-        console.log(`   - availableSlots AFTER customer filter: ${availableSlots.length}`);
+        console.log(`   - availableSlots AFTER exclude: ${availableSlots.length} (removed ${slotsBeforeFilter - availableSlots.length})`);
+      } else {
+        console.log(`\n🟢 [Doctor ${doctor.fullName}] NO CUSTOMER BOOKED SLOTS (no customer info or customer not found)`);
       }
 
       // Thêm thông tin doctor và format displayTime theo giờ Việt Nam
@@ -1101,6 +1113,8 @@ class AvailableSlotService {
           doctorScheduleId: schedule._id
         });
       });
+      
+      console.log(`\n✅ [Doctor ${doctor.fullName}] Final available slots: ${availableSlots.length}`);
     }
 
     // 9. Sort theo thời gian
