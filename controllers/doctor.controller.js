@@ -158,6 +158,7 @@ const getAppointmentDetail = async (req, res) => {
       message: 'Lấy chi tiết lịch hẹn thành công',
       data: {
         appointmentId: appointment._id,
+        patientId: patientInfo?._id || 'N/A',
         patientName: patientInfo?.fullName || 'N/A',
         patientEmail: patientInfo?.email || 'N/A',
         serviceName: appointment.serviceId?.serviceName || 'N/A',
