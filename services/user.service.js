@@ -134,8 +134,12 @@ class UserService {
       throw new Error('Email hoặc mật khẩu không đúng');
     }
 
+    if (user.status === 'Lock') {
+      throw new Error('Tài khoản của bạn đã bị khóa');
+    }
+    
     if (user.status !== 'Active') {
-      throw new Error('Tài khoản của bạn đã bị khóa hoặc chưa được kích hoạt');
+      throw new Error('Tài khoản của bạn chưa được kích hoạt');
     }
 
     const isPasswordValid = await user.comparePassword(password);
@@ -261,8 +265,12 @@ class UserService {
       throw new Error('Không tìm thấy tài khoản với email này');
     }
 
+    if (user.status === 'Lock') {
+      throw new Error('Tài khoản của bạn đã bị khóa');
+    }
+    
     if (user.status !== 'Active') {
-      throw new Error('Tài khoản của bạn đã bị khóa hoặc chưa được kích hoạt');
+      throw new Error('Tài khoản của bạn chưa được kích hoạt');
     }
 
     const resetToken = user.generateResetPasswordToken();

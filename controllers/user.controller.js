@@ -174,7 +174,8 @@ const login = async (req, res) => {
     // Xử lý lỗi từ service (validation errors)
     if (error.message.includes('Vui lòng nhập') || 
         error.message.includes('Email hoặc mật khẩu không đúng') || 
-        error.message.includes('Tài khoản của bạn đã bị khóa')) {
+        error.message.includes('Tài khoản của bạn đã bị khóa') ||
+        error.message.includes('Tài khoản của bạn chưa được kích hoạt')) {
       return res.status(401).json({
         success: false,
         message: error.message
@@ -300,7 +301,8 @@ const forgotPassword = async (req, res) => {
     
     if (error.message.includes('Vui lòng nhập email') ||
         error.message.includes('Không tìm thấy tài khoản') ||
-        error.message.includes('Tài khoản của bạn đã bị khóa')) {
+        error.message.includes('Tài khoản của bạn đã bị khóa') ||
+        error.message.includes('Tài khoản của bạn chưa được kích hoạt')) {
       return res.status(400).json({
         success: false,
         message: error.message
