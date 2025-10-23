@@ -254,12 +254,16 @@ const getAvailableDoctorsForTimeSlot = async (req, res) => {
     console.log('   - req.user?.userId:', req.user?.userId || 'none');
 
     // Get current user ID from auth middleware hoặc từ query param
-    // ⭐ IMPORTANT: Khi appointmentFor === 'other', backend SẼ EXCLUDE doctors mà user đã đặt
-    // Để tránh user vừa có 2 appointments cùng lúc với cùng 1 bác sĩ
-    // (Nên GIỮ userId, không set = null!)
+    // ⭐ IMPORTANT: Khi appointmentFor === 'other', backend KHÔNG exclude doctors mà user đã đặt
+    // Chỉ exclude khi appointmentFor === 'self'
     const patientUserId = req.user?.userId;
-    const userIdForExclusion = userId || patientUserId;
+    const appointmentForValue = appointmentFor || 'self';
+    
+    // ⭐ FIX: Chỉ pass userIdForExclusion khi appointmentFor === 'self'
+    // Khi appointmentFor === 'other', set patientUserId = null để KHÔNG exclude
+    const userIdForExclusion = (appointmentForValue === 'self') ? (userId || patientUserId) : null;
     console.log('🔍 [getAvailableDoctorsForTimeSlot] userIdForExclusion:', userIdForExclusion || 'none');
+    console.log('🔍 [getAvailableDoctorsForTimeSlot] appointmentForValue:', appointmentForValue);
 
     const result = await availableSlotService.getAvailableDoctorsForTimeSlot({
       serviceId,
@@ -267,7 +271,7 @@ const getAvailableDoctorsForTimeSlot = async (req, res) => {
       startTime: slotStart,
       endTime: slotEnd,
       patientUserId: userIdForExclusion,
-      appointmentFor
+      appointmentFor: appointmentForValue
     });
 
     res.status(200).json({
