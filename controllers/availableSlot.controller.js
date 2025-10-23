@@ -36,18 +36,8 @@ const generateSlotsByDate = async (req, res) => {
     // ⭐⭐⭐ LOGIC:
     // - appointmentFor === 'self' (hoặc không specify): Pass userId để EXCLUDE slots user đã đặt
     // - appointmentFor === 'other': Không pass userId để KHÔNG exclude slots (chỉ exclude customer nếu có)
-    // ⭐ KEY FIX: Chỉ exclude user's slots khi appointmentFor === 'self' hoặc KHÔNG được specify
-    // 
-    // ⭐ IMPORTANT: Nếu đặt cho người khác (appointmentFor === 'other'), PHẢI set patientUserIdForExclusion = null
-    // Nếu không, backend sẽ vẫn exclude slots của user hiện tại, dẫn đến:
-    // - User đặt cho bản thân lúc 8h (slot 8h-8:30 bị mark as booked)
-    // - User chuyển sang "Đặt cho người khác"
-    // - Backend vẫn loại bỏ slot 8h-8:30 vì patientUserId không được reset
-    // - ❌ Kết quả: Slot 8h-8:30 không hiển thị dù người khác chưa đặt
-    const patientUserIdForExclusion = appointmentFor === 'other' ? null : (userId || null);
-    console.log('🔍 [generateSlotsByDate] appointmentFor type:', appointmentFor);
-    console.log('🔍 [generateSlotsByDate] patientUserIdForExclusion:', patientUserIdForExclusion || 'none (will not exclude self slots)');
-    console.log('🔍 [generateSlotsByDate] Reason:', appointmentFor === 'other' ? 'appointmentFor=other, so NOT excluding user slots' : 'appointmentFor=self or not specified, excluding user slots');
+    const patientUserIdForExclusion = (appointmentFor === 'self' || !appointmentFor) && userId ? userId : null;
+    console.log('🔍 [generateSlotsByDate] patientUserIdForExclusion:', patientUserIdForExclusion || 'none (will not exclude slots)');
 
     const result = await availableSlotService.generateAvailableSlotsByDate({
       serviceId,
