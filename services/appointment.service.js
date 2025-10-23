@@ -715,6 +715,76 @@ class AppointmentService {
       throw error;
     }
   }
+
+  /**
+   * Cập nhật trạng thái ca khám
+   * - Staff: Approved → CheckedIn (check-in bệnh nhân)
+   */
+  async updateAppointmentStatus(appointmentId, newStatus, userId) {
+    try {
+      console.log(`🔄 Cập nhật trạng thái ca khám ${appointmentId} → ${newStatus}`);
+
+      // Tìm appointment
+      const appointment = await Appointment.findById(appointmentId);
+      if (!appointment) {
+        throw new Error('Không tìm thấy lịch hẹn');
+      }
+
+      // ⚠️ Kiểm tra logic chuyển trạng thái
+      const currentStatus = appointment.status;
+
+      // ✅ Allowed transitions:
+      // Approved → CheckedIn (Staff check-in bệnh nhân đã đến)
+      // Approved/CheckedIn → Cancelled (hủy)
+
+      if (newStatus === 'CheckedIn') {
+        if (currentStatus !== 'Approved') {
+          throw new Error(`Không thể check-in. Ca khám phải ở trạng thái "Approved" (hiện tại: ${currentStatus})`);
+        }
+      }
+
+      if (newStatus === 'Completed') {
+        if (currentStatus !== 'CheckedIn') {
+          throw new Error(`Không thể hoàn thành. Ca khám phải ở trạng thái "CheckedIn" (hiện tại: ${currentStatus})`);
+        }
+      }
+
+      if (newStatus === 'Cancelled') {
+        const allowedStatuses = ['Approved', 'CheckedIn'];
+        if (!allowedStatuses.includes(currentStatus)) {
+          throw new Error(`Không thể hủy. Ca khám chỉ có thể hủy khi ở trạng thái Approved hoặc CheckedIn (hiện tại: ${currentStatus})`);
+        }
+      }
+
+      // Cập nhật trạng thái
+      appointment.status = newStatus;
+      appointment.updatedAt = new Date();
+
+      // Lưu thông tin người thực hiện (Staff/Nurse)
+      if (!appointment.updatedBy) {
+        appointment.updatedBy = userId;
+      }
+
+      await appointment.save();
+
+      console.log(`✅ Cập nhật trạng thái thành công: ${currentStatus} → ${newStatus}`);
+
+      return {
+        success: true,
+        message: `Cập nhật trạng thái ca khám thành công: ${currentStatus} → ${newStatus}`,
+        data: {
+          appointmentId: appointment._id,
+          oldStatus: currentStatus,
+          newStatus: newStatus,
+          updatedAt: appointment.updatedAt
+        }
+      };
+
+    } catch (error) {
+      console.error('❌ Lỗi cập nhật trạng thái ca khám:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = new AppointmentService();

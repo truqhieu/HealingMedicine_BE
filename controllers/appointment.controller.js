@@ -394,10 +394,76 @@ const getMyAppointments = async (req, res) => {
   }
 };
 
+/**
+ * Cập nhật trạng thái ca khám
+ * - Staff: Approved → CheckedIn (check-in bệnh nhân)
+ * - Nurse: CheckedIn →
+ * PUT /api/appointments/:appointmentId/status
+ * Body: { status: 'CheckedIn' | 'Completed' | 'Cancelled' }
+ */
+const updateAppointmentStatus = async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const { status } = req.body;
+    const userId = req.user?.userId;
+
+    // Validation
+    if (!appointmentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp ID lịch hẹn'
+      });
+    }
+
+    const allowedStatuses = ['CheckedIn', 'Completed', 'Cancelled'];
+    if (!status || !allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Trạng thái phải là một trong: ${allowedStatuses.join(', ')}`
+      });
+    }
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Vui lòng đăng nhập'
+      });
+    }
+
+    // Gọi service để cập nhật
+    const result = await appointmentService.updateAppointmentStatus(
+      appointmentId,
+      status,
+      userId
+    );
+
+    res.status(200).json(result);
+
+  } catch (error) {
+    console.error('❌ Lỗi cập nhật trạng thái ca khám:', error);
+
+    if (error.message.includes('Không tìm thấy') || 
+        error.message.includes('Không thể') ||
+        error.message.includes('chỉ có thể')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server. Vui lòng thử lại sau',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = {
   createConsultationAppointment,
   reviewAppointment,
   getPendingAppointments,
   getAllAppointments,
-  getMyAppointments
+  getMyAppointments,
+  updateAppointmentStatus
 };

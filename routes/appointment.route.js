@@ -5,7 +5,8 @@ const {
   reviewAppointment,
   getPendingAppointments,
   getAllAppointments,
-  getMyAppointments
+  getMyAppointments,
+  updateAppointmentStatus
 } = require('../controllers/appointment.controller');
 const { verifyToken, verifyRole } = require('../middleware/auth.middleware');
 
@@ -27,5 +28,9 @@ router.get('/all', verifyToken, getAllAppointments);
 
 // ⭐ Lấy danh sách ca khám của người dùng hiện tại - Cần đăng nhập
 router.get('/my-appointments', verifyToken, getMyAppointments);
+
+// ⭐ Cập nhật trạng thái ca khám (Staff check-in, Nurse hoàn thành)
+// Staff: Approved → CheckedIn
+router.put('/:appointmentId/status', verifyToken, verifyRole(['Staff', 'Nurse', 'Manager']), updateAppointmentStatus);
 
 module.exports = router;
