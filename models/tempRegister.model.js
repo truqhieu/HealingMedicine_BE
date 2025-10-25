@@ -22,27 +22,30 @@ const tempRegisterSchema = new mongoose.Schema({
     enum: ['Patient', 'Doctor', 'Admin'],
     default: 'Patient'
   },
+  gender: {
+    type: String,
+    enum: ['Male', 'Female', 'Other']
+  },
+  dateOfBirth: {
+    type: Date
+  },
   verificationToken: {
     type: String,
     required: true
   },
   tokenExpireAt: {
     type: Date,
-    required: true,
     // Token sẽ tự động hết hạn sau 24 giờ
     default: () => new Date(Date.now() + 24 * 60 * 60 * 1000)
   },
   createdAt: {
     type: Date,
     default: Date.now,
-    // Document sẽ tự động bị xóa sau 24 giờ nếu không được xác thực
-    expires: 86400 // 24 hours in seconds
+    expires: 86400 
   }
 }, {
   timestamps: true
 });
-
-// Index để tự động xóa document hết hạn
 tempRegisterSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 });
 
-module.exports = mongoose.model('TempRegister', tempRegisterSchema);
+module.exports = mongoose.model('TempRegister', tempRegisterSchema,'tempregisters');

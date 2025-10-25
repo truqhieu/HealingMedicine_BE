@@ -3,19 +3,53 @@ const cors = require('cors');
 const morgan = require('morgan');
 const connectMongo = require('./config/connectMongo');
 const corsOptions = require('./config/corsConfig');
+const paymentMonitor = require('./services/paymentMonitor.service');
 require('dotenv').config();
 
 const app = express();
 
-// Sử dụng cấu hình CORS từ file riêng
 
 // Cấu hình middleware
-app.use(morgan('combined')); // Hiển thị log HTTP requests chi tiết
-app.use(cors(corsOptions));
-app.use(express.json({ limit: '10mb' })); // Giới hạn size request body
+app.use(morgan('combined')); 
+
+// QUAN TRỌNG: Đặt CORS trước các middleware khác
+// Nhưng BYPASS CORS cho webhook endpoint (server-to-server)
+app.use((req, res, next) => {
+  // Webhook từ Sepay không cần CORS check
+  if (req.path.includes('/webhook')) {
+    return next();
+  }
+  // Các route khác vẫn check CORS bình thường
+  return cors(corsOptions)(req, res, next);
+});
+
+app.use(express.json({ limit: '10mb' })); 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Logging middleware để track tất cả requests
+app.use((req, res, next) => {
+  const timestamp = new Date().toISOString();
+  console.log(`\n${'='.repeat(60)}`);
+  console.log(`📥 [${timestamp}] ${req.method} ${req.originalUrl}`);
+  console.log(`   From: ${req.ip || req.connection.remoteAddress}`);
+  console.log(`   User-Agent: ${req.get('user-agent') || 'N/A'}`);
+  
+  // Log đặc biệt cho webhook
+  if (req.originalUrl.includes('/webhook')) {
+    console.log(`🔔 WEBHOOK DETECTED!`);
+    console.log(`   Headers:`, JSON.stringify(req.headers, null, 2));
+    console.log(`   Body:`, JSON.stringify(req.body, null, 2));
+  }
+  
+  next();
+});
+
 connectMongo();
+
+// ⭐ THÊM: Khởi động PaymentMonitor (auto-expire payment sau 15 phút)
+console.log('\n🔔 Khởi động Payment Monitor...');
+paymentMonitor.startMonitoring(1); // Check mỗi 1 phút
+console.log('');
 
 // Routes 
 app.get('/', (req, res) => {
@@ -73,7 +107,24 @@ const PORT = process.env.PORT || 9999;
 
 // Khởi động server
 app.listen(PORT, () => {
+  console.log('\n' + '='.repeat(70));
   console.log(`🚀 Server is running on port ${PORT}`);
-  console.log(`📍 Server URL: http://localhost:${PORT}`);
-  console.log(`🏥 HealingMedicine API is ready to server`);
+  console.log(`📍 Server URL: ${process.env.NODE_ENV === 'production' 
+    ? 'https://haianhteethbe-production.up.railway.app' 
+    : `http://localhost:${PORT}`}`);
+  console.log(`🏥 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`💾 Database: ${process.env.MONGO_URI ? 'MongoDB Atlas' : 'Not configured'}`);
+  console.log('='.repeat(70));
+  
+  console.log('\n🔔 WEBHOOK STATUS:');
+  console.log(`   ✅ Webhook endpoint: /api/payments/webhook/sepay`);
+  console.log(`   ✅ Listening for Sepay notifications`);
+  console.log(`   📝 All webhook requests will be logged\n`);
+  
+  console.log('📊 MONITORING:');
+  console.log(`   → All requests will be logged with details`);
+  console.log(`   → Webhook calls will have special logging`);
+  console.log(`   → Check logs for payment confirmations\n`);
+  
+  console.log('='.repeat(70) + '\n');
 });
