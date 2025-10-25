@@ -70,6 +70,7 @@ const getNurseSchedule = async (req, res) => {
       
       return {
         appointmentId: appointment._id,
+        patientId: patient?._id,  // ⭐ THÊM: patientId để FE gọi getPatientDetail trực tiếp, tránh lỗi 304
         doctorName: appointment.doctorUserId?.fullName || 'N/A',
         serviceName: appointment.serviceId?.serviceName || 'N/A',
         patientName: patient?.fullName || 'N/A',
@@ -201,7 +202,6 @@ const getPatientDetail = async (req, res) => {
       success: true,
       message: 'Lấy chi tiết thông tin bệnh nhân thành công',
       data: {
-        patientId: user._id,
         fullName: user.fullName,
         email: user.email,
         phoneNumber: user.phoneNumber || 'N/A',
