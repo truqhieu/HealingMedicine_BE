@@ -1122,18 +1122,50 @@ class AvailableSlotService {
       };
     }
 
-    // 4. Lấy min start time và max end time từ schedules
-    const startTimes = schedules.map(s => new Date(s.startTime));
-    const endTimes = schedules.map(s => new Date(s.endTime));
+    // 4. Group schedules theo shift và format time ranges
+    const formatTime = (date) => {
+      return new Date(date).toLocaleTimeString('vi-VN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: 'Asia/Ho_Chi_Minh'
+      });
+    };
 
-    const minTime = new Date(Math.min(...startTimes.map(d => d.getTime())));
-    const maxTime = new Date(Math.max(...endTimes.map(d => d.getTime())));
+    // Group theo shift
+    const morningSchedules = schedules.filter(s => s.shift === 'Morning');
+    const afternoonSchedules = schedules.filter(s => s.shift === 'Afternoon');
+
+    const scheduleRanges = [];
+    
+    if (morningSchedules.length > 0) {
+      const morningStart = new Date(Math.min(...morningSchedules.map(s => new Date(s.startTime).getTime())));
+      const morningEnd = new Date(Math.max(...morningSchedules.map(s => new Date(s.endTime).getTime())));
+      scheduleRanges.push({
+        shift: 'Morning',
+        shiftDisplay: 'Buổi sáng',
+        startTime: morningStart.toISOString(),
+        endTime: morningEnd.toISOString(),
+        displayRange: `${formatTime(morningStart)} - ${formatTime(morningEnd)}`
+      });
+    }
+    
+    if (afternoonSchedules.length > 0) {
+      const afternoonStart = new Date(Math.min(...afternoonSchedules.map(s => new Date(s.startTime).getTime())));
+      const afternoonEnd = new Date(Math.max(...afternoonSchedules.map(s => new Date(s.endTime).getTime())));
+      scheduleRanges.push({
+        shift: 'Afternoon',
+        shiftDisplay: 'Buổi chiều',
+        startTime: afternoonStart.toISOString(),
+        endTime: afternoonEnd.toISOString(),
+        displayRange: `${formatTime(afternoonStart)} - ${formatTime(afternoonEnd)}`
+      });
+    }
 
     console.log('📊 [getDoctorScheduleRange]');
     console.log('   - Doctor:', doctor.fullName);
     console.log('   - Date:', searchDate.toISOString().split('T')[0]);
-    console.log('   - Min time:', minTime.toISOString());
-    console.log('   - Max time:', maxTime.toISOString());
+    console.log('   - Schedule ranges:', scheduleRanges);
 
     return {
       doctorId: doctorUserId,
@@ -1142,12 +1174,7 @@ class AvailableSlotService {
       serviceName: service.serviceName,
       serviceDuration: service.durationMinutes,
       doctorScheduleId: schedules.length > 0 ? schedules[0]._id : null,
-      scheduleRange: {
-        minTime: minTime.toISOString(),
-        maxTime: maxTime.toISOString(),
-        minTimeDisplay: ScheduleHelper.formatTimeSlot(minTime, minTime),
-        maxTimeDisplay: ScheduleHelper.formatTimeSlot(maxTime, maxTime)
-      },
+      scheduleRanges: scheduleRanges,
       totalSchedules: schedules.length
     };
   }
