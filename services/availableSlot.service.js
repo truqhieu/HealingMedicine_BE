@@ -1280,6 +1280,39 @@ class AvailableSlotService {
       return gaps;
     };
 
+    // ⭐ Lấy thời gian hiện tại để filter gaps real-time
+    const now = new Date();
+    
+    // Helper function: Filter và adjust gaps theo thời gian thực
+    const filterRealTimeGaps = (gaps) => {
+      return gaps
+        .map(gap => {
+          const gapStart = new Date(gap.start);
+          const gapEnd = new Date(gap.end);
+          
+          // Nếu gap đã hết hoàn toàn
+          if (gapEnd <= now) {
+            return null;
+          }
+          
+          // Nếu gap đang diễn ra (bắt đầu trước now, kết thúc sau now)
+          if (gapStart < now && gapEnd > now) {
+            return {
+              start: now, // Bắt đầu từ thời điểm hiện tại
+              end: gapEnd
+            };
+          }
+          
+          // Nếu gap chưa bắt đầu (trong tương lai)
+          if (gapStart >= now) {
+            return gap;
+          }
+          
+          return null;
+        })
+        .filter(gap => gap !== null);
+    };
+    
     // Group theo shift và tính available gaps
     const morningSchedules = schedules.filter(s => s.shift === 'Morning');
     const afternoonSchedules = schedules.filter(s => s.shift === 'Afternoon');
@@ -1290,7 +1323,8 @@ class AvailableSlotService {
       const morningStart = new Date(Math.min(...morningSchedules.map(s => new Date(s.startTime).getTime())));
       const morningEnd = new Date(Math.max(...morningSchedules.map(s => new Date(s.endTime).getTime())));
       
-      const availableGaps = calculateAvailableGaps(morningStart, morningEnd, bookedSlots);
+      const rawGaps = calculateAvailableGaps(morningStart, morningEnd, bookedSlots);
+      const availableGaps = filterRealTimeGaps(rawGaps); // ⭐ Filter theo thời gian thực
       
       scheduleRanges.push({
         shift: 'Morning',
@@ -1310,7 +1344,8 @@ class AvailableSlotService {
       const afternoonStart = new Date(Math.min(...afternoonSchedules.map(s => new Date(s.startTime).getTime())));
       const afternoonEnd = new Date(Math.max(...afternoonSchedules.map(s => new Date(s.endTime).getTime())));
       
-      const availableGaps = calculateAvailableGaps(afternoonStart, afternoonEnd, bookedSlots);
+      const rawGaps = calculateAvailableGaps(afternoonStart, afternoonEnd, bookedSlots);
+      const availableGaps = filterRealTimeGaps(rawGaps); // ⭐ Filter theo thời gian thực
       
       scheduleRanges.push({
         shift: 'Afternoon',
