@@ -436,12 +436,144 @@ const checkStartTimeAvailability = async (req, res) => {
   }
 };
 
+/**
+ * ⭐ NEW: Lấy khoảng thời gian khả dụng cho một ngày
+ * GET /api/available-slots/time-range?serviceId=xxx&date=2025-10-25
+ */
+const getAvailableTimeRange = async (req, res) => {
+  try {
+    const { serviceId, date, appointmentFor, customerFullName, customerEmail } = req.query;
+    const userId = req.user?.userId || null;
+
+    const appointmentForValue = appointmentFor || 'self';
+
+    // Validation
+    if (!serviceId || !date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp đầy đủ serviceId và date'
+      });
+    }
+
+    const searchDate = new Date(date);
+    if (isNaN(searchDate.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Định dạng ngày không hợp lệ. Vui lòng sử dụng format: YYYY-MM-DD'
+      });
+    }
+
+    const patientUserIdForExclusion = (appointmentForValue === 'self') && userId ? userId : null;
+
+    const result = await availableSlotService.getAvailableTimeRange({
+      serviceId,
+      date: searchDate,
+      breakAfterMinutes: 10,
+      patientUserId: patientUserIdForExclusion,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result
+    });
+
+  } catch (error) {
+    console.error('Lỗi lấy khoảng thời gian khả dụng:', error);
+
+    if (error.message.includes('Không tìm thấy') ||
+        error.message.includes('không hoạt động') ||
+        error.message.includes('Vui lòng cung cấp')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi lấy khoảng thời gian',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * ⭐ NEW: Validate thời gian nhập có hợp lệ không
+ * GET /api/available-slots/validate-time?serviceId=xxx&date=2025-10-25&startTime=2025-10-25T09:45:00Z
+ */
+const validateAndCheckStartTime = async (req, res) => {
+  try {
+    const { serviceId, date, startTime, appointmentFor, userId } = req.query;
+
+    // Validation
+    if (!serviceId || !date || !startTime) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp đầy đủ serviceId, date và startTime'
+      });
+    }
+
+    const searchDate = new Date(date);
+    if (isNaN(searchDate.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Định dạng ngày không hợp lệ. Vui lòng sử dụng format: YYYY-MM-DD'
+      });
+    }
+
+    const slotStart = new Date(startTime);
+    if (isNaN(slotStart.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Định dạng startTime không hợp lệ. Vui lòng sử dụng format ISO 8601'
+      });
+    }
+
+    const appointmentForValue = appointmentFor || 'self';
+    const patientUserIdForExclusion = (appointmentForValue === 'self') ? (userId || req.user?.userId) : null;
+
+    const result = await availableSlotService.validateAndCheckStartTime({
+      serviceId,
+      date: searchDate,
+      startTime: slotStart,
+      patientUserId: patientUserIdForExclusion,
+      appointmentFor: appointmentForValue
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result
+    });
+
+  } catch (error) {
+    console.error('Lỗi validate thời gian:', error);
+
+    if (error.message.includes('Không tìm thấy') ||
+        error.message.includes('không hoạt động') ||
+        error.message.includes('không nằm') ||
+        error.message.includes('Không có')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi validate thời gian',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = {
   generateSlotsByDate,
   getAvailableSlots,
   getAvailableDoctors,
   getAvailableDoctorsForTimeSlot,
   getAvailableStartTimes,
-  checkStartTimeAvailability
+  checkStartTimeAvailability,
+  getAvailableTimeRange,
+  validateAndCheckStartTime
 };
 
