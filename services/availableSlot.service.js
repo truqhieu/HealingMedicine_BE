@@ -75,18 +75,18 @@ class AvailableSlotService {
       const now = new Date(); // Thời gian hiện tại
       
       for (const doctor of doctors) {
-        // Tạo Date objects với giờ Việt Nam (UTC+7)
+        // Tạo Date objects theo UTC (8h VN = 1h UTC, 12h VN = 5h UTC, 14h VN = 7h UTC, 18h VN = 11h UTC)
         const morningStart = new Date(searchDate);
-        morningStart.setHours(8, 0, 0, 0);
+        morningStart.setUTCHours(1, 0, 0, 0); // 8h VN
         
         const morningEnd = new Date(searchDate);
-        morningEnd.setHours(12, 0, 0, 0);
+        morningEnd.setUTCHours(5, 0, 0, 0); // 12h VN
         
         const afternoonStart = new Date(searchDate);
-        afternoonStart.setHours(14, 0, 0, 0);
+        afternoonStart.setUTCHours(7, 0, 0, 0); // 14h VN
         
         const afternoonEnd = new Date(searchDate);
-        afternoonEnd.setHours(18, 0, 0, 0);
+        afternoonEnd.setUTCHours(11, 0, 0, 0); // 18h VN
         
         // ⭐ Check status dựa vào thời gian thực
         const morningStatus = morningEnd <= now ? 'Unavailable' : 'Available';
