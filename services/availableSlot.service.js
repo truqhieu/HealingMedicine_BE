@@ -1195,15 +1195,15 @@ class AvailableSlotService {
    * Check: thời gian nhập có nằm trong doctor schedule không và có doctor khả dụng không
    */
   async validateAppointmentTime({ doctorUserId, serviceId, date, startTime }) {
-    // 1. Lấy schedule range
+    // 1. Lấy schedule ranges
     const scheduleRangeResult = await this.getDoctorScheduleRange({
       doctorUserId,
       serviceId,
       date
     });
 
-    if (!scheduleRangeResult.scheduleRange) {
-      throw new Error(scheduleRangeResult.message);
+    if (!scheduleRangeResult.scheduleRanges || scheduleRangeResult.scheduleRanges.length === 0) {
+      throw new Error(scheduleRangeResult.message || 'Bác sĩ không có lịch làm việc vào ngày này');
     }
 
     // 2. Validate service để lấy duration
@@ -1218,20 +1218,26 @@ class AvailableSlotService {
     const startTimeObj = new Date(startTime);
     const endTimeObj = new Date(startTimeObj.getTime() + serviceDuration * 60000);
 
-    // 4. Validate: startTime và endTime phải nằm trong schedule range
-    const minTime = new Date(scheduleRangeResult.scheduleRange.minTime);
-    const maxTime = new Date(scheduleRangeResult.scheduleRange.maxTime);
+    // 4. Validate: startTime và endTime phải nằm trong một trong các schedule ranges
+    const scheduleRanges = scheduleRangeResult.scheduleRanges;
+    
+    // Kiểm tra xem thời gian có nằm trong bất kỳ range nào không
+    const isInValidRange = scheduleRanges.some(range => {
+      const rangeStart = new Date(range.startTime);
+      const rangeEnd = new Date(range.endTime);
+      return startTimeObj >= rangeStart && endTimeObj <= rangeEnd;
+    });
 
     console.log('🔍 [validateAppointmentTime]');
     console.log('   - startTime:', startTimeObj.toISOString());
     console.log('   - endTime:', endTimeObj.toISOString());
-    console.log('   - minTime:', minTime.toISOString());
-    console.log('   - maxTime:', maxTime.toISOString());
+    console.log('   - scheduleRanges:', scheduleRanges.map(r => `${r.shiftDisplay}: ${r.displayRange}`));
+    console.log('   - isInValidRange:', isInValidRange);
 
-    if (startTimeObj < minTime || endTimeObj > maxTime) {
+    if (!isInValidRange) {
+      const rangesText = scheduleRanges.map(r => `${r.shiftDisplay}: ${r.displayRange}`).join(', ');
       throw new Error(
-        `Thời gian nhập không nằm trong lịch làm việc. ` +
-        `Bác sĩ rảnh từ ${scheduleRangeResult.scheduleRange.minTimeDisplay} đến ${scheduleRangeResult.scheduleRange.maxTimeDisplay}`
+        `Thời gian nhập không nằm trong lịch làm việc. Bác sĩ rảnh: ${rangesText}`
       );
     }
 
@@ -1273,7 +1279,7 @@ class AvailableSlotService {
       endTime: endTimeObj.toISOString(),
       serviceName: service.serviceName,
       serviceDuration,
-      scheduleRange: scheduleRangeResult.scheduleRange,
+      scheduleRanges: scheduleRangeResult.scheduleRanges,
       isAvailable: true,
       message: 'Thời gian hợp lệ, bác sĩ khả dụng'
     };
