@@ -1280,10 +1280,11 @@ class AvailableSlotService {
       return gaps;
     };
 
-    // ⭐ Lấy thời gian hiện tại để filter gaps real-time
+    // ⭐ Lấy thời gian hiện tại và service duration để filter gaps real-time
     const now = new Date();
+    const serviceDurationMs = service.durationMinutes * 60 * 1000; // Convert phút sang milliseconds
     
-    // Helper function: Filter và adjust gaps theo thời gian thực
+    // Helper function: Filter và adjust gaps theo thời gian thực + service duration
     const filterRealTimeGaps = (gaps) => {
       return gaps
         .map(gap => {
@@ -1297,18 +1298,25 @@ class AvailableSlotService {
           
           // Nếu gap đang diễn ra (bắt đầu trước now, kết thúc sau now)
           if (gapStart < now && gapEnd > now) {
-            return {
+            gap = {
               start: now, // Bắt đầu từ thời điểm hiện tại
               end: gapEnd
             };
           }
           
-          // Nếu gap chưa bắt đầu (trong tương lai)
+          // ⭐ Kiểm tra gap có đủ thời gian cho service không
+          const gapDuration = new Date(gap.end).getTime() - new Date(gap.start).getTime();
+          if (gapDuration < serviceDurationMs) {
+            return null; // Gap không đủ thời gian
+          }
+          
+          // Nếu gap chưa bắt đầu (trong tương lai) và đủ thời gian
           if (gapStart >= now) {
             return gap;
           }
           
-          return null;
+          // Gap đang diễn ra và đủ thời gian
+          return gap;
         })
         .filter(gap => gap !== null);
     };
@@ -1364,7 +1372,18 @@ class AvailableSlotService {
     console.log('📊 [getDoctorScheduleRange]');
     console.log('   - Doctor:', doctor.fullName);
     console.log('   - Date:', searchDate.toISOString().split('T')[0]);
+    console.log('   - Service duration:', service.durationMinutes, 'phút');
     console.log('   - Schedule ranges:', scheduleRanges);
+
+    // ⭐ Kiểm tra xem có gap nào khả dụng không
+    const hasAvailableGaps = scheduleRanges.some(range => 
+      range.availableGaps && range.availableGaps.length > 0
+    );
+
+    let message = null;
+    if (!hasAvailableGaps) {
+      message = `Thời gian còn lại của phòng khám không đáp ứng đủ thời gian cho dịch vụ "${service.serviceName}" (${service.durationMinutes} phút). Vui lòng chọn ngày khác hoặc dịch vụ khác.`;
+    }
 
     return {
       doctorId: doctorUserId,
@@ -1374,7 +1393,8 @@ class AvailableSlotService {
       serviceDuration: service.durationMinutes,
       doctorScheduleId: schedules.length > 0 ? schedules[0]._id : null,
       scheduleRanges: scheduleRanges,
-      totalSchedules: schedules.length
+      totalSchedules: schedules.length,
+      message: message // ⭐ Trả về message nếu không có gaps khả dụng
     };
   }
 
