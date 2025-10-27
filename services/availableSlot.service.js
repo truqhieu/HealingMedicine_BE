@@ -92,6 +92,14 @@ class AvailableSlotService {
         const morningStatus = morningEnd <= now ? 'Unavailable' : 'Available';
         const afternoonStatus = afternoonEnd <= now ? 'Unavailable' : 'Available';
         
+        // Debug logging
+        console.log(`🔍 [${doctor._id}] Schedule Status Check:`);
+        console.log(`   - Current time (now): ${now.toISOString()} | Local: ${now.toString()}`);
+        console.log(`   - Morning end: ${morningEnd.toISOString()} | Local: ${morningEnd.toString()}`);
+        console.log(`   - Morning status: ${morningStatus} (${morningEnd.getTime()} <= ${now.getTime()} = ${morningEnd <= now})`);
+        console.log(`   - Afternoon end: ${afternoonEnd.toISOString()} | Local: ${afternoonEnd.toString()}`);
+        console.log(`   - Afternoon status: ${afternoonStatus} (${afternoonEnd.getTime()} <= ${now.getTime()} = ${afternoonEnd <= now})`);
+        
         schedulesToCreate.push(
           {
             doctorUserId: doctor._id,
