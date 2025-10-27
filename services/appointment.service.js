@@ -764,6 +764,7 @@ class AppointmentService {
         } : null,
         notes: apt.notes || '',
         linkMeetUrl: apt.linkMeetUrl || null,
+        checkedInAt: apt.checkedInAt || null,
         createdAt: apt.createdAt,
         updatedAt: apt.updatedAt
       }));
@@ -798,6 +799,9 @@ class AppointmentService {
         if (currentStatus !== 'Approved') {
           throw new Error(`Không thể check-in. Ca khám phải ở trạng thái "Approved" (hiện tại: ${currentStatus})`);
         }
+        // Lưu thời gian check-in
+        appointment.checkedInAt = new Date();
+        appointment.checkInByUserId = userId;
       }
 
       if (newStatus === 'Completed') {

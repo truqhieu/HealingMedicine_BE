@@ -64,6 +64,10 @@ const appointmentSchema = new mongoose.Schema({
     ref: 'User',
     default: null
   },
+  checkedInAt: {
+    type: Date,
+    default: null
+  },
   replacedDoctorUserId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
