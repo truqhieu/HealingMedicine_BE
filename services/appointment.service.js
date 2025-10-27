@@ -635,6 +635,40 @@ class AppointmentService {
   }
 
   /**
+   * Helper: Check và update expired appointments realtime
+   * @private
+   */
+  async _checkAndUpdateExpiredAppointments(appointments) {
+    const now = new Date();
+    let updatedCount = 0;
+
+    for (const appointment of appointments) {
+      // Chỉ check appointments đang "Pending"
+      if (appointment.status !== 'Pending') continue;
+      
+      if (!appointment.timeslotId || !appointment.timeslotId.startTime) continue;
+
+      // Lấy ngày khám từ timeslot
+      const appointmentDate = new Date(appointment.timeslotId.startTime);
+      
+      // Tạo cutoff time: 18:00 UTC của ngày hẹn
+      const cutoffTime = new Date(appointmentDate);
+      cutoffTime.setUTCHours(18, 0, 0, 0);
+
+      // Kiểm tra: Nếu hiện tại đã qua 18:00 của ngày hẹn
+      if (now >= cutoffTime) {
+        appointment.status = 'Expired';
+        await appointment.save();
+        updatedCount++;
+      }
+    }
+
+    if (updatedCount > 0) {
+      console.log(`⏰ [getAllAppointments] Đã expire ${updatedCount} appointment(s)`);
+    }
+  }
+
+  /**
    * Lấy danh sách tất cả appointments (có filter)
    */
   async getAllAppointments(filters = {}) {
@@ -669,10 +703,22 @@ class AppointmentService {
         .populate('timeslotId', 'startTime endTime')
         .sort({ createdAt: -1 });
 
+      // ⭐ Check và update expired appointments realtime
+      await this._checkAndUpdateExpiredAppointments(appointments);
+
+      // Lấy lại data sau khi update (nếu có thay đổi)
+      const updatedAppointments = await Appointment.find(query)
+        .populate('patientUserId', 'fullName email')
+        .populate('customerId', 'fullName email')
+        .populate('doctorUserId', 'fullName email')
+        .populate('serviceId', 'serviceName price')
+        .populate('timeslotId', 'startTime endTime')
+        .sort({ createdAt: -1 });
+
       return {
         success: true,
-        data: appointments,
-        count: appointments.length
+        data: updatedAppointments,
+        count: updatedAppointments.length
       };
     } catch (error) {
       console.error('❌ Lỗi lấy danh sách lịch hẹn:', error);

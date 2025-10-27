@@ -502,6 +502,14 @@ class AvailableSlotService {
       throw new Error('Vui lòng cung cấp đầy đủ serviceId, date, startTime và endTime');
     }
 
+    // ⭐ THÊM: Check nếu slot đã qua (ngày hôm nay)
+    const slotStart = new Date(startTime);
+    const now = new Date();
+    
+    if (slotStart <= now) {
+      throw new Error('Khung giờ này đã qua. Vui lòng chọn khung giờ khác.');
+    }
+
     // 2. Lấy thông tin dịch vụ
     const service = await Service.findById(serviceId);
     if (!service) {
@@ -1043,6 +1051,29 @@ class AvailableSlotService {
         console.log(`   - availableSlots AFTER exclude: ${availableSlots.length} (removed ${slotsBeforeFilter - availableSlots.length})`);
       } else {
         console.log(`\n🟢 [Doctor ${doctor.fullName}] NO CUSTOMER BOOKED SLOTS (no customer info or customer not found)`);
+      }
+
+      // ⭐ THÊM: Filter slots đã qua nếu là ngày hôm nay
+      const now = new Date();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const isToday = searchDate.getTime() === today.getTime();
+      
+      if (isToday) {
+        const slotsBeforeFilter = availableSlots.length;
+        availableSlots = availableSlots.filter(slot => {
+          const slotStart = new Date(slot.startTime);
+          // Chỉ giữ các slot có startTime > hiện tại
+          return slotStart > now;
+        });
+        
+        const removedCount = slotsBeforeFilter - availableSlots.length;
+        if (removedCount > 0) {
+          console.log(`\n⏰ [Doctor ${doctor.fullName}] FILTERED PAST SLOTS (today):`);
+          console.log(`   - Removed ${removedCount} slots that already passed`);
+          console.log(`   - Remaining: ${availableSlots.length} slots`);
+        }
       }
 
       // Thêm thông tin doctor và format displayTime theo giờ Việt Nam
