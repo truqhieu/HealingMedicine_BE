@@ -4,7 +4,9 @@ const {
   generateSlotsByDate,
   getAvailableSlots,
   getAvailableDoctors,
-  getAvailableDoctorsForTimeSlot
+  getAvailableDoctorsForTimeSlot,
+  getAvailableStartTimes,
+  checkStartTimeAvailability
 } = require('../controllers/availableSlot.controller');
 const { optionalAuth } = require('../middleware/auth.middleware');
 
@@ -24,6 +26,14 @@ router.get('/doctors/list', getAvailableDoctors);
 // API lấy danh sách bác sĩ có khung giờ rảnh tại một khung giờ cụ thể - Public
 // GET /api/available-slots/doctors/time-slot?serviceId=xxx&date=2025-10-25&startTime=2025-10-25T08:00:00Z&endTime=2025-10-25T08:30:00Z
 router.get('/doctors/time-slot', getAvailableDoctorsForTimeSlot);
+
+// ⭐ NEW: Lấy danh sách start times có sẵn cho một ngày
+// GET /api/available-slots/start-times?serviceId=xxx&date=2025-10-25
+router.get('/start-times', optionalAuth, getAvailableStartTimes);
+
+// ⭐ NEW: Kiểm tra một start time cụ thể có khả dụng không, lấy danh sách bác sĩ
+// GET /api/available-slots/check-start-time?serviceId=xxx&date=2025-10-25&startTime=2025-10-25T08:00:00Z
+router.get('/check-start-time', optionalAuth, checkStartTimeAvailability);
 
 module.exports = router;
 

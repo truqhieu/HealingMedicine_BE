@@ -1128,6 +1128,89 @@ class AvailableSlotService {
       totalSlots: allSlots.length
     };
   }
+
+  /**
+   * ⭐ NEW: Lấy danh sách start times có sẵn cho một ngày
+   * Trả về chỉ danh sách start times (không full slot info)
+   */
+  async getAvailableStartTimes({ serviceId, date, patientUserId, breakAfterMinutes = 10 }) {
+    // Gọi generateAvailableSlotsByDate để lấy tất cả slots
+    const result = await this.generateAvailableSlotsByDate({
+      serviceId,
+      date,
+      patientUserId,
+      breakAfterMinutes
+    });
+
+    // Extract danh sách start times unique
+    const startTimesSet = new Set();
+    const startTimesData = [];
+
+    for (const slot of result.slots) {
+      if (!startTimesSet.has(slot.startTime)) {
+        startTimesSet.add(slot.startTime);
+        startTimesData.push({
+          startTime: slot.startTime,
+          displayTime: slot.displayTime
+        });
+      }
+    }
+
+    return {
+      date: result.date,
+      serviceName: result.serviceName,
+      serviceDuration: result.serviceDuration,
+      startTimes: startTimesData,
+      totalStartTimes: startTimesData.length
+    };
+  }
+
+  /**
+   * ⭐ NEW: Kiểm tra một start time cụ thể có khả dụng không
+   * Trả về danh sách bác sĩ có sẵn tại start time đó
+   */
+  async checkStartTimeAvailability({ serviceId, date, startTime, patientUserId, appointmentFor }) {
+    // 1. Lấy thông tin dịch vụ
+    const service = await Service.findById(serviceId);
+    if (!service) {
+      throw new Error('Không tìm thấy dịch vụ');
+    }
+
+    if (service.status !== 'Active') {
+      throw new Error('Dịch vụ này hiện không hoạt động');
+    }
+
+    const serviceDuration = service.durationMinutes;
+
+    // 2. Tính end time dựa vào serviceDuration
+    const calculatedEndTime = new Date(startTime.getTime() + serviceDuration * 60000);
+
+    console.log('🔍 [checkStartTimeAvailability]');
+    console.log('   - serviceId:', serviceId);
+    console.log('   - startTime:', startTime.toISOString());
+    console.log('   - calculatedEndTime:', calculatedEndTime.toISOString());
+    console.log('   - serviceDuration:', serviceDuration);
+
+    // 3. Dùng getAvailableDoctorsForTimeSlot để lấy bác sĩ rảnh
+    const result = await this.getAvailableDoctorsForTimeSlot({
+      serviceId,
+      date,
+      startTime,
+      endTime: calculatedEndTime,
+      patientUserId,
+      appointmentFor
+    });
+
+    return {
+      date,
+      startTime: startTime.toISOString(),
+      endTime: calculatedEndTime.toISOString(),
+      serviceName: service.serviceName,
+      serviceDuration,
+      availableDoctors: result.availableDoctors,
+      totalDoctors: result.availableDoctors ? result.availableDoctors.length : 0
+    };
+  }
 }
 
 module.exports = new AvailableSlotService();
