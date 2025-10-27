@@ -72,6 +72,8 @@ class AvailableSlotService {
 
       // Tạo schedule cho TẤT CẢ bác sĩ - mỗi bác sĩ 1 Morning + 1 Afternoon
       const schedulesToCreate = [];
+      const now = new Date(); // Thời gian hiện tại
+      
       for (const doctor of doctors) {
         // Tạo Date objects với giờ Việt Nam (UTC+7)
         const morningStart = new Date(searchDate);
@@ -86,6 +88,10 @@ class AvailableSlotService {
         const afternoonEnd = new Date(searchDate);
         afternoonEnd.setHours(18, 0, 0, 0);
         
+        // ⭐ Check status dựa vào thời gian thực
+        const morningStatus = morningEnd <= now ? 'Unavailable' : 'Available';
+        const afternoonStatus = afternoonEnd <= now ? 'Unavailable' : 'Available';
+        
         schedulesToCreate.push(
           {
             doctorUserId: doctor._id,
@@ -93,7 +99,7 @@ class AvailableSlotService {
             shift: 'Morning',
             startTime: morningStart,
             endTime: morningEnd,
-            status: 'Available',
+            status: morningStatus,
             maxSlots: 4
           },
           {
@@ -102,7 +108,7 @@ class AvailableSlotService {
             shift: 'Afternoon',
             startTime: afternoonStart,
             endTime: afternoonEnd,
-            status: 'Available',
+            status: afternoonStatus,
             maxSlots: 4
           }
         );
