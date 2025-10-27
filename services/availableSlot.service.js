@@ -1376,7 +1376,7 @@ class AvailableSlotService {
     console.log('   - Doctor:', doctor.fullName);
     console.log('   - Date:', searchDate.toISOString().split('T')[0]);
     console.log('   - Is Today:', isToday); // ⭐ Debug
-g    console.log('   - Service duration:', service.durationMinutes, 'phút');
+    console.log('   - Service duration:', service.durationMinutes, 'phút');
     console.log('   - Schedule ranges:', scheduleRanges);
 
     // ⭐ Kiểm tra xem có gap nào khả dụng không
