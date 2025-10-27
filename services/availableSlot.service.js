@@ -40,13 +40,26 @@ class AvailableSlotService {
       // Tạo schedule cho TẤT CẢ bác sĩ - mỗi bác sĩ 1 Morning + 1 Afternoon
       const schedulesToCreate = [];
       for (const doctor of doctors) {
+        // Tạo Date objects với giờ Việt Nam
+        const morningStart = new Date(searchDate);
+        morningStart.setHours(8, 0, 0, 0);
+        
+        const morningEnd = new Date(searchDate);
+        morningEnd.setHours(12, 0, 0, 0);
+        
+        const afternoonStart = new Date(searchDate);
+        afternoonStart.setHours(14, 0, 0, 0);
+        
+        const afternoonEnd = new Date(searchDate);
+        afternoonEnd.setHours(18, 0, 0, 0);
+        
         schedulesToCreate.push(
           {
             doctorUserId: doctor._id,
             date: searchDate,
             shift: 'Morning',
-            startTime: new Date(searchDate).setHours(8, 0, 0, 0),
-            endTime: new Date(searchDate).setHours(12, 0, 0, 0),
+            startTime: morningStart,
+            endTime: morningEnd,
             status: 'Available',
             maxSlots: 4
           },
@@ -54,8 +67,8 @@ class AvailableSlotService {
             doctorUserId: doctor._id,
             date: searchDate,
             shift: 'Afternoon',
-            startTime: new Date(searchDate).setHours(14, 0, 0, 0),
-            endTime: new Date(searchDate).setHours(18, 0, 0, 0),
+            startTime: afternoonStart,
+            endTime: afternoonEnd,
             status: 'Available',
             maxSlots: 4
           }
