@@ -1137,12 +1137,10 @@ class AvailableSlotService {
 
     // 4. Group schedules theo shift và format time ranges
     const formatTime = (date) => {
-      return new Date(date).toLocaleTimeString('vi-VN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-        timeZone: 'Asia/Ho_Chi_Minh'
-      });
+      const d = new Date(date);
+      const hours = String(d.getUTCHours()).padStart(2, '0');
+      const minutes = String(d.getUTCMinutes()).padStart(2, '0');
+      return `${hours}:${minutes}`;
     };
 
     // Group theo shift
