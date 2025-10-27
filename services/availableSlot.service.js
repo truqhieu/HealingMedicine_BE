@@ -40,18 +40,22 @@ class AvailableSlotService {
       // Tạo schedule cho TẤT CẢ bác sĩ - mỗi bác sĩ 1 Morning + 1 Afternoon
       const schedulesToCreate = [];
       for (const doctor of doctors) {
-        // Tạo Date objects với giờ Việt Nam
+        // Tạo Date objects theo UTC (giờ Việt Nam - 7)
+        // 08:00 VN = 01:00 UTC
+        // 12:00 VN = 05:00 UTC
+        // 14:00 VN = 07:00 UTC
+        // 18:00 VN = 11:00 UTC
         const morningStart = new Date(searchDate);
-        morningStart.setHours(8, 0, 0, 0);
+        morningStart.setUTCHours(1, 0, 0, 0); // 08:00 VN
         
         const morningEnd = new Date(searchDate);
-        morningEnd.setHours(12, 0, 0, 0);
+        morningEnd.setUTCHours(5, 0, 0, 0); // 12:00 VN
         
         const afternoonStart = new Date(searchDate);
-        afternoonStart.setHours(14, 0, 0, 0);
+        afternoonStart.setUTCHours(7, 0, 0, 0); // 14:00 VN
         
         const afternoonEnd = new Date(searchDate);
-        afternoonEnd.setHours(18, 0, 0, 0);
+        afternoonEnd.setUTCHours(11, 0, 0, 0); // 18:00 VN
         
         schedulesToCreate.push(
           {
@@ -1055,17 +1059,29 @@ class AvailableSlotService {
 
       // ⭐ THÊM: Filter slots đã qua nếu là ngày hôm nay
       const now = new Date();
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
       
-      const isToday = searchDate.getTime() === today.getTime();
+      // So sánh ngày theo UTC date string (yyyy-mm-dd)
+      const searchDateStr = searchDate.toISOString().split('T')[0];
+      const todayStr = new Date().toISOString().split('T')[0];
+      
+      const isToday = searchDateStr === todayStr;
+      
+      console.log(`🔍 [Doctor ${doctor.fullName}] Date check:`);
+      console.log(`   - Search date: ${searchDateStr}`);
+      console.log(`   - Today: ${todayStr}`);
+      console.log(`   - Is today?: ${isToday}`);
+      console.log(`   - Current time: ${now.toISOString()}`);
       
       if (isToday) {
         const slotsBeforeFilter = availableSlots.length;
         availableSlots = availableSlots.filter(slot => {
           const slotStart = new Date(slot.startTime);
           // Chỉ giữ các slot có startTime > hiện tại
-          return slotStart > now;
+          const isValid = slotStart > now;
+          if (!isValid) {
+            console.log(`   ❌ Filter out: ${slotStart.toISOString()} (already passed)`);
+          }
+          return isValid;
         });
         
         const removedCount = slotsBeforeFilter - availableSlots.length;
@@ -1073,6 +1089,8 @@ class AvailableSlotService {
           console.log(`\n⏰ [Doctor ${doctor.fullName}] FILTERED PAST SLOTS (today):`);
           console.log(`   - Removed ${removedCount} slots that already passed`);
           console.log(`   - Remaining: ${availableSlots.length} slots`);
+        } else {
+          console.log(`   ✅ No slots filtered (all slots are in the future)`);
         }
       }
 
