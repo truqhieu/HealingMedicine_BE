@@ -82,7 +82,7 @@ const generateSlotsByDate = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: 'Lỗi server khi generate danh sách khung giờ',
+      message: 'Hệ thống đang bận. Vui lòng thử lại sau ít phút.',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
@@ -143,7 +143,7 @@ const getAvailableSlots = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: 'Lỗi server khi lấy danh sách khung giờ available',
+      message: 'Hệ thống đang bận. Vui lòng thử lại sau ít phút.',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
@@ -199,7 +199,7 @@ const getAvailableDoctors = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: 'Lỗi server khi lấy danh sách bác sĩ',
+      message: 'Hệ thống đang bận. Vui lòng thử lại sau ít phút.',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
@@ -295,7 +295,7 @@ const getAvailableDoctorsForTimeSlot = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: 'Lỗi server khi lấy danh sách bác sĩ',
+      message: 'Hệ thống đang bận. Vui lòng thử lại sau ít phút.',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
@@ -349,7 +349,7 @@ const getDoctorScheduleRange = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: 'Lỗi server khi lấy doctor schedule',
+      message: 'Hệ thống đang bận. Vui lòng thử lại sau ít phút.',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
@@ -406,9 +406,9 @@ const validateAppointmentTime = async (req, res) => {
   } catch (error) {
     console.error('Lỗi validate appointment time:', error);
 
-    if (error.message.includes('Không tìm thấy') ||
-        error.message.includes('không nằm') ||
-        error.message.includes('không hoạt động')) {
+    // ⭐ Tất cả các lỗi validation đều trả về 400 (không phải 500)
+    // Vì user có thể nhập sai thời gian hoặc chọn bác sĩ/dịch vụ sai
+    if (error.message) {
       return res.status(400).json({
         success: false,
         message: error.message
@@ -417,7 +417,7 @@ const validateAppointmentTime = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: 'Lỗi server khi validate appointment time',
+      message: 'Hệ thống đang bận. Vui lòng thử lại sau ít phút.',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }

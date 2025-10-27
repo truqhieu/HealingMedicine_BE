@@ -111,25 +111,25 @@ class AvailableSlotService {
     // 2. Kiểm tra doctor có tồn tại không (từ bảng User với role="Doctor")
     const doctor = await User.findById(doctorUserId);
     if (!doctor) {
-      throw new Error('Không tìm thấy bác sĩ');
+      throw new Error('Bác sĩ bạn chọn không tồn tại. Vui lòng chọn bác sĩ khác.');
     }
 
     if (doctor.role !== 'Doctor') {
-      throw new Error('User này không phải là bác sĩ');
+      throw new Error('Bác sĩ bạn chọn không hợp lệ. Vui lòng chọn bác sĩ khác.');
     }
 
     if (doctor.status !== 'Active') {
-      throw new Error('Bác sĩ này hiện không hoạt động');
+      throw new Error('Bác sĩ bạn chọn hiện không khả dụng. Vui lòng chọn bác sĩ khác.');
     }
 
     // 3. Lấy thông tin dịch vụ
     const service = await Service.findById(serviceId);
     if (!service) {
-      throw new Error('Không tìm thấy dịch vụ');
+      throw new Error('Dịch vụ bạn chọn không tồn tại. Vui lòng chọn dịch vụ khác.');
     }
 
     if (service.status !== 'Active') {
-      throw new Error('Dịch vụ này hiện không hoạt động');
+      throw new Error('Dịch vụ bạn chọn hiện không khả dụng. Vui lòng chọn dịch vụ khác.');
     }
 
     const serviceDuration = service.durationMinutes;
@@ -408,11 +408,11 @@ class AvailableSlotService {
     // 2. Lấy thông tin dịch vụ
     const service = await Service.findById(serviceId);
     if (!service) {
-      throw new Error('Không tìm thấy dịch vụ');
+      throw new Error('Dịch vụ bạn chọn không tồn tại. Vui lòng chọn dịch vụ khác.');
     }
 
     if (service.status !== 'Active') {
-      throw new Error('Dịch vụ này hiện không hoạt động');
+      throw new Error('Dịch vụ bạn chọn hiện không khả dụng. Vui lòng chọn dịch vụ khác.');
     }
 
     const serviceDuration = service.durationMinutes;
@@ -505,11 +505,11 @@ class AvailableSlotService {
     // 2. Lấy thông tin dịch vụ
     const service = await Service.findById(serviceId);
     if (!service) {
-      throw new Error('Không tìm thấy dịch vụ');
+      throw new Error('Dịch vụ bạn chọn không tồn tại. Vui lòng chọn dịch vụ khác.');
     }
 
     if (service.status !== 'Active') {
-      throw new Error('Dịch vụ này hiện không hoạt động');
+      throw new Error('Dịch vụ bạn chọn hiện không khả dụng. Vui lòng chọn dịch vụ khác.');
     }
 
     // ⭐ THÊM: Check nếu bệnh nhân hiện tại đã có appointment vào khung giờ này
@@ -795,11 +795,11 @@ class AvailableSlotService {
     // 2. Lấy thông tin dịch vụ
     const service = await Service.findById(serviceId);
     if (!service) {
-      throw new Error('Không tìm thấy dịch vụ');
+      throw new Error('Dịch vụ bạn chọn không tồn tại. Vui lòng chọn dịch vụ khác.');
     }
 
     if (service.status !== 'Active') {
-      throw new Error('Dịch vụ này hiện không hoạt động');
+      throw new Error('Dịch vụ bạn chọn hiện không khả dụng. Vui lòng chọn dịch vụ khác.');
     }
 
     const serviceDuration = service.durationMinutes;
@@ -1097,22 +1097,22 @@ class AvailableSlotService {
     // 1. Validate doctor
     const doctor = await User.findById(doctorUserId);
     if (!doctor) {
-      throw new Error('Không tìm thấy bác sĩ');
+      throw new Error('Bác sĩ bạn chọn không tồn tại. Vui lòng chọn bác sĩ khác.');
     }
     if (doctor.role !== 'Doctor') {
-      throw new Error('User này không phải là bác sĩ');
+      throw new Error('Bác sĩ bạn chọn không hợp lệ. Vui lòng chọn bác sĩ khác.');
     }
     if (doctor.status !== 'Active') {
-      throw new Error('Bác sĩ này hiện không hoạt động');
+      throw new Error('Bác sĩ bạn chọn hiện không khả dụng. Vui lòng chọn bác sĩ khác.');
     }
 
     // 2. Validate service
     const service = await Service.findById(serviceId);
     if (!service) {
-      throw new Error('Không tìm thấy dịch vụ');
+      throw new Error('Dịch vụ bạn chọn không tồn tại. Vui lòng chọn dịch vụ khác.');
     }
     if (service.status !== 'Active') {
-      throw new Error('Dịch vụ này hiện không hoạt động');
+      throw new Error('Dịch vụ bạn chọn hiện không khả dụng. Vui lòng chọn dịch vụ khác.');
     }
 
     // 3. Lấy doctor schedule (DoctorSchedule) của ngày đó
@@ -1131,7 +1131,7 @@ class AvailableSlotService {
         doctorName: doctor.fullName,
         date: searchDate,
         scheduleRange: null,
-        message: 'Bác sĩ không có lịch làm việc vào ngày này'
+        message: 'Bác sĩ bạn chọn không có lịch làm việc vào ngày này. Vui lòng chọn bác sĩ khác hoặc ngày khác.'
       };
     }
 
@@ -1276,13 +1276,13 @@ class AvailableSlotService {
     });
 
     if (!scheduleRangeResult.scheduleRanges || scheduleRangeResult.scheduleRanges.length === 0) {
-      throw new Error(scheduleRangeResult.message || 'Bác sĩ không có lịch làm việc vào ngày này');
+      throw new Error(scheduleRangeResult.message || 'Bác sĩ bạn chọn không có lịch làm việc vào ngày này. Vui lòng chọn bác sĩ khác hoặc ngày khác.');
     }
 
     // 2. Validate service để lấy duration
     const service = await Service.findById(serviceId);
     if (!service) {
-      throw new Error('Không tìm thấy dịch vụ');
+      throw new Error('Dịch vụ bạn chọn không tồn tại. Vui lòng chọn dịch vụ khác.');
     }
 
     const serviceDuration = service.durationMinutes;
@@ -1373,7 +1373,7 @@ class AvailableSlotService {
     if (!isInValidRange) {
       const rangesText = scheduleRanges.map(r => `${r.shiftDisplay}: ${r.displayRange}`).join(', ');
       throw new Error(
-        `Thời gian nhập không nằm trong lịch làm việc. Bác sĩ rảnh: ${rangesText}`
+        `Thời gian bạn chọn không nằm trong lịch làm việc của bác sĩ. Bác sĩ rảnh: ${rangesText}. Vui lòng chọn thời gian khác.`
       );
     }
 
@@ -1404,7 +1404,7 @@ class AvailableSlotService {
     });
 
     if (hasConflict) {
-      throw new Error('Bác sĩ đã có lịch khám vào thời gian này');
+      throw new Error('Bác sĩ đã có lịch khám vào thời gian này. Vui lòng chọn bác sĩ khác hoặc thời gian khác.');
     }
 
     return {

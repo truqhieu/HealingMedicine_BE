@@ -20,23 +20,23 @@ class AppointmentService {
 
     // Validate required fields
     if (!patientUserId || !doctorUserId || !serviceId || !doctorScheduleId || !selectedSlot) {
-      throw new Error('Thiếu thông tin bắt buộc để đặt lịch tư vấn');
+      throw new Error('Vui lòng nhập đầy đủ thông tin để đặt lịch tư vấn.');
     }
 
     if (!selectedSlot.startTime || !selectedSlot.endTime) {
-      throw new Error('Thông tin khung giờ không hợp lệ');
+      throw new Error('Thông tin khung giờ không hợp lệ. Vui lòng chọn lại thời gian.');
     }
 
     // Kiểm tra patient có tồn tại không và lấy thông tin email
     const patient = await User.findById(patientUserId);
     if (!patient) {
-      throw new Error('Người dùng không tồn tại');
+      throw new Error('Tài khoản của bạn không hợp lệ. Vui lòng đăng nhập lại.');
     }
 
     // Kiểm tra service có tồn tại không
     const service = await Service.findById(serviceId);
     if (!service) {
-      throw new Error('Dịch vụ không tồn tại');
+      throw new Error('Dịch vụ bạn chọn không tồn tại. Vui lòng chọn dịch vụ khác.');
     }
 
     if (service.status !== 'Active') {
@@ -103,7 +103,7 @@ class AppointmentService {
       });
       
       if (existingCustomer) {
-        console.log(`✅ Tìm thấy existing customer: ${existingCustomer._id}`);
+        console.log(` Tìm thấy existing customer: ${existingCustomer._id}`);
         
         // Kiểm tra xem customer này đã có appointment vào khung giờ này chưa
         const conflictAppointment = await Appointment.findOne({
@@ -131,12 +131,12 @@ class AppointmentService {
             const slotEndTime = new Date(selectedSlot.endTime).getTime();
             
             if (appointmentStartTime === slotStartTime && appointmentEndTime === slotEndTime) {
-              console.log(`❌ Customer ${formData.fullName} đã có lịch khám vào khung giờ này`);
+              console.log(` Customer ${formData.fullName} đã có lịch khám vào khung giờ này`);
               throw new Error(`${formData.fullName} đã có lịch khám vào khung giờ này rồi. Vui lòng chọn khung giờ khác!`);
             }
           }
         } else {
-          console.log(`❌ Customer ${formData.fullName} đã có lịch khám vào khung giờ này`);
+          console.log(` Customer ${formData.fullName} đã có lịch khám vào khung giờ này`);
           throw new Error(`${formData.fullName} đã có lịch khám vào khung giờ này rồi. Vui lòng chọn khung giờ khác!`);
         }
       }
@@ -152,8 +152,8 @@ class AppointmentService {
     });
 
     if (existingTimeslot) {
-      console.log('❌ Khung giờ đã bị book/reserved:', existingTimeslot._id);
-      throw new Error(`Khung giờ này đã được đặt hoặc đang chờ thanh toán. Vui lòng chọn khung giờ khác.`);
+      console.log(' Khung giờ đã bị book/reserved:', existingTimeslot._id);
+      throw new Error(`Khung giờ này đã có người đặt hoặc đang chờ thanh toán. Vui lòng chọn thời gian khác.`);
     }
 
     // Validate selectedSlot duration phải khớp với service duration
@@ -163,29 +163,29 @@ class AppointmentService {
 
     if (slotDurationMinutes !== service.durationMinutes) {
       throw new Error(
-        `Khung giờ không hợp lệ. Dịch vụ "${service.serviceName}" yêu cầu ${service.durationMinutes} phút, ` +
-        `nhưng slot được chọn chỉ có ${slotDurationMinutes} phút`
+        `Khung giờ không hợp lệ. Dịch vụ "${service.serviceName}" cần ${service.durationMinutes} phút, ` +
+        `nhưng thời gian bạn chọn là ${slotDurationMinutes} phút. Vui lòng chọn lại.`
       );
     }
 
     // Kiểm tra doctor schedule
     const schedule = await DoctorSchedule.findById(doctorScheduleId);
     if (!schedule) {
-      throw new Error('Lịch làm việc của bác sĩ không tồn tại');
+      throw new Error('Lịch làm việc của bác sĩ không tồn tại. Vui lòng tải lại trang hoặc chọn bác sĩ khác.');
     }
 
     // Kiểm tra doctor có tồn tại không (từ bảng User với role="Doctor")
     const doctor = await User.findById(doctorUserId);
     if (!doctor) {
-      throw new Error('Không tìm thấy bác sĩ');
+      throw new Error('Bác sĩ bạn chọn không tồn tại. Vui lòng chọn bác sĩ khác.');
     }
 
     if (doctor.role !== 'Doctor') {
-      throw new Error('User này không phải là bác sĩ');
+      throw new Error('Bác sĩ bạn chọn không hợp lệ. Vui lòng chọn bác sĩ khác.');
     }
 
     if (doctor.status !== 'Active') {
-      throw new Error('Bác sĩ này hiện không hoạt động');
+      throw new Error('Bác sĩ bạn chọn hiện không khả dụng. Vui lòng chọn bác sĩ khác.');
     }
 
     // Nếu đặt cho người khác, tạo Customer
