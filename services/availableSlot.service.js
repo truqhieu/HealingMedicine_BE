@@ -7,6 +7,76 @@ const ScheduleHelper = require('../utils/scheduleHelper');
 class AvailableSlotService {
 
   /**
+   * ⭐ HELPER: Tự động tạo schedule cho một ngày nếu chưa có
+   * Đảm bảo mỗi bác sĩ chỉ có 1 Morning và 1 Afternoon schedule
+   * @private
+   */
+  async _ensureSchedulesForDate(searchDate) {
+    try {
+      // Kiểm tra xem ngày này đã có schedule nào chưa
+      const existingSchedulesCount = await DoctorSchedule.countDocuments({
+        date: searchDate,
+        status: 'Available'
+      });
+
+      if (existingSchedulesCount > 0) {
+        console.log(`✅ Ngày ${searchDate.toISOString().split('T')[0]} đã có ${existingSchedulesCount} schedules`);
+        return;
+      }
+
+      console.log(`⚠️  Ngày ${searchDate.toISOString().split('T')[0]} chưa có schedule, tự động tạo...`);
+      
+      // Lấy tất cả bác sĩ ACTIVE
+      const doctors = await User.find({
+        role: 'Doctor',
+        status: 'Active'
+      }).select('_id');
+
+      if (doctors.length === 0) {
+        console.log('⚠️  Không có bác sĩ ACTIVE nào');
+        return;
+      }
+
+      // Tạo schedule cho TẤT CẢ bác sĩ - mỗi bác sĩ 1 Morning + 1 Afternoon
+      const schedulesToCreate = [];
+      for (const doctor of doctors) {
+        schedulesToCreate.push(
+          {
+            doctorUserId: doctor._id,
+            date: searchDate,
+            shift: 'Morning',
+            startTime: new Date(searchDate).setHours(8, 0, 0, 0),
+            endTime: new Date(searchDate).setHours(12, 0, 0, 0),
+            status: 'Available',
+            maxSlots: 4
+          },
+          {
+            doctorUserId: doctor._id,
+            date: searchDate,
+            shift: 'Afternoon',
+            startTime: new Date(searchDate).setHours(14, 0, 0, 0),
+            endTime: new Date(searchDate).setHours(18, 0, 0, 0),
+            status: 'Available',
+            maxSlots: 4
+          }
+        );
+      }
+      
+      // ⭐ Dùng insertMany với ordered: false để bỏ qua duplicate keys
+      const result = await DoctorSchedule.insertMany(schedulesToCreate, { ordered: false });
+      console.log(`✅ Tạo ${result.length} schedules mới cho ${doctors.length} bác sĩ`);
+      
+    } catch (error) {
+      // ⭐ Nếu lỗi là duplicate key (code 11000), bỏ qua vì đã có schedule rồi
+      if (error.code === 11000 || error.name === 'BulkWriteError') {
+        console.log(`⚠️  Một số schedules đã tồn tại (bỏ qua duplicate)`);
+      } else {
+        console.error(`❌ Lỗi tạo schedules: ${error.message}`);
+      }
+    }
+  }
+
+  /**
    * Lấy các khung giờ available dựa trên:
    * - DoctorSchedule (khung giờ làm việc)
    * - Service (thời lượng dịch vụ)
@@ -347,56 +417,8 @@ class AvailableSlotService {
     console.log('🔍 Search date:', searchDate.toISOString());
     console.log('📅 Searching for doctors with schedule on:', searchDate.toISOString().split('T')[0]);
 
-    // ⭐ THÊM: Auto-create schedule cho TOÀN BỘ ngày (1 lần duy nhất)
-    // Kiểm tra xem ngày này đã có schedule nào chưa
-    const existingSchedulesCount = await DoctorSchedule.countDocuments({
-      date: searchDate,
-      status: 'Available'
-    });
-
-    if (existingSchedulesCount === 0) {
-      console.log(`⚠️  Ngày ${searchDate.toISOString().split('T')[0]} chưa có schedule, tự động tạo cho tất cả bác sĩ...`);
-      
-      try {
-        // Tạo schedule cho TẤT CẢ bác sĩ 1 lần
-        const schedulesToCreate = [];
-        for (const doctor of doctors) {
-          schedulesToCreate.push(
-            {
-              doctorUserId: doctor._id,
-              date: searchDate,
-              shift: 'Morning',
-              startTime: new Date(searchDate).setHours(8, 0, 0),
-              endTime: new Date(searchDate).setHours(12, 0, 0),
-              status: 'Available',
-              maxSlots: 4
-            },
-            {
-              doctorUserId: doctor._id,
-              date: searchDate,
-              shift: 'Afternoon',
-              startTime: new Date(searchDate).setHours(14, 0, 0),
-              endTime: new Date(searchDate).setHours(18, 0, 0),
-              status: 'Available',
-              maxSlots: 4
-            }
-          );
-        }
-        
-        // ⭐ Dùng insertMany với ordered: false để bỏ qua duplicate keys
-        const result = await DoctorSchedule.insertMany(schedulesToCreate, { ordered: false });
-        console.log(`✅ Tạo ${result.length} schedules mới cho ${doctors.length} bác sĩ`);
-      } catch (createError) {
-        // ⭐ Nếu lỗi là duplicate key (code 11000), bỏ qua vì đã có schedule rồi
-        if (createError.code === 11000 || createError.name === 'BulkWriteError') {
-          console.log(`⚠️  Một số schedules đã tồn tại (bỏ qua duplicate)`);
-        } else {
-          console.error(`❌ Lỗi tạo schedules: ${createError.message}`);
-        }
-      }
-    } else {
-      console.log(`✅ Ngày ${searchDate.toISOString().split('T')[0]} đã có ${existingSchedulesCount} schedules`);
-    }
+    // ⭐ Tự động tạo schedule nếu chưa có (dùng helper method chung)
+    await this._ensureSchedulesForDate(searchDate);
 
     // 5. Duyệt qua từng bác sĩ để lấy danh sách có schedule vào ngày đó
     const availableDoctors = [];
@@ -796,69 +818,8 @@ class AvailableSlotService {
     console.log('🔍 Search date:', searchDate.toISOString());
     console.log('📅 Searching for doctors with schedule on:', searchDate.toISOString().split('T')[0]);
 
-    // ⭐ THÊM: Auto-create schedule cho TOÀN BỘ ngày (1 lần duy nhất)
-    // Kiểm tra xem ngày này đã có schedule nào chưa
-    const existingSchedules = await DoctorSchedule.findOne({
-      date: searchDate,
-      status: 'Available'
-    });
-
-    if (!existingSchedules) {
-      console.log(`⚠️  Ngày ${searchDate.toISOString().split('T')[0]} chưa có schedule, tự động tạo cho tất cả bác sĩ...`);
-      
-      try {
-        // Tạo schedule cho TẤT CẢ bác sĩ 1 lần
-        const doctors = await User.find({
-          role: 'Doctor',
-          status: 'Active'
-        }).select('_id');
-
-        const schedulesToCreate = [];
-        for (const doctor of doctors) {
-          // Tạo thời gian theo giờ Việt Nam (UTC+7)
-          // Sử dụng UTC methods để đảm bảo consistency
-          const year = searchDate.getFullYear();
-          const month = searchDate.getMonth();
-          const day = searchDate.getDate();
-          
-          // 8h VN = 1h UTC (8 - 7 = 1)
-          const morningStart = new Date(Date.UTC(year, month, day, 1, 0, 0));
-          // 12h VN = 5h UTC
-          const morningEnd = new Date(Date.UTC(year, month, day, 5, 0, 0));
-          // 14h VN = 7h UTC
-          const afternoonStart = new Date(Date.UTC(year, month, day, 7, 0, 0));
-          // 18h VN = 11h UTC
-          const afternoonEnd = new Date(Date.UTC(year, month, day, 11, 0, 0));
-          
-          schedulesToCreate.push(
-            {
-              doctorUserId: doctor._id,
-              date: searchDate,
-              shift: 'Morning',
-              startTime: morningStart,
-              endTime: morningEnd,
-              status: 'Available',
-              maxSlots: 4
-            },
-            {
-              doctorUserId: doctor._id,
-              date: searchDate,
-              shift: 'Afternoon',
-              startTime: afternoonStart,
-              endTime: afternoonEnd,
-              status: 'Available',
-              maxSlots: 4
-            }
-          );
-        }
-        
-        await DoctorSchedule.insertMany(schedulesToCreate);
-        console.log(`✅ Đã tạo ${schedulesToCreate.length} schedules cho ${doctors.length} bác sĩ vào ngày ${searchDate.toISOString().split('T')[0]}`);
-      } catch (error) {
-        console.error('❌ Lỗi tạo schedule tự động:', error);
-        // Không throw error, tiếp tục xử lý
-      }
-    }
+    // ⭐ Tự động tạo schedule nếu chưa có (dùng helper method chung)
+    await this._ensureSchedulesForDate(searchDate);
 
     // 4. Lấy tất cả bác sĩ đang active
     const doctors = await User.find({
