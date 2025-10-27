@@ -5,45 +5,34 @@ const {
   getAvailableSlots,
   getAvailableDoctors,
   getAvailableDoctorsForTimeSlot,
-  getAvailableStartTimes,
-  checkStartTimeAvailability,
-  getAvailableTimeRange,
-  validateAndCheckStartTime
+  getDoctorScheduleRange,
+  validateAppointmentTime
 } = require('../controllers/availableSlot.controller');
 const { optionalAuth } = require('../middleware/auth.middleware');
 
-// ⭐ NEW: Generate danh sách khung giờ cho một ngày (không cần bác sĩ)
+// ⭐ Generate danh sách khung giờ cho một ngày (không cần bác sĩ)
 // GET /api/available-slots/generate?serviceId=xxx&date=2025-10-25
-// optionalAuth: Nếu user đã login thì exclude slots đã đặt
 router.get('/generate', optionalAuth, generateSlotsByDate);
 
-// API lấy khung giờ available động cho một bác sĩ cụ thể - Public
+// API lấy khung giờ available động cho một bác sĩ cụ thể
 // GET /api/available-slots?doctorUserId=xxx&serviceId=xxx&date=2025-10-25
 router.get('/', getAvailableSlots);
 
-//  API lấy danh sách tất cả bác sĩ có khung giờ rảnh vào một ngày cụ thể - Public
+// API lấy danh sách tất cả bác sĩ có khung giờ rảnh vào một ngày cụ thể
 // GET /api/available-slots/doctors/list?serviceId=xxx&date=2025-10-25
 router.get('/doctors/list', getAvailableDoctors);
 
-// API lấy danh sách bác sĩ có khung giờ rảnh tại một khung giờ cụ thể - Public
+// API lấy danh sách bác sĩ có khung giờ rảnh tại một khung giờ cụ thể
 // GET /api/available-slots/doctors/time-slot?serviceId=xxx&date=2025-10-25&startTime=2025-10-25T08:00:00Z&endTime=2025-10-25T08:30:00Z
 router.get('/doctors/time-slot', getAvailableDoctorsForTimeSlot);
 
-// ⭐ NEW: Lấy danh sách start times có sẵn cho một ngày
-// GET /api/available-slots/start-times?serviceId=xxx&date=2025-10-25
-router.get('/start-times', optionalAuth, getAvailableStartTimes);
+// ⭐ NEW: Lấy khoảng thời gian khả dụng của một bác sĩ cụ thể
+// GET /api/available-slots/doctor-schedule?doctorUserId=xxx&serviceId=xxx&date=2025-10-25
+router.get('/doctor-schedule', optionalAuth, getDoctorScheduleRange);
 
-// ⭐ NEW: Kiểm tra một start time cụ thể có khả dụng không, lấy danh sách bác sĩ
-// GET /api/available-slots/check-start-time?serviceId=xxx&date=2025-10-25&startTime=2025-10-25T08:00:00Z
-router.get('/check-start-time', optionalAuth, checkStartTimeAvailability);
-
-// ⭐ NEW: Lấy khoảng thời gian khả dụng (min-max time)
-// GET /api/available-slots/time-range?serviceId=xxx&date=2025-10-25
-router.get('/time-range', optionalAuth, getAvailableTimeRange);
-
-// ⭐ NEW: Validate thời gian nhập có hợp lệ không
-// GET /api/available-slots/validate-time?serviceId=xxx&date=2025-10-25&startTime=2025-10-25T09:45:00Z
-router.get('/validate-time', optionalAuth, validateAndCheckStartTime);
+// ⭐ NEW: Validate appointment time
+// GET /api/available-slots/validate-appointment-time?doctorUserId=xxx&serviceId=xxx&date=2025-10-25&startTime=2025-10-25T09:20:00Z
+router.get('/validate-appointment-time', optionalAuth, validateAppointmentTime);
 
 module.exports = router;
 

@@ -1130,212 +1130,165 @@ class AvailableSlotService {
   }
 
   /**
-   * ⭐ NEW: Lấy danh sách start times có sẵn cho một ngày
-   * Trả về chỉ danh sách start times (không full slot info)
+   * ⭐ NEW: Lấy khoảng thời gian khả dụng của một bác sĩ cụ thể vào 1 ngày
    */
-  async getAvailableStartTimes({ serviceId, date, patientUserId, breakAfterMinutes = 10 }) {
-    // Gọi generateAvailableSlotsByDate để lấy tất cả slots
-    const result = await this.generateAvailableSlotsByDate({
-      serviceId,
-      date,
-      patientUserId,
-      breakAfterMinutes
-    });
-
-    // Extract danh sách start times unique
-    const startTimesSet = new Set();
-    const startTimesData = [];
-
-    for (const slot of result.slots) {
-      if (!startTimesSet.has(slot.startTime)) {
-        startTimesSet.add(slot.startTime);
-        startTimesData.push({
-          startTime: slot.startTime,
-          displayTime: slot.displayTime
-        });
-      }
+  async getDoctorScheduleRange({ doctorUserId, serviceId, date }) {
+    // 1. Validate doctor
+    const doctor = await User.findById(doctorUserId);
+    if (!doctor) {
+      throw new Error('Không tìm thấy bác sĩ');
+    }
+    if (doctor.role !== 'Doctor') {
+      throw new Error('User này không phải là bác sĩ');
+    }
+    if (doctor.status !== 'Active') {
+      throw new Error('Bác sĩ này hiện không hoạt động');
     }
 
-    return {
-      date: result.date,
-      serviceName: result.serviceName,
-      serviceDuration: result.serviceDuration,
-      startTimes: startTimesData,
-      totalStartTimes: startTimesData.length
-    };
-  }
-
-  /**
-   * ⭐ NEW: Kiểm tra một start time cụ thể có khả dụng không
-   * Trả về danh sách bác sĩ có sẵn tại start time đó
-   */
-  async checkStartTimeAvailability({ serviceId, date, startTime, patientUserId, appointmentFor }) {
-    // 1. Lấy thông tin dịch vụ
+    // 2. Validate service
     const service = await Service.findById(serviceId);
     if (!service) {
       throw new Error('Không tìm thấy dịch vụ');
     }
-
     if (service.status !== 'Active') {
       throw new Error('Dịch vụ này hiện không hoạt động');
     }
 
-    const serviceDuration = service.durationMinutes;
+    // 3. Lấy doctor schedule (DoctorSchedule) của ngày đó
+    const searchDate = new Date(date);
+    searchDate.setHours(0, 0, 0, 0);
 
-    // 2. Tính end time dựa vào serviceDuration
-    const calculatedEndTime = new Date(startTime.getTime() + serviceDuration * 60000);
+    const schedules = await DoctorSchedule.find({
+      doctorUserId,
+      date: searchDate,
+      status: 'Available'
+    }).sort({ startTime: 1 });
 
-    console.log('🔍 [checkStartTimeAvailability]');
-    console.log('   - serviceId:', serviceId);
-    console.log('   - startTime:', startTime.toISOString());
-    console.log('   - calculatedEndTime:', calculatedEndTime.toISOString());
-    console.log('   - serviceDuration:', serviceDuration);
-
-    // 3. Dùng getAvailableDoctorsForTimeSlot để lấy bác sĩ rảnh
-    const result = await this.getAvailableDoctorsForTimeSlot({
-      serviceId,
-      date,
-      startTime,
-      endTime: calculatedEndTime,
-      patientUserId,
-      appointmentFor
-    });
-
-    return {
-      date,
-      startTime: startTime.toISOString(),
-      endTime: calculatedEndTime.toISOString(),
-      serviceName: service.serviceName,
-      serviceDuration,
-      availableDoctors: result.availableDoctors,
-      totalDoctors: result.availableDoctors ? result.availableDoctors.length : 0
-    };
-  }
-
-  /**
-   * ⭐ NEW: Lấy khoảng thời gian khả dụng cho một ngày
-   * Thay vì trả về danh sách slots cụ thể, chỉ trả về min-max time khả dụng
-   */
-  async getAvailableTimeRange({ serviceId, date, patientUserId, breakAfterMinutes = 10 }) {
-    // 1. Lấy thông tin dịch vụ
-    const service = await Service.findById(serviceId);
-    if (!service) {
-      throw new Error('Không tìm thấy dịch vụ');
-    }
-
-    if (service.status !== 'Active') {
-      throw new Error('Dịch vụ này hiện không hoạt động');
-    }
-
-    const serviceDuration = service.durationMinutes;
-
-    // 2. Gọi generateAvailableSlotsByDate để lấy tất cả slots
-    const result = await this.generateAvailableSlotsByDate({
-      serviceId,
-      date,
-      patientUserId,
-      breakAfterMinutes
-    });
-
-    // 3. Extract min/max time từ danh sách slots
-    if (result.slots.length === 0) {
+    if (schedules.length === 0) {
       return {
-        date: result.date,
-        serviceName: result.serviceName,
-        serviceDuration: result.serviceDuration,
-        availableTimeRange: null,
-        message: 'Không có khoảng thời gian khả dụng'
+        doctorId: doctorUserId,
+        doctorName: doctor.fullName,
+        date: searchDate,
+        scheduleRange: null,
+        message: 'Bác sĩ không có lịch làm việc vào ngày này'
       };
     }
 
-    const startTimes = result.slots.map(slot => new Date(slot.startTime));
-    const endTimes = result.slots.map(slot => new Date(slot.endTime));
+    // 4. Lấy min start time và max end time từ schedules
+    const startTimes = schedules.map(s => new Date(s.startTime));
+    const endTimes = schedules.map(s => new Date(s.endTime));
 
     const minTime = new Date(Math.min(...startTimes.map(d => d.getTime())));
     const maxTime = new Date(Math.max(...endTimes.map(d => d.getTime())));
 
-    console.log('📊 [getAvailableTimeRange]');
+    console.log('📊 [getDoctorScheduleRange]');
+    console.log('   - Doctor:', doctor.fullName);
+    console.log('   - Date:', searchDate.toISOString().split('T')[0]);
     console.log('   - Min time:', minTime.toISOString());
     console.log('   - Max time:', maxTime.toISOString());
-    console.log('   - Service duration:', serviceDuration, 'minutes');
 
     return {
-      date: result.date,
-      serviceName: result.serviceName,
-      serviceDuration: result.serviceDuration,
-      availableTimeRange: {
+      doctorId: doctorUserId,
+      doctorName: doctor.fullName,
+      date: searchDate,
+      serviceName: service.serviceName,
+      serviceDuration: service.durationMinutes,
+      scheduleRange: {
         minTime: minTime.toISOString(),
         maxTime: maxTime.toISOString(),
         minTimeDisplay: ScheduleHelper.formatTimeSlot(minTime, minTime),
-        maxTimeDisplay: ScheduleHelper.formatTimeSlot(maxTime, maxTime),
+        maxTimeDisplay: ScheduleHelper.formatTimeSlot(maxTime, maxTime)
       },
-      totalAvailableSlots: result.slots.length
+      totalSchedules: schedules.length
     };
   }
 
   /**
-   * ⭐ NEW: Validate thời gian nhập có nằm trong khoảng khả dụng không
-   * Và check bác sĩ khả dụng
+   * ⭐ NEW: Validate appointment time
+   * Check: thời gian nhập có nằm trong doctor schedule không và có doctor khả dụng không
    */
-  async validateAndCheckStartTime({ serviceId, date, startTime, patientUserId, appointmentFor }) {
-    // 1. Lấy khoảng thời gian khả dụng
-    const timeRangeResult = await this.getAvailableTimeRange({
+  async validateAppointmentTime({ doctorUserId, serviceId, date, startTime }) {
+    // 1. Lấy schedule range
+    const scheduleRangeResult = await this.getDoctorScheduleRange({
+      doctorUserId,
       serviceId,
-      date,
-      patientUserId
+      date
     });
 
-    if (!timeRangeResult.availableTimeRange) {
-      throw new Error('Không có khoảng thời gian khả dụng');
+    if (!scheduleRangeResult.scheduleRange) {
+      throw new Error(scheduleRangeResult.message);
     }
 
-    // 2. Validate start time có nằm trong khoảng không
-    const startTimeObj = new Date(startTime);
-    const minTime = new Date(timeRangeResult.availableTimeRange.minTime);
-    const maxTime = new Date(timeRangeResult.availableTimeRange.maxTime);
+    // 2. Validate service để lấy duration
     const service = await Service.findById(serviceId);
+    if (!service) {
+      throw new Error('Không tìm thấy dịch vụ');
+    }
+
     const serviceDuration = service.durationMinutes;
 
-    // End time = start time + duration
+    // 3. Calculate end time
+    const startTimeObj = new Date(startTime);
     const endTimeObj = new Date(startTimeObj.getTime() + serviceDuration * 60000);
 
-    console.log('🔍 [validateAndCheckStartTime]');
+    // 4. Validate: startTime và endTime phải nằm trong schedule range
+    const minTime = new Date(scheduleRangeResult.scheduleRange.minTime);
+    const maxTime = new Date(scheduleRangeResult.scheduleRange.maxTime);
+
+    console.log('🔍 [validateAppointmentTime]');
     console.log('   - startTime:', startTimeObj.toISOString());
     console.log('   - endTime:', endTimeObj.toISOString());
     console.log('   - minTime:', minTime.toISOString());
     console.log('   - maxTime:', maxTime.toISOString());
 
-    // ⭐ Check: start time >= minTime AND end time <= maxTime
     if (startTimeObj < minTime || endTimeObj > maxTime) {
       throw new Error(
-        `Thời gian nhập không nằm trong khoảng khả dụng. ` +
-        `Vui lòng chọn thời gian từ ${timeRangeResult.availableTimeRange.minTimeDisplay} ` +
-        `đến ${timeRangeResult.availableTimeRange.maxTimeDisplay}`
+        `Thời gian nhập không nằm trong lịch làm việc. ` +
+        `Bác sĩ rảnh từ ${scheduleRangeResult.scheduleRange.minTimeDisplay} đến ${scheduleRangeResult.scheduleRange.maxTimeDisplay}`
       );
     }
 
-    // 3. Check bác sĩ khả dụng
-    const result = await this.getAvailableDoctorsForTimeSlot({
-      serviceId,
-      date,
-      startTime: startTimeObj,
-      endTime: endTimeObj,
-      patientUserId,
-      appointmentFor
+    // 5. Check xem doctor có bị booked trong khoảng thời gian này không
+    const searchDate = new Date(date);
+    searchDate.setHours(0, 0, 0, 0);
+
+    const bookedAppointments = await Appointment.find({
+      doctorUserId,
+      status: { $in: ['Pending', 'Approved', 'CheckedIn'] },
+      timeslotId: { $exists: true }
+    }).populate({
+      path: 'timeslotId',
+      select: 'startTime endTime',
+      match: {
+        startTime: { $gte: searchDate.toISOString() }
+      }
     });
 
+    const validAppointments = bookedAppointments.filter(apt => apt.timeslotId !== null);
+
+    // Check conflict
+    const hasConflict = validAppointments.some(apt => {
+      const aptStart = new Date(apt.timeslotId.startTime);
+      const aptEnd = new Date(apt.timeslotId.endTime);
+      
+      return (startTimeObj < aptEnd && endTimeObj > aptStart);
+    });
+
+    if (hasConflict) {
+      throw new Error('Bác sĩ đã có lịch khám vào thời gian này');
+    }
+
     return {
+      doctorId: doctorUserId,
+      doctorName: scheduleRangeResult.doctorName,
       date,
       startTime: startTimeObj.toISOString(),
       endTime: endTimeObj.toISOString(),
       serviceName: service.serviceName,
       serviceDuration,
-      availableTimeRange: timeRangeResult.availableTimeRange,
-      availableDoctors: result.availableDoctors,
-      totalDoctors: result.availableDoctors ? result.availableDoctors.length : 0,
-      message: result.availableDoctors.length > 0 
-        ? 'Thời gian hợp lệ' 
-        : 'Không có bác sĩ khả dụng cho thời gian này'
+      scheduleRange: scheduleRangeResult.scheduleRange,
+      isAvailable: true,
+      message: 'Thời gian hợp lệ, bác sĩ khả dụng'
     };
   }
 }

@@ -302,21 +302,18 @@ const getAvailableDoctorsForTimeSlot = async (req, res) => {
 };
 
 /**
- * ⭐ NEW: Lấy danh sách start times có sẵn cho một ngày (không lấy toàn bộ slot)
- * GET /api/available-slots/start-times?serviceId=xxx&date=2025-10-25&appointmentFor=self
+ * ⭐ NEW: Lấy khoảng thời gian khả dụng của một bác sĩ cụ thể vào 1 ngày
+ * GET /api/available-slots/doctor-schedule?doctorUserId=xxx&serviceId=xxx&date=2025-10-25
  */
-const getAvailableStartTimes = async (req, res) => {
+const getDoctorScheduleRange = async (req, res) => {
   try {
-    const { serviceId, date, appointmentFor, customerFullName, customerEmail } = req.query;
-    const userId = req.user?.userId || null;
-
-    const appointmentForValue = appointmentFor || 'self';
+    const { doctorUserId, serviceId, date } = req.query;
 
     // Validation
-    if (!serviceId || !date) {
+    if (!doctorUserId || !serviceId || !date) {
       return res.status(400).json({
         success: false,
-        message: 'Vui lòng cung cấp đầy đủ serviceId và date'
+        message: 'Vui lòng cung cấp đầy đủ doctorUserId, serviceId và date'
       });
     }
 
@@ -328,18 +325,10 @@ const getAvailableStartTimes = async (req, res) => {
       });
     }
 
-    // ⭐ Logic: Chỉ exclude khi appointmentFor === 'self'
-    const patientUserIdForExclusion = (appointmentForValue === 'self') && userId ? userId : null;
-
-    const result = await availableSlotService.getAvailableStartTimes({
+    const result = await availableSlotService.getDoctorScheduleRange({
+      doctorUserId,
       serviceId,
-      date: searchDate,
-      breakAfterMinutes: 10,
-      patientUserId: patientUserIdForExclusion,
-      ...(appointmentForValue === 'other' && {
-        customerFullName: customerFullName ? decodeURIComponent(customerFullName) : null,
-        customerEmail: customerEmail ? decodeURIComponent(customerEmail) : null,
-      }),
+      date: searchDate
     });
 
     res.status(200).json({
@@ -348,11 +337,10 @@ const getAvailableStartTimes = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Lỗi lấy danh sách start times:', error);
+    console.error('Lỗi lấy doctor schedule range:', error);
 
     if (error.message.includes('Không tìm thấy') ||
-        error.message.includes('không hoạt động') ||
-        error.message.includes('Vui lòng cung cấp')) {
+        error.message.includes('không hoạt động')) {
       return res.status(400).json({
         success: false,
         message: error.message
@@ -361,25 +349,25 @@ const getAvailableStartTimes = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: 'Lỗi server khi lấy danh sách start times',
+      message: 'Lỗi server khi lấy doctor schedule',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
 
 /**
- * ⭐ NEW: Kiểm tra một start time cụ thể có khả dụng không, và lấy danh sách bác sĩ
- * GET /api/available-slots/check-start-time?serviceId=xxx&date=2025-10-25&startTime=2025-10-25T08:00:00Z&appointmentFor=self
+ * ⭐ NEW: Validate thời gian nhập có nằm trong doctor schedule và có bác sĩ khả dụng không
+ * GET /api/available-slots/validate-appointment-time?doctorUserId=xxx&serviceId=xxx&date=2025-10-25&startTime=2025-10-25T09:20:00Z
  */
-const checkStartTimeAvailability = async (req, res) => {
+const validateAppointmentTime = async (req, res) => {
   try {
-    const { serviceId, date, startTime, appointmentFor, userId } = req.query;
+    const { doctorUserId, serviceId, date, startTime } = req.query;
 
     // Validation
-    if (!serviceId || !date || !startTime) {
+    if (!doctorUserId || !serviceId || !date || !startTime) {
       return res.status(400).json({
         success: false,
-        message: 'Vui lòng cung cấp đầy đủ serviceId, date và startTime'
+        message: 'Vui lòng cung cấp đầy đủ doctorUserId, serviceId, date và startTime'
       });
     }
 
@@ -399,16 +387,11 @@ const checkStartTimeAvailability = async (req, res) => {
       });
     }
 
-    // ⭐ Logic
-    const appointmentForValue = appointmentFor || 'self';
-    const patientUserIdForExclusion = (appointmentForValue === 'self') ? (userId || req.user?.userId) : null;
-
-    const result = await availableSlotService.checkStartTimeAvailability({
+    const result = await availableSlotService.validateAppointmentTime({
+      doctorUserId,
       serviceId,
       date: searchDate,
-      startTime: slotStart,
-      patientUserId: patientUserIdForExclusion,
-      appointmentFor: appointmentForValue
+      startTime: slotStart
     });
 
     res.status(200).json({
@@ -417,141 +400,11 @@ const checkStartTimeAvailability = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Lỗi kiểm tra start time:', error);
+    console.error('Lỗi validate appointment time:', error);
 
     if (error.message.includes('Không tìm thấy') ||
-        error.message.includes('không hoạt động') ||
-        error.message.includes('không khả dụng')) {
-      return res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi server khi kiểm tra start time',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-};
-
-/**
- * ⭐ NEW: Lấy khoảng thời gian khả dụng cho một ngày
- * GET /api/available-slots/time-range?serviceId=xxx&date=2025-10-25
- */
-const getAvailableTimeRange = async (req, res) => {
-  try {
-    const { serviceId, date, appointmentFor, customerFullName, customerEmail } = req.query;
-    const userId = req.user?.userId || null;
-
-    const appointmentForValue = appointmentFor || 'self';
-
-    // Validation
-    if (!serviceId || !date) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng cung cấp đầy đủ serviceId và date'
-      });
-    }
-
-    const searchDate = new Date(date);
-    if (isNaN(searchDate.getTime())) {
-      return res.status(400).json({
-        success: false,
-        message: 'Định dạng ngày không hợp lệ. Vui lòng sử dụng format: YYYY-MM-DD'
-      });
-    }
-
-    const patientUserIdForExclusion = (appointmentForValue === 'self') && userId ? userId : null;
-
-    const result = await availableSlotService.getAvailableTimeRange({
-      serviceId,
-      date: searchDate,
-      breakAfterMinutes: 10,
-      patientUserId: patientUserIdForExclusion,
-    });
-
-    res.status(200).json({
-      success: true,
-      data: result
-    });
-
-  } catch (error) {
-    console.error('Lỗi lấy khoảng thời gian khả dụng:', error);
-
-    if (error.message.includes('Không tìm thấy') ||
-        error.message.includes('không hoạt động') ||
-        error.message.includes('Vui lòng cung cấp')) {
-      return res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi server khi lấy khoảng thời gian',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-};
-
-/**
- * ⭐ NEW: Validate thời gian nhập có hợp lệ không
- * GET /api/available-slots/validate-time?serviceId=xxx&date=2025-10-25&startTime=2025-10-25T09:45:00Z
- */
-const validateAndCheckStartTime = async (req, res) => {
-  try {
-    const { serviceId, date, startTime, appointmentFor, userId } = req.query;
-
-    // Validation
-    if (!serviceId || !date || !startTime) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng cung cấp đầy đủ serviceId, date và startTime'
-      });
-    }
-
-    const searchDate = new Date(date);
-    if (isNaN(searchDate.getTime())) {
-      return res.status(400).json({
-        success: false,
-        message: 'Định dạng ngày không hợp lệ. Vui lòng sử dụng format: YYYY-MM-DD'
-      });
-    }
-
-    const slotStart = new Date(startTime);
-    if (isNaN(slotStart.getTime())) {
-      return res.status(400).json({
-        success: false,
-        message: 'Định dạng startTime không hợp lệ. Vui lòng sử dụng format ISO 8601'
-      });
-    }
-
-    const appointmentForValue = appointmentFor || 'self';
-    const patientUserIdForExclusion = (appointmentForValue === 'self') ? (userId || req.user?.userId) : null;
-
-    const result = await availableSlotService.validateAndCheckStartTime({
-      serviceId,
-      date: searchDate,
-      startTime: slotStart,
-      patientUserId: patientUserIdForExclusion,
-      appointmentFor: appointmentForValue
-    });
-
-    res.status(200).json({
-      success: true,
-      data: result
-    });
-
-  } catch (error) {
-    console.error('Lỗi validate thời gian:', error);
-
-    if (error.message.includes('Không tìm thấy') ||
-        error.message.includes('không hoạt động') ||
         error.message.includes('không nằm') ||
-        error.message.includes('Không có')) {
+        error.message.includes('không hoạt động')) {
       return res.status(400).json({
         success: false,
         message: error.message
@@ -560,7 +413,7 @@ const validateAndCheckStartTime = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: 'Lỗi server khi validate thời gian',
+      message: 'Lỗi server khi validate appointment time',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
@@ -571,9 +424,7 @@ module.exports = {
   getAvailableSlots,
   getAvailableDoctors,
   getAvailableDoctorsForTimeSlot,
-  getAvailableStartTimes,
-  checkStartTimeAvailability,
-  getAvailableTimeRange,
-  validateAndCheckStartTime
+  getDoctorScheduleRange,
+  validateAppointmentTime
 };
 
