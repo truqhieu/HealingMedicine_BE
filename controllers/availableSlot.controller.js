@@ -387,11 +387,15 @@ const validateAppointmentTime = async (req, res) => {
       });
     }
 
+    // Lấy patientUserId từ req.user (nếu đã login)
+    const patientUserId = req.user?.userId || null;
+
     const result = await availableSlotService.validateAppointmentTime({
       doctorUserId,
       serviceId,
       date: searchDate,
-      startTime: slotStart
+      startTime: slotStart,
+      patientUserId
     });
 
     res.status(200).json({

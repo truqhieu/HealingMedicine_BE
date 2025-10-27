@@ -1135,7 +1135,31 @@ class AvailableSlotService {
       };
     }
 
-    // 4. Group schedules theo shift và format time ranges
+    // 4. Lấy danh sách appointments đã book của doctor vào ngày này
+    const bookedAppointments = await Appointment.find({
+      doctorUserId,
+      status: { $in: ['Pending', 'Approved', 'CheckedIn', 'PendingPayment'] },
+      timeslotId: { $exists: true }
+    }).populate({
+      path: 'timeslotId',
+      select: 'startTime endTime breakAfterMinutes'
+    });
+
+    // Filter appointments vào ngày đang xét
+    const bookedSlots = bookedAppointments
+      .filter(apt => {
+        if (!apt.timeslotId) return false;
+        const slotDate = new Date(apt.timeslotId.startTime);
+        return slotDate.toISOString().split('T')[0] === searchDate.toISOString().split('T')[0];
+      })
+      .map(apt => ({
+        start: new Date(apt.timeslotId.startTime),
+        end: new Date(apt.timeslotId.endTime),
+        breakAfter: apt.timeslotId.breakAfterMinutes || 10
+      }))
+      .sort((a, b) => a.start - b.start);
+
+    // Helper function
     const formatTime = (date) => {
       const d = new Date(date);
       const hours = String(d.getUTCHours()).padStart(2, '0');
@@ -1143,7 +1167,40 @@ class AvailableSlotService {
       return `${hours}:${minutes}`;
     };
 
-    // Group theo shift
+    // Function tính available gaps cho một shift
+    const calculateAvailableGaps = (shiftStart, shiftEnd, bookedSlots) => {
+      const gaps = [];
+      let currentStart = new Date(shiftStart);
+
+      for (const slot of bookedSlots) {
+        // Nếu slot nằm ngoài shift này, skip
+        if (slot.end <= shiftStart || slot.start >= shiftEnd) continue;
+
+        // Nếu có khoảng trống trước slot này
+        if (currentStart < slot.start) {
+          gaps.push({
+            start: currentStart,
+            end: slot.start
+          });
+        }
+
+        // Di chuyển currentStart đến sau slot này + break time
+        const slotEndWithBreak = new Date(slot.end.getTime() + slot.breakAfter * 60000);
+        currentStart = slotEndWithBreak > currentStart ? slotEndWithBreak : new Date(slot.end);
+      }
+
+      // Nếu còn khoảng trống sau slot cuối cùng
+      if (currentStart < shiftEnd) {
+        gaps.push({
+          start: currentStart,
+          end: shiftEnd
+        });
+      }
+
+      return gaps;
+    };
+
+    // Group theo shift và tính available gaps
     const morningSchedules = schedules.filter(s => s.shift === 'Morning');
     const afternoonSchedules = schedules.filter(s => s.shift === 'Afternoon');
 
@@ -1152,24 +1209,40 @@ class AvailableSlotService {
     if (morningSchedules.length > 0) {
       const morningStart = new Date(Math.min(...morningSchedules.map(s => new Date(s.startTime).getTime())));
       const morningEnd = new Date(Math.max(...morningSchedules.map(s => new Date(s.endTime).getTime())));
+      
+      const availableGaps = calculateAvailableGaps(morningStart, morningEnd, bookedSlots);
+      
       scheduleRanges.push({
         shift: 'Morning',
         shiftDisplay: 'Buổi sáng',
         startTime: morningStart.toISOString(),
         endTime: morningEnd.toISOString(),
-        displayRange: `${formatTime(morningStart)} - ${formatTime(morningEnd)}`
+        availableGaps: availableGaps.map(gap => ({
+          start: gap.start.toISOString(),
+          end: gap.end.toISOString(),
+          display: `${formatTime(gap.start)}-${formatTime(gap.end)}`
+        })),
+        displayRange: availableGaps.map(gap => `${formatTime(gap.start)}-${formatTime(gap.end)}`).join(', ') || 'Đã hết chỗ'
       });
     }
     
     if (afternoonSchedules.length > 0) {
       const afternoonStart = new Date(Math.min(...afternoonSchedules.map(s => new Date(s.startTime).getTime())));
       const afternoonEnd = new Date(Math.max(...afternoonSchedules.map(s => new Date(s.endTime).getTime())));
+      
+      const availableGaps = calculateAvailableGaps(afternoonStart, afternoonEnd, bookedSlots);
+      
       scheduleRanges.push({
         shift: 'Afternoon',
         shiftDisplay: 'Buổi chiều',
         startTime: afternoonStart.toISOString(),
         endTime: afternoonEnd.toISOString(),
-        displayRange: `${formatTime(afternoonStart)} - ${formatTime(afternoonEnd)}`
+        availableGaps: availableGaps.map(gap => ({
+          start: gap.start.toISOString(),
+          end: gap.end.toISOString(),
+          display: `${formatTime(gap.start)}-${formatTime(gap.end)}`
+        })),
+        displayRange: availableGaps.map(gap => `${formatTime(gap.start)}-${formatTime(gap.end)}`).join(', ') || 'Đã hết chỗ'
       });
     }
 
@@ -1194,7 +1267,7 @@ class AvailableSlotService {
    * ⭐ NEW: Validate appointment time
    * Check: thời gian nhập có nằm trong doctor schedule không và có doctor khả dụng không
    */
-  async validateAppointmentTime({ doctorUserId, serviceId, date, startTime }) {
+  async validateAppointmentTime({ doctorUserId, serviceId, date, startTime, patientUserId = null }) {
     // 1. Lấy schedule ranges
     const scheduleRangeResult = await this.getDoctorScheduleRange({
       doctorUserId,
@@ -1217,6 +1290,69 @@ class AvailableSlotService {
     // 3. Calculate end time
     const startTimeObj = new Date(startTime);
     const endTimeObj = new Date(startTimeObj.getTime() + serviceDuration * 60000);
+
+    // ⭐ 3.5. Check conflict cho bệnh nhân
+    // Logic phụ thuộc vào appointmentFor và thông tin customer
+    if (patientUserId) {
+      // Lấy tất cả appointments của user trong khoảng thời gian này
+      const existingAppointments = await Appointment.find({
+        patientUserId,
+        status: { $in: ['PendingPayment', 'Pending', 'Approved', 'CheckedIn'] },
+        timeslotId: { $exists: true }
+      })
+      .populate({
+        path: 'timeslotId',
+        select: 'startTime endTime doctorUserId'
+      })
+      .populate({
+        path: 'customerId',
+        select: 'fullName email'
+      });
+
+      // Filter appointments có overlap với thời gian đang đặt
+      const overlappingAppointments = existingAppointments.filter(apt => {
+        if (!apt.timeslotId) return false;
+        
+        const aptStart = new Date(apt.timeslotId.startTime);
+        const aptEnd = new Date(apt.timeslotId.endTime);
+        
+        // Check overlap: (start1 < end2) AND (end1 > start2)
+        return (startTimeObj < aptEnd && endTimeObj > aptStart);
+      });
+
+      if (overlappingAppointments.length > 0) {
+        // Có appointment trùng giờ → cần validate theo logic
+        for (const apt of overlappingAppointments) {
+          const aptStart = new Date(apt.timeslotId.startTime);
+          const aptEnd = new Date(apt.timeslotId.endTime);
+          const aptStartDisplay = `${String(aptStart.getUTCHours()).padStart(2, '0')}:${String(aptStart.getUTCMinutes()).padStart(2, '0')}`;
+          const aptEndDisplay = `${String(aptEnd.getUTCHours()).padStart(2, '0')}:${String(aptEnd.getUTCMinutes()).padStart(2, '0')}`;
+
+          // Case 1: User đã có appointment cho BẢN THÂN vào giờ này
+          if (apt.appointmentFor === 'self') {
+            throw new Error(
+              `Bạn đã có lịch khám cho bản thân vào ${aptStartDisplay} - ${aptEndDisplay}. ` +
+              `Vui lòng chọn thời gian khác.`
+            );
+          }
+
+          // Case 2: User đã đặt cho NGƯỜI THÂN vào giờ này
+          // → Chỉ cho phép nếu đặt cho người thân KHÁC và bác sĩ KHÁC
+          if (apt.appointmentFor === 'other' && apt.customerId) {
+            // Check nếu đặt cùng bác sĩ → không được
+            if (apt.timeslotId.doctorUserId && apt.timeslotId.doctorUserId.toString() === doctorUserId) {
+              throw new Error(
+                `Bạn đã đặt lịch với bác sĩ này vào ${aptStartDisplay} - ${aptEndDisplay} cho người thân. ` +
+                `Vui lòng chọn bác sĩ khác hoặc thời gian khác.`
+              );
+            }
+
+            // Note: Validate customer duplicate sẽ được làm ở createAppointment
+            // vì ở đây chưa có thông tin fullName/email của customer mới
+          }
+        }
+      }
+    }
 
     // 4. Validate: startTime và endTime phải nằm trong một trong các schedule ranges
     const scheduleRanges = scheduleRangeResult.scheduleRanges;

@@ -194,6 +194,63 @@ class AppointmentService {
         throw new Error('Vui lòng nhập đầy đủ họ tên, email và số điện thoại của người được đặt lịch (customer)');
       }
 
+      // ⭐ Validate: Check xem user đã đặt cho customer này vào cùng thời gian chưa
+      // Normalize function để so sánh không phân biệt hoa thường, dấu cách
+      const normalizeString = (str) => {
+        if (!str) return '';
+        return str.toLowerCase().trim().replace(/\s+/g, ' ');
+      };
+
+      const normalizedFullName = normalizeString(formData.fullName);
+      const normalizedEmail = normalizeString(formData.email);
+
+      // Lấy tất cả appointments của user vào cùng thời gian
+      const slotStart = new Date(selectedSlot.startTime);
+      const slotEnd = new Date(selectedSlot.endTime);
+
+      const overlappingAppointments = await Appointment.find({
+        patientUserId,
+        appointmentFor: 'other',
+        status: { $in: ['PendingPayment', 'Pending', 'Approved', 'CheckedIn'] },
+        customerId: { $exists: true },
+        timeslotId: { $exists: true }
+      })
+      .populate({
+        path: 'timeslotId',
+        select: 'startTime endTime'
+      })
+      .populate({
+        path: 'customerId',
+        select: 'fullName email'
+      });
+
+      // Filter appointments có overlap thời gian
+      for (const apt of overlappingAppointments) {
+        if (!apt.timeslotId || !apt.customerId) continue;
+
+        const aptStart = new Date(apt.timeslotId.startTime);
+        const aptEnd = new Date(apt.timeslotId.endTime);
+
+        // Check overlap: (start1 < end2) AND (end1 > start2)
+        const hasTimeOverlap = (slotStart < aptEnd && slotEnd > aptStart);
+
+        if (hasTimeOverlap) {
+          // Có trùng thời gian → check xem có trùng customer không
+          const existingFullName = normalizeString(apt.customerId.fullName);
+          const existingEmail = normalizeString(apt.customerId.email);
+
+          if (existingFullName === normalizedFullName && existingEmail === normalizedEmail) {
+            const aptStartDisplay = `${String(aptStart.getUTCHours()).padStart(2, '0')}:${String(aptStart.getUTCMinutes()).padStart(2, '0')}`;
+            const aptEndDisplay = `${String(aptEnd.getUTCHours()).padStart(2, '0')}:${String(aptEnd.getUTCMinutes()).padStart(2, '0')}`;
+            
+            throw new Error(
+              `Bạn đã đặt lịch cho "${formData.fullName}" vào ${aptStartDisplay} - ${aptEndDisplay}. ` +
+              `Vui lòng chọn thời gian khác.`
+            );
+          }
+        }
+      }
+
       // Tạo Customer mới
       const newCustomer = await Customer.create({
         patientUserId: patientUserId, 
