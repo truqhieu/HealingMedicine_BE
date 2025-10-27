@@ -1284,6 +1284,12 @@ class AvailableSlotService {
     const now = new Date();
     const serviceDurationMs = service.durationMinutes * 60 * 1000; // Convert phút sang milliseconds
     
+    // ⭐ Kiểm tra ngày đang xét có phải là TODAY không (so sánh theo date string)
+    const today = new Date();
+    const todayDateStr = today.toISOString().split('T')[0]; // yyyy-mm-dd
+    const searchDateStr = searchDate.toISOString().split('T')[0]; // yyyy-mm-dd
+    const isToday = todayDateStr === searchDateStr;
+    
     // Helper function: Filter và adjust gaps theo thời gian thực + service duration
     const filterRealTimeGaps = (gaps) => {
       return gaps
@@ -1291,31 +1297,28 @@ class AvailableSlotService {
           const gapStart = new Date(gap.start);
           const gapEnd = new Date(gap.end);
           
-          // Nếu gap đã hết hoàn toàn
-          if (gapEnd <= now) {
-            return null;
+          // ⭐ CHỈ filter real-time nếu là TODAY
+          if (isToday) {
+            // Nếu gap đã hết hoàn toàn
+            if (gapEnd <= now) {
+              return null;
+            }
+            
+            // Nếu gap đang diễn ra (bắt đầu trước now, kết thúc sau now)
+            if (gapStart < now && gapEnd > now) {
+              gap = {
+                start: now, // Bắt đầu từ thời điểm hiện tại
+                end: gapEnd
+              };
+            }
           }
           
-          // Nếu gap đang diễn ra (bắt đầu trước now, kết thúc sau now)
-          if (gapStart < now && gapEnd > now) {
-            gap = {
-              start: now, // Bắt đầu từ thời điểm hiện tại
-              end: gapEnd
-            };
-          }
-          
-          // ⭐ Kiểm tra gap có đủ thời gian cho service không
+          // ⭐ Kiểm tra gap có đủ thời gian cho service không (áp dụng cho mọi ngày)
           const gapDuration = new Date(gap.end).getTime() - new Date(gap.start).getTime();
           if (gapDuration < serviceDurationMs) {
             return null; // Gap không đủ thời gian
           }
           
-          // Nếu gap chưa bắt đầu (trong tương lai) và đủ thời gian
-          if (gapStart >= now) {
-            return gap;
-          }
-          
-          // Gap đang diễn ra và đủ thời gian
           return gap;
         })
         .filter(gap => gap !== null);
@@ -1372,7 +1375,8 @@ class AvailableSlotService {
     console.log('📊 [getDoctorScheduleRange]');
     console.log('   - Doctor:', doctor.fullName);
     console.log('   - Date:', searchDate.toISOString().split('T')[0]);
-    console.log('   - Service duration:', service.durationMinutes, 'phút');
+    console.log('   - Is Today:', isToday); // ⭐ Debug
+g    console.log('   - Service duration:', service.durationMinutes, 'phút');
     console.log('   - Schedule ranges:', scheduleRanges);
 
     // ⭐ Kiểm tra xem có gap nào khả dụng không
