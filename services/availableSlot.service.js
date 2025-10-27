@@ -1237,11 +1237,11 @@ class AvailableSlotService {
       }))
       .sort((a, b) => a.start - b.start);
 
-    // Helper function
+    // Helper function - Format theo giờ VN (local time)
     const formatTime = (date) => {
       const d = new Date(date);
-      const hours = String(d.getUTCHours()).padStart(2, '0');
-      const minutes = String(d.getUTCMinutes()).padStart(2, '0');
+      const hours = String(d.getHours()).padStart(2, '0');
+      const minutes = String(d.getMinutes()).padStart(2, '0');
       return `${hours}:${minutes}`;
     };
 
