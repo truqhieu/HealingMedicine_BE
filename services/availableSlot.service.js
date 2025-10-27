@@ -349,12 +349,12 @@ class AvailableSlotService {
 
     // ⭐ THÊM: Auto-create schedule cho TOÀN BỘ ngày (1 lần duy nhất)
     // Kiểm tra xem ngày này đã có schedule nào chưa
-    const existingSchedules = await DoctorSchedule.findOne({
+    const existingSchedulesCount = await DoctorSchedule.countDocuments({
       date: searchDate,
       status: 'Available'
     });
 
-    if (!existingSchedules) {
+    if (existingSchedulesCount === 0) {
       console.log(`⚠️  Ngày ${searchDate.toISOString().split('T')[0]} chưa có schedule, tự động tạo cho tất cả bác sĩ...`);
       
       try {
@@ -383,61 +383,48 @@ class AvailableSlotService {
           );
         }
         
-        await DoctorSchedule.insertMany(schedulesToCreate);
-        console.log(`✅ Tạo ${schedulesToCreate.length} schedules cho ${doctors.length} bác sĩ`);
+        // ⭐ Dùng insertMany với ordered: false để bỏ qua duplicate keys
+        const result = await DoctorSchedule.insertMany(schedulesToCreate, { ordered: false });
+        console.log(`✅ Tạo ${result.length} schedules mới cho ${doctors.length} bác sĩ`);
       } catch (createError) {
-        console.error(`❌ Lỗi tạo schedules: ${createError.message}`);
+        // ⭐ Nếu lỗi là duplicate key (code 11000), bỏ qua vì đã có schedule rồi
+        if (createError.code === 11000 || createError.name === 'BulkWriteError') {
+          console.log(`⚠️  Một số schedules đã tồn tại (bỏ qua duplicate)`);
+        } else {
+          console.error(`❌ Lỗi tạo schedules: ${createError.message}`);
+        }
       }
+    } else {
+      console.log(`✅ Ngày ${searchDate.toISOString().split('T')[0]} đã có ${existingSchedulesCount} schedules`);
     }
 
-    // 5. Duyệt qua từng bác sĩ để kiểm tra khung giờ này có rảnh không
+    // 5. Duyệt qua từng bác sĩ để lấy danh sách có schedule vào ngày đó
     const availableDoctors = [];
-    const Timeslot = require('../models/timeslot.model');
 
     for (const doctor of doctors) {
       try {
-        // Kiểm tra xem bác sĩ có schedule vào ngày đó không
-        let schedule = await DoctorSchedule.findOne({
+        // Kiểm tra xem bác sĩ có schedule vào ngày đó không (có thể có nhiều shifts)
+        const schedules = await DoctorSchedule.find({
           doctorUserId: doctor._id,
           date: searchDate,
           status: 'Available'
         });
 
         // ⭐ Nếu vẫn không có schedule (rare case) → skip
-        if (!schedule) {
+        if (!schedules || schedules.length === 0) {
           console.warn(`⚠️  Bác sĩ ${doctor._id} không có schedule cho ngày này, skip...`);
           continue;
         }
 
-        // Kiểm tra khung giờ có nằm trong schedule không
-        const scheduleStart = new Date(schedule.startTime);
-        const scheduleEnd = new Date(schedule.endTime);
-
-        if (slotStartTime < scheduleStart || slotEndTime > scheduleEnd) {
-          continue; // Khung giờ này nằm ngoài schedule
-        }
-
-        // Kiểm tra khung giờ có bị đặt trước không (kiểm tra Reserved hoặc Booked timeslots)
-        const conflictingTimeslot = await Timeslot.findOne({
-          doctorUserId: doctor._id,
-          status: { $in: ['Reserved', 'Booked'] },
-          // Kiểm tra có overlap: timeslot.startTime < slotEndTime AND timeslot.endTime > slotStartTime
-          startTime: { $lt: slotEndTime },
-          endTime: { $gt: slotStartTime }
-        });
-
-        if (conflictingTimeslot) {
-          continue; // Khung giờ này đã bị đặt
-        }
-
-        // Bác sĩ này có khung giờ này rảnh
+        // Bác sĩ này có schedule vào ngày đó → thêm vào danh sách
+        // (FE sẽ chọn bác sĩ, sau đó lấy schedule range của bác sĩ đó)
         availableDoctors.push({
           doctorId: doctor._id,
-          doctorScheduleId: schedule._id, // ← Schedule của ngày đó
           doctorName: doctor.fullName,
           email: doctor.email,
           phoneNumber: doctor.phoneNumber,
-          available: true
+          available: true,
+          totalSchedules: schedules.length
         });
 
       } catch (error) {
@@ -1193,6 +1180,7 @@ class AvailableSlotService {
       date: searchDate,
       serviceName: service.serviceName,
       serviceDuration: service.durationMinutes,
+      doctorScheduleId: schedules.length > 0 ? schedules[0]._id : null,
       scheduleRange: {
         minTime: minTime.toISOString(),
         maxTime: maxTime.toISOString(),

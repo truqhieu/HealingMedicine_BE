@@ -40,7 +40,8 @@ const doctorScheduleSchema = new mongoose.Schema({
   timestamps: true
 });
 
-doctorScheduleSchema.index({ doctorUserId: 1, date: 1 });
+// ⭐ Unique index để ngăn duplicate schedule cho cùng 1 bác sĩ, ngày, và ca
+doctorScheduleSchema.index({ doctorUserId: 1, date: 1, shift: 1 }, { unique: true });
 doctorScheduleSchema.index({ status: 1 });
 
 module.exports = mongoose.model('DoctorSchedule', doctorScheduleSchema, 'doctorschedules');
