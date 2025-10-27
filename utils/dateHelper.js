@@ -34,14 +34,16 @@ class DateHelper {
    * @returns {string} - "Thứ Hai, 21 tháng 10, 2025"
    */
   static formatVietnameseDate(date) {
+    // Sử dụng UTC date để hiển thị đúng ngày
+    const d = new Date(date);
     const options = { 
       weekday: 'long', 
       year: 'numeric', 
       month: 'long', 
       day: 'numeric',
-      timeZone: 'Asia/Ho_Chi_Minh'
+      timeZone: 'UTC'
     };
-    return new Date(date).toLocaleDateString('vi-VN', options);
+    return d.toLocaleDateString('vi-VN', options);
   }
 
   /**
@@ -50,13 +52,12 @@ class DateHelper {
    * @returns {string} - "08:00"
    */
   static formatVietnameseTime(date) {
-    const options = { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      timeZone: 'Asia/Ho_Chi_Minh',
-      hour12: false
-    };
-    return new Date(date).toLocaleTimeString('vi-VN', options);
+    // Hiển thị thời gian UTC trực tiếp (không convert timezone)
+    // Vì thời gian trong DB đã được lưu theo giờ Việt Nam
+    const d = new Date(date);
+    const hours = String(d.getUTCHours()).padStart(2, '0');
+    const minutes = String(d.getUTCMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
   }
 
   /**
