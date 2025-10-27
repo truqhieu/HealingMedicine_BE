@@ -72,38 +72,33 @@ class AvailableSlotService {
 
       // Tạo schedule cho TẤT CẢ bác sĩ - mỗi bác sĩ 1 Morning + 1 Afternoon
       const schedulesToCreate = [];
-      const now = new Date(); // Thời gian hiện tại
-      
-      // ⭐ Convert `now` sang format tương tự (lưu giờ VN vào UTC field)
-      const nowAsUTC = new Date(searchDate);
-      nowAsUTC.setUTCHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+      const now = new Date(); // Thời gian hiện tại (UTC thực)
       
       for (const doctor of doctors) {
-        // ⭐ Lưu thời gian VN trực tiếp vào UTC field (không convert timezone)
+        // ⭐ Lưu UTC thực: 8h VN = 1h UTC, 14h VN = 7h UTC (VN = UTC+7)
         const morningStart = new Date(searchDate);
-        morningStart.setUTCHours(8, 0, 0, 0); // 08:00 (lưu trực tiếp vào UTC)
+        morningStart.setUTCHours(1, 0, 0, 0); // 08:00 VN = 01:00 UTC
         
         const morningEnd = new Date(searchDate);
-        morningEnd.setUTCHours(12, 0, 0, 0); // 12:00 (lưu trực tiếp vào UTC)
+        morningEnd.setUTCHours(5, 0, 0, 0); // 12:00 VN = 05:00 UTC
         
         const afternoonStart = new Date(searchDate);
-        afternoonStart.setUTCHours(14, 0, 0, 0); // 14:00 (lưu trực tiếp vào UTC)
+        afternoonStart.setUTCHours(7, 0, 0, 0); // 14:00 VN = 07:00 UTC
         
         const afternoonEnd = new Date(searchDate);
-        afternoonEnd.setUTCHours(18, 0, 0, 0); // 18:00 (lưu trực tiếp vào UTC)
+        afternoonEnd.setUTCHours(11, 0, 0, 0); // 18:00 VN = 11:00 UTC
         
-        // ⭐ Check status dựa vào thời gian thực (so sánh với nowAsUTC)
-        const morningStatus = morningEnd <= nowAsUTC ? 'Unavailable' : 'Available';
-        const afternoonStatus = afternoonEnd <= nowAsUTC ? 'Unavailable' : 'Available';
+        // ⭐ Check status dựa vào thời gian thực (so sánh UTC với UTC)
+        const morningStatus = morningEnd <= now ? 'Unavailable' : 'Available';
+        const afternoonStatus = afternoonEnd <= now ? 'Unavailable' : 'Available';
         
         // Debug logging
         console.log(`🔍 [${doctor._id}] Schedule Status Check:`);
-        console.log(`   - Current time: ${now.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })} (VN)`);
-        console.log(`   - nowAsUTC: ${nowAsUTC.toISOString()}`);
-        console.log(`   - Morning end: ${morningEnd.toISOString()} (12:00 lưu vào UTC field)`);
-        console.log(`   - Morning status: ${morningStatus} (12:00 <= ${nowAsUTC.getUTCHours()}:${nowAsUTC.getUTCMinutes()})`);
-        console.log(`   - Afternoon end: ${afternoonEnd.toISOString()} (18:00 lưu vào UTC field)`);
-        console.log(`   - Afternoon status: ${afternoonStatus} (18:00 <= ${nowAsUTC.getUTCHours()}:${nowAsUTC.getUTCMinutes()})`);
+        console.log(`   - Current time (UTC): ${now.toISOString()}`);
+        console.log(`   - Morning end (UTC): ${morningEnd.toISOString()} = 12:00 VN`);
+        console.log(`   - Morning status: ${morningStatus} (${morningEnd.toISOString()} <= ${now.toISOString()})`);
+        console.log(`   - Afternoon end (UTC): ${afternoonEnd.toISOString()} = 18:00 VN`);
+        console.log(`   - Afternoon status: ${afternoonStatus} (${afternoonEnd.toISOString()} <= ${now.toISOString()})`);
         
         schedulesToCreate.push(
           {
@@ -1242,10 +1237,12 @@ class AvailableSlotService {
       }))
       .sort((a, b) => a.start - b.start);
 
-    // Helper function - Lấy UTC hours (vì đã lưu giờ VN vào UTC field)
+    // Helper function - Convert UTC sang giờ VN (UTC+7)
     const formatTime = (date) => {
       const d = new Date(date);
-      const hours = String(d.getUTCHours()).padStart(2, '0');
+      // Lấy UTC hours và convert sang VN (+7)
+      const vnHours = (d.getUTCHours() + 7) % 24;
+      const hours = String(vnHours).padStart(2, '0');
       const minutes = String(d.getUTCMinutes()).padStart(2, '0');
       return `${hours}:${minutes}`;
     };
