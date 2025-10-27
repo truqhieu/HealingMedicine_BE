@@ -7,6 +7,39 @@ const ScheduleHelper = require('../utils/scheduleHelper');
 class AvailableSlotService {
 
   /**
+   * ⭐ HELPER: Update status của schedules đã hết thành "Unavailable"
+   * @private
+   */
+  async _updateExpiredSchedules() {
+    try {
+      const now = new Date();
+      
+      // Tìm tất cả schedules có endTime <= now và status vẫn là 'Available'
+      const expiredSchedules = await DoctorSchedule.find({
+        endTime: { $lte: now },
+        status: 'Available'
+      });
+
+      if (expiredSchedules.length > 0) {
+        // Update tất cả schedules đã hết thành 'Unavailable'
+        const result = await DoctorSchedule.updateMany(
+          {
+            endTime: { $lte: now },
+            status: 'Available'
+          },
+          {
+            $set: { status: 'Unavailable' }
+          }
+        );
+
+        console.log(`⏰ Updated ${result.modifiedCount} expired schedules to 'Unavailable'`);
+      }
+    } catch (error) {
+      console.error(`❌ Lỗi update expired schedules: ${error.message}`);
+    }
+  }
+
+  /**
    * ⭐ HELPER: Tự động tạo schedule cho một ngày nếu chưa có
    * Đảm bảo mỗi bác sĩ chỉ có 1 Morning và 1 Afternoon schedule
    * @private
@@ -488,26 +521,22 @@ class AvailableSlotService {
   /**
    * Lấy bác sĩ có khung giờ rảnh tại một khung giờ cụ thể
    * (Sử dụng khi FE chọn một khung giờ cụ thể thay vì xem tất cả)
-   * 
-   * @param {Object} params
-   * @param {ObjectId} params.serviceId - ID dịch vụ
-   * @param {Date} params.date - Ngày muốn đặt lịch
-   * @param {Date} params.startTime - Giờ bắt đầu khung giờ muốn chọn
-   * @param {Date} params.endTime - Giờ kết thúc khung giờ muốn chọn
-   * @returns {Object} Danh sách bác sĩ có khung giờ khả dụng
    */
   async getAvailableDoctorsForTimeSlot({ serviceId, date, startTime, endTime, patientUserId, appointmentFor }) {
+    // 0. Update expired schedules trước
+    await this._updateExpiredSchedules();
+
     // 1. Validate input
     if (!serviceId || !date || !startTime || !endTime) {
       throw new Error('Vui lòng cung cấp đầy đủ serviceId, date, startTime và endTime');
     }
 
-    // ⭐ THÊM: Check nếu slot đã qua (ngày hôm nay)
-    const slotStart = new Date(startTime);
+    // ⭐ THÊM: Check nếu slot đã hết (endTime <= now)
+    const slotEnd = new Date(endTime);
     const now = new Date();
     
-    if (slotStart <= now) {
-      throw new Error('Khung giờ này đã qua. Vui lòng chọn khung giờ khác.');
+    if (slotEnd <= now) {
+      throw new Error('Khung giờ này đã hết. Vui lòng chọn khung giờ khác.');
     }
 
     // 2. Lấy thông tin dịch vụ
@@ -839,6 +868,9 @@ class AvailableSlotService {
     console.log('🔍 Search date:', searchDate.toISOString());
     console.log('📅 Searching for doctors with schedule on:', searchDate.toISOString().split('T')[0]);
 
+    // ⭐ Update expired schedules trước
+    await this._updateExpiredSchedules();
+
     // ⭐ Tự động tạo schedule nếu chưa có (dùng helper method chung)
     await this._ensureSchedulesForDate(searchDate);
 
@@ -948,6 +980,7 @@ class AvailableSlotService {
 
     // 8. Generate slots cho từng bác sĩ
     const allSlots = [];
+    const now = new Date();
 
     for (const schedule of schedules) {
       const doctorId = schedule.doctorUserId.toString();
@@ -957,6 +990,8 @@ class AvailableSlotService {
 
       const scheduleStart = new Date(schedule.startTime);
       const scheduleEnd = new Date(schedule.endTime);
+      
+      // ⭐ Query đã filter status='Available' rồi, nên schedules ở đây đều còn hiệu lực
       
       const slots = ScheduleHelper.generateTimeSlots({
         scheduleStart,
@@ -1053,41 +1088,25 @@ class AvailableSlotService {
         console.log(`\n🟢 [Doctor ${doctor.fullName}] NO CUSTOMER BOOKED SLOTS (no customer info or customer not found)`);
       }
 
-      // ⭐ THÊM: Filter slots đã qua nếu là ngày hôm nay
-      const now = new Date();
-      
-      // So sánh ngày theo UTC date string (yyyy-mm-dd)
-      const searchDateStr = searchDate.toISOString().split('T')[0];
-      const todayStr = new Date().toISOString().split('T')[0];
-      
-      const isToday = searchDateStr === todayStr;
-      
-      console.log(`🔍 [Doctor ${doctor.fullName}] Date check:`);
-      console.log(`   - Search date: ${searchDateStr}`);
-      console.log(`   - Today: ${todayStr}`);
-      console.log(`   - Is today?: ${isToday}`);
-      console.log(`   - Current time: ${now.toISOString()}`);
-      
-      if (isToday) {
-        const slotsBeforeFilter = availableSlots.length;
-        availableSlots = availableSlots.filter(slot => {
-          const slotStart = new Date(slot.startTime);
-          // Chỉ giữ các slot có startTime > hiện tại
-          const isValid = slotStart > now;
-          if (!isValid) {
-            console.log(`   ❌ Filter out: ${slotStart.toISOString()} (already passed)`);
-          }
-          return isValid;
-        });
-        
-        const removedCount = slotsBeforeFilter - availableSlots.length;
-        if (removedCount > 0) {
-          console.log(`\n⏰ [Doctor ${doctor.fullName}] FILTERED PAST SLOTS (today):`);
-          console.log(`   - Removed ${removedCount} slots that already passed`);
-          console.log(`   - Remaining: ${availableSlots.length} slots`);
-        } else {
-          console.log(`   ✅ No slots filtered (all slots are in the future)`);
+      // ⭐ THÊM: Filter slots đã hết (endTime <= now)
+      // Giữ lại các slots đang diễn ra hoặc chưa bắt đầu (endTime > now)
+      const slotsBeforeFilter = availableSlots.length;
+      availableSlots = availableSlots.filter(slot => {
+        const slotStart = new Date(slot.startTime);
+        const slotEnd = new Date(slot.endTime);
+        // Chỉ giữ các slot có endTime > hiện tại (slot đang diễn ra hoặc chưa bắt đầu)
+        const isValid = slotEnd > now;
+        if (!isValid) {
+          console.log(`   ❌ Filter out: ${slotStart.toISOString()} - ${slotEnd.toISOString()} (already ended)`);
         }
+        return isValid;
+      });
+      
+      const removedCount = slotsBeforeFilter - availableSlots.length;
+      if (removedCount > 0) {
+        console.log(`\n⏰ [Doctor ${doctor.fullName}] FILTERED PAST SLOTS:`);
+        console.log(`   - Removed ${removedCount} slots that already ended`);
+        console.log(`   - Remaining: ${availableSlots.length} slots`);
       }
 
       // Thêm thông tin doctor và format displayTime theo giờ Việt Nam
