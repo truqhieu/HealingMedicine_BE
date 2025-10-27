@@ -40,22 +40,18 @@ class AvailableSlotService {
       // Tạo schedule cho TẤT CẢ bác sĩ - mỗi bác sĩ 1 Morning + 1 Afternoon
       const schedulesToCreate = [];
       for (const doctor of doctors) {
-        // Tạo Date objects theo UTC (giờ Việt Nam - 7)
-        // 08:00 VN = 01:00 UTC
-        // 12:00 VN = 05:00 UTC
-        // 14:00 VN = 07:00 UTC
-        // 18:00 VN = 11:00 UTC
+        // Tạo Date objects với giờ Việt Nam (UTC+7)
         const morningStart = new Date(searchDate);
-        morningStart.setUTCHours(1, 0, 0, 0); // 08:00 VN
+        morningStart.setHours(8, 0, 0, 0);
         
         const morningEnd = new Date(searchDate);
-        morningEnd.setUTCHours(5, 0, 0, 0); // 12:00 VN
+        morningEnd.setHours(12, 0, 0, 0);
         
         const afternoonStart = new Date(searchDate);
-        afternoonStart.setUTCHours(7, 0, 0, 0); // 14:00 VN
+        afternoonStart.setHours(14, 0, 0, 0);
         
         const afternoonEnd = new Date(searchDate);
-        afternoonEnd.setUTCHours(11, 0, 0, 0); // 18:00 VN
+        afternoonEnd.setHours(18, 0, 0, 0);
         
         schedulesToCreate.push(
           {
@@ -1046,7 +1042,7 @@ class AvailableSlotService {
           });
           
           if (isBooked) {
-            console.log(`     ❌ EXCLUDED: ${slot.startTime} - ${slot.endTime}`);
+            console.log(`❌ EXCLUDED: ${slot.startTime} - ${slot.endTime}`);
           }
           
           return !isBooked;
