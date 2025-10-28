@@ -62,6 +62,7 @@ const createAccount = async(req, res) =>{
         success: false,
         message: 'Email không đúng định dạng'
         });}
+
         const checkEmail = await User.findOne({email})
         if(checkEmail){
             return res.status(400).json({
