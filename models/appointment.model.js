@@ -89,6 +89,20 @@ const appointmentSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Payment',
     default: null
+  },
+  bankInfo: {
+    accountHolderName: {
+      type: String,
+      default: null
+    },
+    accountNumber: {
+      type: String,
+      default: null
+    },
+    bankName: {
+      type: String,
+      default: null
+    }
   }
 }, {
   timestamps: true 

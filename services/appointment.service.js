@@ -916,7 +916,7 @@ class AppointmentService {
   /**
    * Hủy appointment
    */
-  async cancelAppointment(appointmentId, cancelReason, userId) {
+  async cancelAppointment(appointmentId, cancelReason, userId, bankInfo = null) {
     try {
       console.log(`🔄 Hủy appointment ${appointmentId}`);
 
@@ -936,6 +936,15 @@ class AppointmentService {
       appointment.cancelReason = cancelReason || 'Người dùng hủy lịch hẹn';
       appointment.cancelledAt = new Date();
       appointment.updatedAt = new Date();
+      
+      // Lưu thông tin ngân hàng nếu có
+      if (bankInfo) {
+        appointment.bankInfo = {
+          accountHolderName: bankInfo.accountHolderName || null,
+          accountNumber: bankInfo.accountNumber || null,
+          bankName: bankInfo.bankName || null
+        };
+      }
 
       await appointment.save();
 

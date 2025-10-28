@@ -568,7 +568,7 @@ const cancelAppointment = async (req, res) => {
 const confirmCancelAppointment = async (req, res) => {
   try {
     const { appointmentId } = req.params;
-    const { confirmed, cancelReason } = req.body;
+    const { confirmed, cancelReason, bankInfo } = req.body;
     const userId = req.user?.userId;
 
     // Validation
@@ -595,7 +595,7 @@ const confirmCancelAppointment = async (req, res) => {
 
     if (confirmed) {
       // User xác nhận hủy
-      const result = await appointmentService.cancelAppointment(appointmentId, cancelReason, userId);
+      const result = await appointmentService.cancelAppointment(appointmentId, cancelReason, userId, bankInfo);
       
       res.status(200).json({
         success: true,
