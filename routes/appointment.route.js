@@ -8,7 +8,9 @@ const {
   getMyAppointments,
   updateAppointmentStatus,
   cancelAppointment,
-  confirmCancelAppointment
+  confirmCancelAppointment,
+  getAppointmentDetails,
+  markAsRefunded
 } = require('../controllers/appointment.controller');
 const { verifyToken, verifyRole } = require('../middleware/auth.middleware');
 
@@ -40,5 +42,11 @@ router.delete('/:appointmentId/cancel', verifyToken, cancelAppointment);
 
 // ⭐ Xác nhận hủy lịch tư vấn (sau khi hiển thị popup policies)
 router.post('/:appointmentId/confirm-cancel', verifyToken, confirmCancelAppointment);
+
+// ⭐ Lấy chi tiết lịch hẹn với bank info - Staff/Manager xem
+router.get('/:appointmentId/details', verifyToken, verifyRole(['Staff', 'Manager']), getAppointmentDetails);
+
+// ⭐ Đánh dấu đã hoàn tiền - Chỉ Staff/Manager được phép
+router.put('/:appointmentId/mark-refunded', verifyToken, verifyRole(['Staff', 'Manager']), markAsRefunded);
 
 module.exports = router;
