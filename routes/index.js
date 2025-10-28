@@ -15,6 +15,7 @@ const availableSlotRoutes = require('./availableSlot.route');
 const paymentRoutes = require('./payment.route');
 const policyRoutes = require('./policy.route');
 const complaintRoutes = require('./complaint.route')
+const leaveRequestRoutes = require('./leaveRequest.route')
 
 
 // --- ROUTES ---
@@ -34,6 +35,7 @@ router.use('/available-slots', availableSlotRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/policies', policyRoutes);
 router.use('/complaints', complaintRoutes)
+router.use('/leave-requests', leaveRequestRoutes)
 
 // --- API INFO ENDPOINT ---
 router.get('/', (req, res) => {
