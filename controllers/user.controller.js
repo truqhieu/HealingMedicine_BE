@@ -458,6 +458,82 @@ const updateProfile = async (req, res) => {
           }
           updates[key] = dateValue;
         } 
+        else if (key === 'fullName') {
+          const fullName = req.body[key];
+          
+          if (fullName) {
+            // Kiểm tra không để trống
+            if (typeof fullName !== 'string' || fullName.trim().length === 0) {
+              return res.status(400).json({
+                success: false,
+                message: 'Họ tên không được để trống'
+              });
+            }
+            
+            const cleanName = fullName.trim();
+            
+            if (!/^[a-zA-ZÀ-ỹ\s]+$/.test(cleanName)) {
+              return res.status(400).json({
+                success: false,
+                message: 'Họ tên không được chứa số hoặc ký tự đặc biệt'
+              });
+            }
+            
+            // Kiểm tra độ dài tối thiểu (ít nhất 2 ký tự)
+            if (cleanName.length < 2) {
+              return res.status(400).json({
+                success: false,
+                message: 'Họ tên phải có ít nhất 2 ký tự'
+              });
+            }
+            
+            updates[key] = cleanName;
+          }
+        }
+
+        else if (key === 'phoneNumber') {
+          const phone = req.body[key];
+          
+          if (phone) {
+            // Kiểm tra không để trống
+            if (typeof phone !== 'string' || phone.trim().length === 0) {
+              return res.status(400).json({
+                success: false,
+                message: 'Số điện thoại không được để trống'
+              });
+            }
+            
+            // Loại bỏ khoảng trắng
+            const cleanPhone = phone.trim();
+            
+            // Kiểm tra chỉ chứa số (không có ký tự đặc biệt hay chữ)
+            if (!/^[0-9]+$/.test(cleanPhone)) {
+              return res.status(400).json({
+                success: false,
+                message: 'Số điện thoại chỉ được chứa chữ số'
+              });
+            }
+            
+            // Kiểm tra bắt đầu bằng số 0
+            if (!cleanPhone.startsWith('0')) {
+              return res.status(400).json({
+                success: false,
+                message: 'Số điện thoại phải bắt đầu bằng số 0'
+              });
+            }
+            
+            // Kiểm tra có đúng 10 số
+            if (cleanPhone.length !== 10) {
+              return res.status(400).json({
+                success: false,
+                message: 'Số điện thoại phải có đúng 10 số'
+              });
+            }
+            
+            updates[key] = cleanPhone;
+          }
+        }
+
         // ⭐ Xử lý emergencyContact với validation
         else if (key === 'emergencyContact') {
           const ec = req.body[key];

@@ -145,7 +145,7 @@ const updateClinicRoom = async(req,res) =>{
 
 const deleteClinicRoom = async(req,res) =>{
     try {
-        const room = await Clinicroom.findbyIdAndDelete(req.params.id)
+        const room = await Clinicroom.findByIdAndDelete(req.params.id)
         if(!room){
             return res.status(404).json({
                 status : false,

@@ -12,18 +12,87 @@ const STATUS = User.schema.path('status').enumValues;
 const createAccount = async(req, res) =>{
     try {
         const {fullName, email, password, role, phone, specialization, yearsOfExperience} = req.body
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-        return res.status(400).json({
-        success: false,
-        message: 'Email không đúng định dạng'
-        });}
+        if (fullName) {
+            if (typeof fullName !== 'string' || fullName.trim().length === 0) {
+              return res.status(400).json({
+                success: false,
+                message: 'Họ tên không được để trống'
+              });
+            }
+            
+            const cleanName = fullName.trim();
+            
+            if (!/^[a-zA-ZÀ-ỹ\s]+$/.test(cleanName)) {
+              return res.status(400).json({
+                success: false,
+                message: 'Họ tên không được chứa số hoặc ký tự đặc biệt'
+              });
+            }
+            
+            // Kiểm tra độ dài tối thiểu (ít nhất 2 ký tự)
+            if (cleanName.length < 2) {
+              return res.status(400).json({
+                success: false,
+                message: 'Họ tên phải có ít nhất 2 ký tự'
+              });
+            }
+        }
+        
+        //Kiểm tra định dạng email
+         else if (email) {
+            if (typeof email !== 'string' || email.trim().length === 0) {
+              return res.status(400).json({
+                success: false,
+                message: 'Email không được để trống'
+              });
+            }
+            
+            const cleanEmail = email.trim();
+            
+            if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(cleanEmail)) {
+              return res.status(400).json({
+                success: false,
+                message: 'Email không đúng định dạng'
+              });
+            }
+        }
         const checkEmail = await User.findOne({email})
         if(checkEmail){
             return res.status(400).json({
                 status : false,
                 message : 'Email đã tồn tại!'
             });
+        }
+        if (phone) {
+            if (typeof phone !== 'string' || phone.trim().length === 0) {
+              return res.status(400).json({
+                success: false,
+                message: 'Email không được để trống'
+              });
+            }
+            
+            const cleanPhone = phone.trim();
+            
+            if (!/^[0-9]+$/.test(cleanPhone)) {
+              return res.status(400).json({
+                success: false,
+                message: 'Số điện thoại chỉ được chứa chữ số'
+              });
+            }
+            if (!cleanPhone.startsWith('0')) {
+              return res.status(400).json({
+                success: false,
+                message: 'Số điện thoại phải bắt đầu bằng số 0'
+              });
+            }
+            
+            // Kiểm tra có đúng 10 số
+            if (cleanPhone.length !== 10) {
+              return res.status(400).json({
+                success: false,
+                message: 'Số điện thoại phải có đủ 10 số'
+              });
+            }
         }
         if(!password || password.lengh < 6){
             return res.status(400).json({
@@ -135,9 +204,12 @@ const getAllAccounts = async(req,res) =>{
         const filter = {};
         if(status && STATUS.includes(status)) filter.status = status;
         if(gender && GENDER.includes(gender)) filter.gender = gender;
-        if(role && ROLE_ACCOUNT.includes(role)) filter.role = role;
-        filter.role = {$ne : 'Admin'}
-
+        if (role && ROLE_ACCOUNT.includes(role)) {
+            filter.role = role;
+        } else {
+            filter.role = { $ne: 'Admin' };
+        }
+        
         if(search && String(search).trim().length > 0){
             const searchKey = String(search).trim();
             const safe = searchKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -217,6 +289,82 @@ const updateAccount = async (req,res) => {
             if(updateFields.includes(key)) {
                 updates[key] = req.body[key]
             }
+
+          else if (key === 'fullName') {
+          const fullName = req.body[key];
+          
+          if (fullName) {
+            // Kiểm tra không để trống
+            if (typeof fullName !== 'string' || fullName.trim().length === 0) {
+              return res.status(400).json({
+                success: false,
+                message: 'Họ tên không được để trống'
+              });
+            }
+            
+            const cleanName = fullName.trim();
+            
+            if (!/^[a-zA-ZÀ-ỹ\s]+$/.test(cleanName)) {
+              return res.status(400).json({
+                success: false,
+                message: 'Họ tên không được chứa số hoặc ký tự đặc biệt'
+              });
+            }
+            
+            // Kiểm tra độ dài tối thiểu (ít nhất 2 ký tự)
+            if (cleanName.length < 2) {
+              return res.status(400).json({
+                success: false,
+                message: 'Họ tên phải có ít nhất 2 ký tự'
+              });
+            }
+            
+            updates[key] = cleanName;
+          }
+        }
+
+        else if (key === 'phoneNumber') {
+          const phone = req.body[key];
+          
+          if (phone) {
+            // Kiểm tra không để trống
+            if (typeof phone !== 'string' || phone.trim().length === 0) {
+              return res.status(400).json({
+                success: false,
+                message: 'Số điện thoại không được để trống'
+              });
+            }
+            
+            // Loại bỏ khoảng trắng
+            const cleanPhone = phone.trim();
+            
+            // Kiểm tra chỉ chứa số (không có ký tự đặc biệt hay chữ)
+            if (!/^[0-9]+$/.test(cleanPhone)) {
+              return res.status(400).json({
+                success: false,
+                message: 'Số điện thoại chỉ được chứa chữ số'
+              });
+            }
+            
+            // Kiểm tra bắt đầu bằng số 0
+            if (!cleanPhone.startsWith('0')) {
+              return res.status(400).json({
+                success: false,
+                message: 'Số điện thoại phải bắt đầu bằng số 0'
+              });
+            }
+            
+            // Kiểm tra có đúng 10 số
+            if (cleanPhone.length !== 10) {
+              return res.status(400).json({
+                success: false,
+                message: 'Số điện thoại phải có đúng 10 số'
+              });
+            }
+            
+            updates[key] = cleanPhone;
+          }
+        }
         });
         
         if(Object.keys(updates).length === 0){
