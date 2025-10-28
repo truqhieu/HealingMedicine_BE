@@ -1,6 +1,7 @@
 const appointmentService = require('../services/appointment.service');
 const emailService = require('../services/email.service');
 const Policy = require('../models/policy.model');
+const Appointment = require('../models/appointment.model');
 
 const createConsultationAppointment = async (req, res) => {
   try {
@@ -486,8 +487,11 @@ const cancelAppointment = async (req, res) => {
       });
     }
 
-    // Lấy thông tin appointment
-    const appointment = await appointmentService.getAppointmentById(appointmentId);
+    // Lấy thông tin appointment gốc
+    const appointment = await Appointment.findById(appointmentId)
+      .populate('patientUserId', '_id')
+      .lean();
+    
     if (!appointment) {
       return res.status(404).json({
         success: false,
