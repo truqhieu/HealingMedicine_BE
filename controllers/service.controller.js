@@ -200,40 +200,16 @@ const updateService = async (req, res) => {
       else if (updateFields.includes(key)) {
         updates[key] = req.body[key];
       }
+        res.status(200).json({
+            status : true, 
+            message : 'Cập nhật thông tin dịch vụ thành công',
+            data : service
+        })
+      }
+    } catch (error) {
+        console.error('Lỗi cập nhật dịch vụ', error);
+        return res.status(500).json({ success: false, message: ' Đã xảy ra lỗi khi cập nhật thông tin dịch vụ' });
     }
-
-    if (Object.keys(updates).length === 0) {
-      return res.status(400).json({
-        status: false,
-        message: 'Không có trường hợp lệ để cập nhật'
-      });
-    }
-
-    const service = await Service.findByIdAndUpdate(
-      req.params.id,
-      { $set: updates },
-      { new: true, runValidators: true }
-    );
-
-    if (!service) {
-      return res.status(400).json({
-        status: false,
-        message: 'Không tìm thấy dịch vụ'
-      });
-    }
-
-    res.status(200).json({
-      status: true,
-      message: 'Cập nhật thông tin dịch vụ thành công',
-      data: service
-    });
-  } catch (error) {
-    console.error('Lỗi cập nhật dịch vụ', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Đã xảy ra lỗi khi cập nhật thông tin dịch vụ'
-    });
-  }
 };
 
 const deleteService = async(req,res) =>{

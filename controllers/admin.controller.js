@@ -56,6 +56,12 @@ const createAccount = async(req, res) =>{
               });
             }
         }
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+        return res.status(400).json({
+        success: false,
+        message: 'Email không đúng định dạng'
+        });}
         const checkEmail = await User.findOne({email})
         if(checkEmail){
             return res.status(400).json({
@@ -209,7 +215,6 @@ const getAllAccounts = async(req,res) =>{
         } else {
             filter.role = { $ne: 'Admin' };
         }
-        
         if(search && String(search).trim().length > 0){
             const searchKey = String(search).trim();
             const safe = searchKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
