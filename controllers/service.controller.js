@@ -23,7 +23,7 @@ const createService = async(req,res) =>{
         console.error('Lỗi tạo dịch vụ:', error);
         res.status(500).json({
             status: false,
-            message: 'Đã xảy ra lỗi khi tạo dịch vụ!'
+            message: 'Đã xảy ra lỗi khi tạo dịch vụ'
         });
     }
 }
@@ -98,7 +98,7 @@ const getAllServices = async(req,res) =>{
         })
     } catch (error) {
         console.error('Lỗi lấy danh sách dịch vụ', error);
-        return res.status(500).json({ success: false, message: 'Lỗi server' });
+        return res.status(500).json({ success: false, message: 'Đã xảy ra lỗi khi lấy danh sách dịch vụ' });
     }
 }
 
@@ -118,7 +118,7 @@ const viewDetailService = async(req,res) =>{
         })
     } catch (error) {
         console.error('Lỗi xem chi tiết dịch vụ', error);
-        return res.status(500).json({ success: false, message: 'Lỗi server' });  
+        return res.status(500).json({ success: false, message: 'Đã xảy ra lỗi khi xem chi tiết dịch vụ' });  
     }
 }
 
@@ -167,7 +167,7 @@ const updateService = async(req,res) =>{
         })
     } catch (error) {
         console.error('Lỗi cập nhật dịch vụ', error);
-        return res.status(500).json({ success: false, message: 'Lỗi server' });
+        return res.status(500).json({ success: false, message: ' Đã xảy ra lỗi khi cập nhật thông tin dịch vụ' });
     }
 }
 
@@ -186,7 +186,7 @@ const deleteService = async(req,res) =>{
         })
     } catch (error) {
         console.error('Lỗi xóa dịch vụ', error);
-        return res.status(500).json({ success: false, message: 'Lỗi server' });
+        return res.status(500).json({ success: false, message: 'Đã xảy ra lỗi khi xóa dịch vụ' });
     }
 }
 

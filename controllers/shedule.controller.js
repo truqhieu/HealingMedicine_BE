@@ -35,7 +35,7 @@ const checkAvailableDoctors = async (req, res) => {
     });
   } catch (error) {
     console.log("Lỗi lấy danh sách bác sĩ trống ca làm.", error);
-    res.status(500).json({ status: false, message: "Lỗi server" });
+    res.status(500).json({ status: false, message: "Đã xảy ra lỗi khi lấy danh sách bác sĩ trống ca làm" });
   }
 }
 
@@ -82,7 +82,7 @@ const createScheduleDoctor = async(req,res) =>{
     })
   } catch (error) {
     console.log('Lỗi khi tạo lịch làm việc cho bác sĩ.', error);
-    res.status(500).json({status : false , message : 'Lỗi server'})
+    res.status(500).json({status : false , message : 'Đã xảy ra lỗi khi tạo lịch làm việc cho bác sĩ'})
   }
 }
 
@@ -139,7 +139,7 @@ const getAllScheduleDoctors = async(req,res) =>{
     })
   } catch (error) {
     console.log('Lỗi khi lấy danh sách lịch làm việc cho bác sĩ.', error);
-    res.status(500).json({status : false , message : 'Lỗi server'})
+    res.status(500).json({status : false , message : 'Đã xảy ra lỗi khi lấy danh sách lịch làm việc của bác sĩ'})
   }
 }
 
@@ -158,8 +158,8 @@ const viewDetailScheduleDoctor = async(req,res)=>{
       data : findScheduleDetail
     })
   } catch (error) {
-    console.log('Lỗi khi xe lịch làm việc chi tiết của bác sĩ.', error);
-    res.status(500).json({status : false , message : 'Lỗi server'})
+    console.log('Lỗi khi xem lịch làm việc chi tiết của bác sĩ.', error);
+    res.status(500).json({status : false , message : 'Đã xảy ra lỗi khi xem chi tiết lịch làm việc của bác sĩ'})
   }
 }
 
@@ -204,7 +204,8 @@ const updateScheduleDoctor = async(req,res) =>{
     data : schedule
   })
   } catch (error) {
-    
+    console.log('Lỗi khi cập nhật lịch làm việc của bác sĩ');
+    res.status(500).json({status : false , message : 'Đã xảy ra lỗi khi cập nhật lịch làm việc của bác sĩ'})
   }
 }
 
@@ -217,7 +218,7 @@ const deleteSchedule = async(req,res) =>{
     })
   } catch (error) {
     console.log('Lỗi khi xóa lịch làm việc cho bác sĩ.', error);
-    res.status(500).json({status : false , message : 'Lỗi server'})
+    res.status(500).json({status : false , message : 'Đã xảy ra lỗi xóa lịch làm việc của bác sĩ'})
   }
 }
 

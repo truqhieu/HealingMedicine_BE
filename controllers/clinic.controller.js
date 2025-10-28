@@ -10,12 +10,12 @@ const createClinicRoom = async(req,res) =>{
         await createRoom.save();
         res.status(201).json({
             status : true,
-            message : 'Tạo mới phòng khám thành công.',
+            message : 'Tạo mới phòng khám thành công',
             data : createRoom
         })
     } catch (error) {
         console.error('Lỗi tạo phòng khám', error);
-        return res.status(500).json({ success: false, message: 'Lỗi server' });
+        return res.status(500).json({ success: false, message: 'Đã xảy ra lỗi khi tạo phòng khám' });
     }
 }
 
@@ -69,7 +69,7 @@ const getAllClinicRooms = async(req,res) =>{
         })
     } catch (error) {
         console.log('Lỗi lấy danh sách phòng khám', error);
-        return res.status(500).json({success : falsem, message : 'Lỗi server'})
+        return res.status(500).json({success : falsem, message : 'Đã xảy ra lỗi khi lấy danh sách phòng khám'})
     }
 }
 
@@ -84,18 +84,18 @@ const viewDetailClinicRoom = async(req,res) =>{
         if(!detailRoom){
             return res.status(400).json({
                 status : false,
-                message : 'Không tìm thấy phòng này.'
+                message : 'Không tìm thấy phòng khám'
             });
         }
 
         res.status(200).json({
             status : true,
-            message : 'Chi tiết dịch vụ',
+            message : 'Chi tiết phòng khám',
             data : detailRoom
         })
     } catch (error) {
         console.log('Lỗi khi xem chi tiết phòng khám', error);
-        res.status(500).json({status : false, message : 'Lỗi server' });
+        res.status(500).json({status : false, message : 'Đã xảy ra lỗi khi xem chi tiết phòng khám' });
     }
 }
 
@@ -139,7 +139,7 @@ const updateClinicRoom = async(req,res) =>{
         })
     } catch (error) {
         console.log('Lỗi cập nhật phòng khám', error);
-        res.status(500).json({status : false, message : 'Lỗi server' });
+        res.status(500).json({status : false, message : 'Đã xảy ra lỗi khi cập nhật thông tin phòng khám' });
     }
 }
 
@@ -177,7 +177,7 @@ const listDoctor = async (req, res) => {
     });
   } catch (error) {
     console.log('Lỗi lấy danh sách bác sĩ.', error)
-    res.status(500).json({ status: false, message: 'Lỗi lấy danh sách bác sĩ' });
+    res.status(500).json({ status: false, message: 'Đã xảy ra lỗi khi lấy danh sách bác sĩ' });
   }
 };
 
@@ -201,7 +201,7 @@ const assignDoctor = async(req,res) =>{
         })
     } catch (error) {
         console.log('Lỗi gán bác sĩ cho phòng khám', error);
-        res.status(500).json({ status: false, message: 'Lỗi server' });
+        res.status(500).json({ status: false, message: 'Đã xảy ra lỗi khi gán bác sĩ vào phòng khám' });
 
     }
 }
@@ -226,7 +226,7 @@ const unssignDoctor = async(req,res) =>{
         })
     } catch (error) {
         console.log('Lỗi gỡ bác sĩ cho phòng khám', error);
-        res.status(500).json({ status: false, messge: 'Lỗi server' });
+        res.status(500).json({ status: false, messge: 'Đã xảy ra lỗi khi gỡ bác sĩ khỏi phòng khám' });
 
     }
 }

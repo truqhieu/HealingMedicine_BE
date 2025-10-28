@@ -6,7 +6,7 @@ const {createAccount, getAllAccounts, viewDetailAccount, updateAccount,lockAcoun
 // ⭐ Chỉ Admin được phép quản lý tài khoản
 router.post('/accounts', createAccount)
 router.get('/accounts',  getAllAccounts)
-router.get('/accounts/:id', verifyToken, verifyRole('Admin'), viewDetailAccount)
+router.get('/accounts/:id', viewDetailAccount)
 router.patch('/accounts/:id', verifyToken, verifyRole('Admin'), updateAccount)
 router.patch('/accounts/lock/:id', verifyToken, verifyRole('Admin'), lockAcount)
 router.patch('/accounts/unlock/:id', verifyToken, verifyRole('Admin'), unlockAcount)
