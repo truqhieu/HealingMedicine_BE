@@ -892,6 +892,71 @@ class AppointmentService {
       throw error;
     }
   }
+
+  /**
+   * Lấy thông tin appointment theo ID
+   */
+  async getAppointmentById(appointmentId) {
+    try {
+      const appointment = await Appointment.findById(appointmentId)
+        .populate('patientUserId', 'fullName email phoneNumber')
+        .populate('customerId', 'fullName email phoneNumber')
+        .populate('doctorUserId', 'fullName email phoneNumber')
+        .populate('serviceId', 'serviceName category isPrepaid')
+        .populate('timeslotId', 'startTime endTime')
+        .populate('paymentId', 'status amount method');
+
+      return appointment;
+    } catch (error) {
+      console.error('❌ Lỗi lấy thông tin appointment:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Hủy appointment
+   */
+  async cancelAppointment(appointmentId, cancelReason, userId) {
+    try {
+      console.log(`🔄 Hủy appointment ${appointmentId}`);
+
+      const appointment = await Appointment.findById(appointmentId);
+      if (!appointment) {
+        throw new Error('Không tìm thấy lịch hẹn');
+      }
+
+      // Kiểm tra trạng thái có thể hủy được không
+      const cancellableStatuses = ['Pending', 'Approved', 'PendingPayment'];
+      if (!cancellableStatuses.includes(appointment.status)) {
+        throw new Error('Lịch hẹn này không thể hủy được');
+      }
+
+      // Cập nhật thông tin hủy
+      appointment.status = 'Cancelled';
+      appointment.cancelReason = cancelReason || 'Người dùng hủy lịch hẹn';
+      appointment.cancelledAt = new Date();
+      appointment.updatedAt = new Date();
+
+      await appointment.save();
+
+      console.log(`✅ Hủy appointment thành công: ${appointmentId}`);
+
+      return {
+        success: true,
+        message: 'Hủy lịch hẹn thành công',
+        data: {
+          appointmentId: appointment._id,
+          status: appointment.status,
+          cancelledAt: appointment.cancelledAt,
+          cancelReason: appointment.cancelReason
+        }
+      };
+
+    } catch (error) {
+      console.error('❌ Lỗi hủy appointment:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = new AppointmentService();

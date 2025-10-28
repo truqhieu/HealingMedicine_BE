@@ -6,7 +6,9 @@ const {
   getPendingAppointments,
   getAllAppointments,
   getMyAppointments,
-  updateAppointmentStatus
+  updateAppointmentStatus,
+  cancelAppointment,
+  confirmCancelAppointment
 } = require('../controllers/appointment.controller');
 const { verifyToken, verifyRole } = require('../middleware/auth.middleware');
 
@@ -32,5 +34,11 @@ router.get('/my-appointments', verifyToken, getMyAppointments);
 // ⭐ Cập nhật trạng thái ca khám (Staff check-in, Nurse hoàn thành)
 // Staff: Approved → CheckedIn
 router.put('/:appointmentId/status', verifyToken, verifyRole(['Staff', 'Nurse', 'Manager']), updateAppointmentStatus);
+
+// ⭐ Hủy ca khám - Patient có thể hủy lịch của mình
+router.delete('/:appointmentId/cancel', verifyToken, cancelAppointment);
+
+// ⭐ Xác nhận hủy lịch tư vấn (sau khi hiển thị popup policies)
+router.post('/:appointmentId/confirm-cancel', verifyToken, confirmCancelAppointment);
 
 module.exports = router;

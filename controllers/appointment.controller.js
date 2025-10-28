@@ -1,5 +1,6 @@
 const appointmentService = require('../services/appointment.service');
 const emailService = require('../services/email.service');
+const Policy = require('../models/policy.model');
 
 const createConsultationAppointment = async (req, res) => {
   try {
@@ -459,11 +460,174 @@ const updateAppointmentStatus = async (req, res) => {
   }
 };
 
+/**
+ * Hủy ca khám với logic khác nhau cho Examination/Consultation
+ * DELETE /api/appointments/:appointmentId/cancel
+ * Body: { cancelReason?: string }
+ */
+const cancelAppointment = async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const { cancelReason } = req.body;
+    const userId = req.user?.userId;
+
+    // Validation
+    if (!appointmentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp ID lịch hẹn'
+      });
+    }
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Vui lòng đăng nhập để hủy lịch hẹn'
+      });
+    }
+
+    // Lấy thông tin appointment
+    const appointment = await appointmentService.getAppointmentById(appointmentId);
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy lịch hẹn'
+      });
+    }
+
+    // Kiểm tra quyền hủy lịch (chỉ người đặt lịch mới được hủy)
+    if (appointment.patientUserId._id.toString() !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Bạn không có quyền hủy lịch hẹn này'
+      });
+    }
+
+    // Kiểm tra trạng thái appointment có thể hủy được không
+    const cancellableStatuses = ['Pending', 'Approved', 'PendingPayment'];
+    if (!cancellableStatuses.includes(appointment.status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Lịch hẹn này không thể hủy được'
+      });
+    }
+
+    // Logic khác nhau cho Examination và Consultation
+    if (appointment.type === 'Examination') {
+      // Hủy bình thường cho Examination
+      const result = await appointmentService.cancelAppointment(appointmentId, cancelReason, userId);
+      
+      res.status(200).json({
+        success: true,
+        message: 'Hủy lịch khám thành công',
+        data: result
+      });
+    } else if (appointment.type === 'Consultation') {
+      // Cho Consultation, trả về thông tin cần thiết để hiển thị popup
+      const policies = await Policy.getActivePolicies();
+      
+      res.status(200).json({
+        success: true,
+        message: 'Xác nhận hủy lịch tư vấn',
+        data: {
+          appointment: {
+            id: appointment._id,
+            type: appointment.type,
+            serviceName: appointment.serviceId.serviceName,
+            doctorName: appointment.doctorUserId.fullName,
+            startTime: appointment.timeslotId.startTime,
+            endTime: appointment.timeslotId.endTime,
+            status: appointment.status
+          },
+          policies: policies,
+          requiresConfirmation: true
+        }
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Loại lịch hẹn không được hỗ trợ'
+      });
+    }
+
+  } catch (error) {
+    console.error('Lỗi hủy lịch hẹn:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server. Vui lòng thử lại sau',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Xác nhận hủy lịch tư vấn (sau khi user xác nhận trong popup)
+ * POST /api/appointments/:appointmentId/confirm-cancel
+ * Body: { confirmed: boolean, cancelReason?: string }
+ */
+const confirmCancelAppointment = async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const { confirmed, cancelReason } = req.body;
+    const userId = req.user?.userId;
+
+    // Validation
+    if (!appointmentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp ID lịch hẹn'
+      });
+    }
+
+    if (typeof confirmed !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng xác nhận có muốn hủy lịch hay không'
+      });
+    }
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Vui lòng đăng nhập'
+      });
+    }
+
+    if (confirmed) {
+      // User xác nhận hủy
+      const result = await appointmentService.cancelAppointment(appointmentId, cancelReason, userId);
+      
+      res.status(200).json({
+        success: true,
+        message: 'Hủy lịch tư vấn thành công',
+        data: result
+      });
+    } else {
+      // User không hủy
+      res.status(200).json({
+        success: true,
+        message: 'Đã hủy bỏ thao tác hủy lịch hẹn',
+        data: { cancelled: false }
+      });
+    }
+
+  } catch (error) {
+    console.error('Lỗi xác nhận hủy lịch hẹn:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server. Vui lòng thử lại sau',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = {
   createConsultationAppointment,
   reviewAppointment,
   getPendingAppointments,
   getAllAppointments,
   getMyAppointments,
-  updateAppointmentStatus
+  updateAppointmentStatus,
+  cancelAppointment,
+  confirmCancelAppointment
 };
