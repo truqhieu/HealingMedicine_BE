@@ -14,6 +14,7 @@ const appointmentRoutes = require('./appointment.route');
 const availableSlotRoutes = require('./availableSlot.route');
 const paymentRoutes = require('./payment.route');
 const policyRoutes = require('./policy.route');
+const complaintRoutes = require('./complaint.route')
 
 
 // --- ROUTES ---
@@ -26,11 +27,13 @@ router.use('/manager', scheduleRoute);
 router.use('/doctor', doctorRoutes);
 router.use('/nurse', nurseRoutes);
 
+
 router.use('/temp-register', tempRegisterRoutes);
 router.use('/appointments', appointmentRoutes);
 router.use('/available-slots', availableSlotRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/policies', policyRoutes);
+router.use('/complaints', complaintRoutes)
 
 // --- API INFO ENDPOINT ---
 router.get('/', (req, res) => {
