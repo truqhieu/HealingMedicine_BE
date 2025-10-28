@@ -12,6 +12,12 @@ const STATUS = User.schema.path('status').enumValues;
 const createAccount = async(req, res) =>{
     try {
         const {fullName, email, password, role, phone, specialization, yearsOfExperience} = req.body
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+        return res.status(400).json({
+        success: false,
+        message: 'Email không đúng định dạng'
+        });}
         const checkEmail = await User.findOne({email})
         if(checkEmail){
             return res.status(400).json({
@@ -19,16 +25,16 @@ const createAccount = async(req, res) =>{
                 message : 'Email đã tồn tại!'
             });
         }
-        if(!password || password.lengh < 8){
+        if(!password || password.lengh < 6){
             return res.status(400).json({
                 status : false,
-                message : 'Mật khẩu phải có ít nhất 8 ký tự!'
+                message : 'Mật khẩu phải có ít nhất 6 ký tự'
             });
         }
         if(!ROLE_ACCOUNT.includes(role)){
             return res.status(400).json({
                 status : false,
-                message : 'Vai trò không hợp lệ!'
+                message : 'Vai trò không hợp lệ'
             });
         }
         const roleMap = {
@@ -106,7 +112,7 @@ const createAccount = async(req, res) =>{
         console.error('Lỗi tạo tài khoản:', error);
         res.status(500).json({
             status: false,
-            message: 'Đã xảy ra lỗi khi tạo tài khoản!'
+            message: 'Đã xảy ra lỗi khi tạo tài khoản'
         });
     }
 }
@@ -130,6 +136,7 @@ const getAllAccounts = async(req,res) =>{
         if(status && STATUS.includes(status)) filter.status = status;
         if(gender && GENDER.includes(gender)) filter.gender = gender;
         if(role && ROLE_ACCOUNT.includes(role)) filter.role = role;
+        filter.role = {$ne : 'Admin'}
 
         if(search && String(search).trim().length > 0){
             const searchKey = String(search).trim();
@@ -163,7 +170,7 @@ const getAllAccounts = async(req,res) =>{
         })
     } catch (error) {
         console.error('Lỗi lấy danh sách tài khoản', error);
-        return res.status(500).json({ success: false, message: 'Lỗi server' });
+        return res.status(500).json({ success: false, message: 'Đã có lỗi khi lấy danh sách tài khoản' });
     }
 }
 
@@ -183,7 +190,7 @@ const viewDetailAccount = async(req,res) =>{
         })
     } catch (error) {
         console.error('Lỗi xem chi tiết tài khoản', error);
-        return res.status(500).json({ success: false, message: 'Lỗi server' });
+        return res.status(500).json({ success: false, message: 'Đã có lỗi khi xem chi tiết tài khoản' });
     }
 }
 
@@ -193,7 +200,7 @@ const updateAccount = async (req,res) => {
         if(checkUser.role === 'Patient'){
             return res.status(400).json({
                 status : false,
-                message : 'Không thể cập nhật tài khoản bệnh nhân.'
+                message : 'Không thể cập nhật tài khoản bệnh nhân'
             })
         }
         const updateFields = [
@@ -202,6 +209,7 @@ const updateAccount = async (req,res) => {
             'address',
             'dob',
             'gender', 
+            'status'
         ];
 
         const updates = {};
@@ -236,7 +244,7 @@ const updateAccount = async (req,res) => {
         })
     } catch (error) {
         console.error('Lỗi cập nhật tài khoản', error);
-        return res.status(500).json({ success: false, message: 'Lỗi server' });
+        return res.status(500).json({ success: false, message: 'Đã có lỗi khi cập nhật thông tin tài khoản' });
     }
 }
 
@@ -247,14 +255,14 @@ const changePassword = async (req, res) => {
     if (!checkUser) {
       return res.status(404).json({
         status: false,
-        message: 'Không tìm thấy người dùng.'
+        message: 'Không tìm thấy người dùng'
       });
     }
 
     if (checkUser.role === 'Patient') {
       return res.status(403).json({
         status: false,
-        message: 'Không thể thay đổi mật khẩu của bệnh nhân.'
+        message: 'Không thể thay đổi mật khẩu của bệnh nhân'
       });
     }
 
@@ -262,7 +270,7 @@ const changePassword = async (req, res) => {
     if (!password) {
       return res.status(400).json({
         status: false,
-        message: 'Vui lòng nhập mật khẩu mới.'
+        message: 'Vui lòng nhập mật khẩu mới'
       });
     }
 
@@ -281,7 +289,7 @@ const changePassword = async (req, res) => {
     console.error('Lỗi thay đổi mật khẩu:', error);
     return res.status(500).json({
       status: false,
-      message: 'Lỗi server.'
+      message: 'Đã có lỗi khi thay đổi mật khẩu'
     });
   }
 };
@@ -306,7 +314,7 @@ const lockAcount = async (req,res) =>{
         })
     } catch (error) {
         console.error('Lỗi khóa tài khoản', error);
-        return res.status(500).json({ success: false, message: 'Lỗi server' });
+        return res.status(500).json({ success: false, message: 'Đã có lỗi khi khóa tài khoản' });
     }
 }
 const unlockAcount = async (req,res) =>{
@@ -329,7 +337,7 @@ const unlockAcount = async (req,res) =>{
         })
     } catch (error) {
         console.error('Lỗi mở khóa tài khoản', error);
-        return res.status(500).json({ success: false, message: 'Lỗi server' });
+        return res.status(500).json({ success: false, message: 'Đã có lỗi khi mở khóa tài khoản' });
     }
 }
 
@@ -352,7 +360,7 @@ const assignRole = async (req,res) =>{
         })
     } catch (error) {
         console.error('Lỗi thay đổi vai trò', error);
-        return res.status(500).json({ success: false, message: 'Lỗi server' });
+        return res.status(500).json({ success: false, message: 'Đã xảy ra lỗi khi đổi vai trò' });
     }
 }
 
