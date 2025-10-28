@@ -971,7 +971,7 @@ class AppointmentService {
   async getAppointmentById(appointmentId) {
     try {
       const appointment = await Appointment.findById(appointmentId)
-        .populate('serviceId', 'name price')
+        .populate('serviceId', 'serviceName price')
         .populate('doctorUserId', 'fullName email phoneNumber')
         .populate('patientUserId', 'fullName email phoneNumber')
         .populate('timeslotId', 'startTime endTime')
@@ -997,7 +997,7 @@ class AppointmentService {
         bankInfo: appointment.bankInfo,
         service: {
           _id: appointment.serviceId?._id,
-          name: appointment.serviceId?.name,
+          serviceName: appointment.serviceId?.serviceName,
           price: appointment.serviceId?.price
         },
         doctor: {
