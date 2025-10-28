@@ -122,54 +122,119 @@ const viewDetailService = async(req,res) =>{
     }
 }
 
-const updateService = async(req,res) =>{
-    try {
-        const updateFields = [
-            'serviceName',
-            'description',
-            'price',
-            'isPrepaid',
-            'durationMinutes',
-            'category',
-            'status'
-        ]
-        
-        const updates = {};
-        Object.keys(req.body).forEach(key =>{
-            if(updateFields.includes(key)){
-                updates[key] = req.body[key]
-            }
-        });
+const updateService = async (req, res) => {
+  try {
+    const updateFields = [
+      'serviceName',
+      'description',
+      'price',
+      'isPrepaid',
+      'durationMinutes',
+      'category',
+      'status'
+    ];
 
-        if(Object.keys(updates).length === 0){
-            return res.status(400).json({
-                status : false,
-                message : 'Không có trường hợp lệ để cập nhật'
-            });
+    const updates = {};
+
+    for (const key of Object.keys(req.body)) {
+      // Kiểm tra serviceName trước
+      if (key === 'serviceName') {
+        const serviceName = req.body[key];
+        if (!serviceName || typeof serviceName !== 'string' || serviceName.trim().length === 0) {
+          return res.status(400).json({
+            success: false,
+            message: 'Tên dịch vụ không được để trống'
+          });
         }
 
-        const service = await Service.findByIdAndUpdate(
-            req.params.id,
-            {$set : updates},
-            {new : true, runValidators : true}
-        )
+        const cleanService = serviceName.trim();
 
-        if(!service){
-            return res.status(400).json({
-                status : false, 
-                message : 'Không tìm thấy dịch vụ'
-            });
+        if (!/^[a-zA-ZÀ-ỹ\s]+$/.test(cleanService)) {
+          return res.status(400).json({
+            success: false,
+            message: 'Tên dịch vụ không được chứa số hoặc ký tự đặc biệt'
+          });
         }
-        res.status(200).json({
-            status : true, 
-            message : 'Cập nhật thông tin dịch vụ thành công',
-            data : service
-        })
-    } catch (error) {
-        console.error('Lỗi cập nhật dịch vụ', error);
-        return res.status(500).json({ success: false, message: ' Đã xảy ra lỗi khi cập nhật thông tin dịch vụ' });
+
+        if (cleanService.length < 2) {
+          return res.status(400).json({
+            success: false,
+            message: 'Tên dịch vụ phải có ít nhất 2 ký tự'
+          });
+        }
+
+        updates[key] = cleanService;
+      }
+
+      // Validate mô tả
+      else if (key === 'description') {
+        const description = req.body[key];
+        if (!description || typeof description !== 'string' || description.trim().length === 0) {
+          return res.status(400).json({
+            success: false,
+            message: 'Mô tả dịch vụ không được để trống'
+          });
+        }
+
+        const cleanDesc = description.trim();
+
+        // Cho phép dấu câu nhẹ như dấu chấm hoặc phẩy
+        if (!/^[a-zA-ZÀ-ỹ\s.,!]+$/.test(cleanDesc)) {
+          return res.status(400).json({
+            success: false,
+            message: 'Mô tả dịch vụ không được chứa số hoặc ký tự đặc biệt lạ'
+          });
+        }
+
+        if (cleanDesc.length < 5) {
+          return res.status(400).json({
+            success: false,
+            message: 'Mô tả dịch vụ phải có ít nhất 5 ký tự'
+          });
+        }
+
+        updates[key] = cleanDesc;
+      }
+
+      // Các trường khác chỉ thêm nếu hợp lệ trong danh sách
+      else if (updateFields.includes(key)) {
+        updates[key] = req.body[key];
+      }
     }
-}
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({
+        status: false,
+        message: 'Không có trường hợp lệ để cập nhật'
+      });
+    }
+
+    const service = await Service.findByIdAndUpdate(
+      req.params.id,
+      { $set: updates },
+      { new: true, runValidators: true }
+    );
+
+    if (!service) {
+      return res.status(400).json({
+        status: false,
+        message: 'Không tìm thấy dịch vụ'
+      });
+    }
+
+    res.status(200).json({
+      status: true,
+      message: 'Cập nhật thông tin dịch vụ thành công',
+      data: service
+    });
+  } catch (error) {
+    console.error('Lỗi cập nhật dịch vụ', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Đã xảy ra lỗi khi cập nhật thông tin dịch vụ'
+    });
+  }
+};
 
 const deleteService = async(req,res) =>{
     try {
