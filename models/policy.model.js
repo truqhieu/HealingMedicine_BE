@@ -38,4 +38,16 @@ policySchema.pre('save', function(next) {
   next();
 });
 
+policySchema.statics.getActivePolicies = function() {
+  return this.find({ active: true, status: 'Active' }).sort({ createdAt: -1 });
+};
+
+policySchema.statics.getPoliciesByType = function(type) {
+  return this.find({ 
+    active: true, 
+    status: 'Active',
+    title: { $regex: type, $options: 'i' }
+  }).sort({ createdAt: -1 });
+};
+
 module.exports = mongoose.model('Policy', policySchema);
