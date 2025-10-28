@@ -916,7 +916,7 @@ class AppointmentService {
   /**
    * Hủy appointment
    */
-  async cancelAppointment(appointmentId, cancelReason, userId) {
+  async cancelAppointment(appointmentId, cancelReason, userId, bankInfo = null) {
     try {
       console.log(`🔄 Hủy appointment ${appointmentId}`);
 
@@ -936,6 +936,15 @@ class AppointmentService {
       appointment.cancelReason = cancelReason || 'Người dùng hủy lịch hẹn';
       appointment.cancelledAt = new Date();
       appointment.updatedAt = new Date();
+      
+        // Lưu thông tin ngân hàng nếu có
+        if (bankInfo) {
+          appointment.bankInfo = {
+            accountHolderName: bankInfo.accountHolderName || null,
+            accountNumber: bankInfo.accountNumber || null,
+            bankName: bankInfo.bankName || null
+          };
+        }
 
       await appointment.save();
 
@@ -954,6 +963,69 @@ class AppointmentService {
 
     } catch (error) {
       console.error('❌ Lỗi hủy appointment:', error);
+      throw error;
+    }
+  }
+
+  // Lấy appointment by ID với đầy đủ thông tin
+  async getAppointmentById(appointmentId) {
+    try {
+      const appointment = await Appointment.findById(appointmentId)
+        .populate('serviceId', 'serviceName price')
+        .populate('doctorUserId', 'fullName email phoneNumber')
+        .populate('patientUserId', 'fullName email phoneNumber')
+        .populate('timeslotId', 'startTime endTime')
+        .populate('paymentId', 'amount method status')
+        .lean();
+
+      if (!appointment) {
+        return null;
+      }
+
+      // Format dữ liệu để trả về
+      return {
+        _id: appointment._id,
+        type: appointment.type,
+        mode: appointment.mode,
+        status: appointment.status,
+        notes: appointment.notes,
+        linkMeetUrl: appointment.linkMeetUrl,
+        createdAt: appointment.createdAt,
+        updatedAt: appointment.updatedAt,
+        cancelledAt: appointment.cancelledAt,
+        cancelReason: appointment.cancelReason,
+        bankInfo: appointment.bankInfo,
+        service: {
+          _id: appointment.serviceId?._id,
+          serviceName: appointment.serviceId?.serviceName,
+          price: appointment.serviceId?.price
+        },
+        doctor: {
+          _id: appointment.doctorUserId?._id,
+          fullName: appointment.doctorUserId?.fullName,
+          email: appointment.doctorUserId?.email,
+          phoneNumber: appointment.doctorUserId?.phoneNumber
+        },
+        patient: {
+          _id: appointment.patientUserId?._id,
+          fullName: appointment.patientUserId?.fullName,
+          email: appointment.patientUserId?.email,
+          phoneNumber: appointment.patientUserId?.phoneNumber
+        },
+        timeslot: {
+          _id: appointment.timeslotId?._id,
+          startTime: appointment.timeslotId?.startTime,
+          endTime: appointment.timeslotId?.endTime
+        },
+        payment: appointment.paymentId ? {
+          _id: appointment.paymentId._id,
+          amount: appointment.paymentId.amount,
+          method: appointment.paymentId.method,
+          status: appointment.paymentId.status
+        } : null
+      };
+    } catch (error) {
+      console.error('❌ Lỗi lấy appointment by ID:', error);
       throw error;
     }
   }

@@ -1,6 +1,7 @@
 const appointmentService = require('../services/appointment.service');
 const emailService = require('../services/email.service');
 const Policy = require('../models/policy.model');
+const Appointment = require('../models/appointment.model');
 
 const createConsultationAppointment = async (req, res) => {
   try {
@@ -486,8 +487,11 @@ const cancelAppointment = async (req, res) => {
       });
     }
 
-    // Lấy thông tin appointment
-    const appointment = await appointmentService.getAppointmentById(appointmentId);
+    // Lấy thông tin appointment gốc
+    const appointment = await Appointment.findById(appointmentId)
+      .populate('patientUserId', '_id')
+      .lean();
+    
     if (!appointment) {
       return res.status(404).json({
         success: false,
@@ -568,7 +572,7 @@ const cancelAppointment = async (req, res) => {
 const confirmCancelAppointment = async (req, res) => {
   try {
     const { appointmentId } = req.params;
-    const { confirmed, cancelReason } = req.body;
+    const { confirmed, cancelReason, bankInfo } = req.body;
     const userId = req.user?.userId;
 
     // Validation
@@ -595,7 +599,7 @@ const confirmCancelAppointment = async (req, res) => {
 
     if (confirmed) {
       // User xác nhận hủy
-      const result = await appointmentService.cancelAppointment(appointmentId, cancelReason, userId);
+      const result = await appointmentService.cancelAppointment(appointmentId, cancelReason, userId, bankInfo);
       
       res.status(200).json({
         success: true,
@@ -621,6 +625,58 @@ const confirmCancelAppointment = async (req, res) => {
   }
 };
 
+// Lấy chi tiết appointment với bank info
+const getAppointmentDetails = async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    
+    const appointment = await appointmentService.getAppointmentById(appointmentId);
+    
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy lịch hẹn'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Lấy chi tiết lịch hẹn thành công',
+      data: appointment
+    });
+  } catch (error) {
+    console.error('Error getting appointment details:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi lấy chi tiết lịch hẹn',
+      error: error.message
+    });
+  }
+};
+
+// Cập nhật status thành Refunded
+const markAsRefunded = async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const userId = req.user?.userId;
+    
+    const result = await appointmentService.updateAppointmentStatus(appointmentId, 'Refunded', userId);
+    
+    res.status(200).json({
+      success: true,
+      message: 'Cập nhật trạng thái hoàn tiền thành công',
+      data: result
+    });
+  } catch (error) {
+    console.error('Error marking as refunded:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi cập nhật trạng thái hoàn tiền',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   createConsultationAppointment,
   reviewAppointment,
@@ -629,5 +685,7 @@ module.exports = {
   getMyAppointments,
   updateAppointmentStatus,
   cancelAppointment,
-  confirmCancelAppointment
+  confirmCancelAppointment,
+  getAppointmentDetails,
+  markAsRefunded
 };

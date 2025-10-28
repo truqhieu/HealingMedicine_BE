@@ -236,6 +236,7 @@ const updateService = async (req, res) => {
   }
 };
 
+
 const deleteService = async(req,res) =>{
     try {
         const service = await Service.findByIdAndDelete(req.params.id)
