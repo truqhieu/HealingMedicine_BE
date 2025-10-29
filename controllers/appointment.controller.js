@@ -696,43 +696,48 @@ const getRescheduleAvailableSlots = async (req, res) => {
         };
       }
       
-      // Tìm thời gian bắt đầu khả dụng đầu tiên trong range
+      // Tính điểm bắt đầu khả dụng sơ bộ = max(range.start, max(endBooked+break) trong range)
       const [startHour, startMinute] = range.start.split(':').map(Number);
       const [endHour, endMinute] = range.end.split(':').map(Number);
-      
+
+      const toMinutes = (h, m) => h * 60 + m;
+      const fromMinutes = (mins) => `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+
+      const rangeStartMins = toMinutes(startHour, startMinute);
+      const rangeEndMins = toMinutes(endHour, endMinute);
+
+      // Lấy phút của các booked end + break trong ca này
+      let earliestCandidateMins = rangeStartMins;
+      bookedSlotsWithBuffer.forEach(b => {
+        const endDate = new Date(b.end); // b.end đã bao gồm break
+        const endH = endDate.getUTCHours();
+        const endM = endDate.getUTCMinutes();
+        const endMins = toMinutes(endH, endM);
+        // Nếu slot này nằm trước khi kết thúc ca và kéo dãn earliest
+        if (endMins > earliestCandidateMins && endMins <= rangeEndMins) {
+          earliestCandidateMins = endMins;
+        }
+      });
+
       let adjustedStart = null;
       let adjustedEnd = null;
-      
-      // Tìm thời gian bắt đầu khả dụng đầu tiên
-      for (let hour = startHour; hour <= endHour; hour++) {
-        const maxMinute = hour === endHour ? endMinute : 59;
-        const minMinute = hour === startHour ? startMinute : 0;
-        
-        for (let minute = minMinute; minute <= maxMinute; minute++) {
-          const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-          
-          if (canBookAtTime(timeStr)) {
-            adjustedStart = timeStr;
-            break;
-          }
+
+      // Quét từ earliestCandidateMins tới cuối ca để tìm phút đầu hợp lệ
+      for (let minuteTotal = earliestCandidateMins; minuteTotal <= rangeEndMins; minuteTotal++) {
+        const timeStr = fromMinutes(minuteTotal);
+        if (canBookAtTime(timeStr)) {
+          adjustedStart = timeStr;
+          break;
         }
-        if (adjustedStart) break;
       }
       
       // Tìm thời gian kết thúc khả dụng cuối cùng
-      for (let hour = endHour; hour >= startHour; hour--) {
-        const minMinute = hour === startHour ? startMinute : 0;
-        const maxMinute = hour === endHour ? endMinute : 59;
-        
-        for (let minute = maxMinute; minute >= minMinute; minute--) {
-          const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-          
-          if (canBookAtTime(timeStr)) {
-            adjustedEnd = timeStr;
-            break;
-          }
+      for (let minuteTotal = rangeEndMins; minuteTotal >= rangeStartMins; minuteTotal--) {
+        const timeStr = fromMinutes(minuteTotal);
+        if (canBookAtTime(timeStr)) {
+          adjustedEnd = timeStr;
+          break;
         }
-        if (adjustedEnd) break;
       }
       
       // Nếu không tìm thấy thời gian khả dụng nào, trả về range rỗng
