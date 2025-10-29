@@ -229,11 +229,13 @@ const getMyAppointments = async (req, res) => {
       });
     }
 
-    const appointments = await appointmentService.getMyAppointments({
+    const appointments = await appointmentService.getUserAppointments(
       userId,
-      includePendingPayment: includePendingPayment === 'true',
-      status
-    });
+      {
+        includePendingPayment: includePendingPayment === 'true',
+        status,
+      }
+    );
     
     return res.status(200).json({
       success: true,
