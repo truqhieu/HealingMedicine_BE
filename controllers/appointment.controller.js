@@ -685,8 +685,7 @@ const getRescheduleAvailableSlots = async (req, res) => {
       return !hasConflict;
     };
 
-    // ⭐ SỬA LỖI: Đơn giản hóa logic điều chỉnh thời gian
-    // Chỉ điều chỉnh khi thực sự cần thiết, không làm thay đổi thời gian mặc định
+    // ⭐ SỬA LỖI: Logic điều chỉnh thời gian dựa trên lịch đã đặt
     const adjustTimeRange = (range) => {
       // Nếu không có lịch đặt, giữ nguyên thời gian mặc định
       if (bookedSlots.length === 0) {
@@ -697,50 +696,52 @@ const getRescheduleAvailableSlots = async (req, res) => {
         };
       }
       
-      // Kiểm tra xem có cần điều chỉnh không
-      // Chỉ điều chỉnh nếu thời gian bắt đầu hoặc kết thúc bị conflict
+      // Tìm thời gian bắt đầu khả dụng đầu tiên trong range
       const [startHour, startMinute] = range.start.split(':').map(Number);
       const [endHour, endMinute] = range.end.split(':').map(Number);
       
-      let adjustedStart = range.start;
-      let adjustedEnd = range.end;
+      let adjustedStart = null;
+      let adjustedEnd = null;
       
-      // Kiểm tra thời gian bắt đầu có bị conflict không
-      if (!canBookAtTime(range.start)) {
-        // Tìm thời gian bắt đầu khả dụng đầu tiên
-        for (let hour = startHour; hour <= endHour; hour++) {
-          const maxMinute = hour === endHour ? endMinute : 59;
-          const minMinute = hour === startHour ? startMinute : 0;
+      // Tìm thời gian bắt đầu khả dụng đầu tiên
+      for (let hour = startHour; hour <= endHour; hour++) {
+        const maxMinute = hour === endHour ? endMinute : 59;
+        const minMinute = hour === startHour ? startMinute : 0;
+        
+        for (let minute = minMinute; minute <= maxMinute; minute++) {
+          const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
           
-          for (let minute = minMinute; minute <= maxMinute; minute++) {
-            const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-            
-            if (canBookAtTime(timeStr)) {
-              adjustedStart = timeStr;
-              break;
-            }
+          if (canBookAtTime(timeStr)) {
+            adjustedStart = timeStr;
+            break;
           }
-          if (adjustedStart !== range.start) break;
         }
+        if (adjustedStart) break;
       }
       
-      // Kiểm tra thời gian kết thúc có bị conflict không
-      if (!canBookAtTime(range.end)) {
-        // Tìm thời gian kết thúc khả dụng cuối cùng
-        for (let hour = endHour; hour >= startHour; hour--) {
-          const minMinute = hour === startHour ? startMinute : 0;
-          const maxMinute = hour === endHour ? endMinute : 59;
+      // Tìm thời gian kết thúc khả dụng cuối cùng
+      for (let hour = endHour; hour >= startHour; hour--) {
+        const minMinute = hour === startHour ? startMinute : 0;
+        const maxMinute = hour === endHour ? endMinute : 59;
+        
+        for (let minute = maxMinute; minute >= minMinute; minute--) {
+          const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
           
-          for (let minute = maxMinute; minute >= minMinute; minute--) {
-            const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-            
-            if (canBookAtTime(timeStr)) {
-              adjustedEnd = timeStr;
-              break;
-            }
+          if (canBookAtTime(timeStr)) {
+            adjustedEnd = timeStr;
+            break;
           }
-          if (adjustedEnd !== range.end) break;
         }
+        if (adjustedEnd) break;
+      }
+      
+      // Nếu không tìm thấy thời gian khả dụng nào, trả về range rỗng
+      if (!adjustedStart || !adjustedEnd) {
+        return {
+          start: range.start,
+          end: range.start,
+          available: false
+        };
       }
       
       return {
@@ -755,9 +756,18 @@ const getRescheduleAvailableSlots = async (req, res) => {
     const adjustedAfternoonRange = adjustTimeRange(afternoonRange);
     
     console.log(`📅 Original morning: ${morningRange.start} - ${morningRange.end}`);
-    console.log(`📅 Adjusted morning: ${adjustedMorningRange.start} - ${adjustedMorningRange.end}`);
+    console.log(`📅 Adjusted morning: ${adjustedMorningRange.start} - ${adjustedMorningRange.end} (available: ${adjustedMorningRange.available})`);
     console.log(`📅 Original afternoon: ${afternoonRange.start} - ${afternoonRange.end}`);
-    console.log(`📅 Adjusted afternoon: ${adjustedAfternoonRange.start} - ${adjustedAfternoonRange.end}`);
+    console.log(`📅 Adjusted afternoon: ${adjustedAfternoonRange.start} - ${adjustedAfternoonRange.end} (available: ${adjustedAfternoonRange.available})`);
+    
+    // Debug: Test một số thời điểm cụ thể
+    console.log(`🔍 Testing specific times:`);
+    console.log(`   - 08:00: ${canBookAtTime('08:00')}`);
+    console.log(`   - 08:30: ${canBookAtTime('08:30')}`);
+    console.log(`   - 08:40: ${canBookAtTime('08:40')}`);
+    console.log(`   - 09:10: ${canBookAtTime('09:10')}`);
+    console.log(`   - 09:20: ${canBookAtTime('09:20')}`);
+    console.log(`   - 09:30: ${canBookAtTime('09:30')}`);
 
     // ⭐ THÊM: Kiểm tra thời gian hiện tại để điều chỉnh khoảng thời gian khả dụng
     const now = new Date();
