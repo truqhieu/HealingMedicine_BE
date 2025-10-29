@@ -29,11 +29,16 @@ function calculateAvailableTimeRange(availableSlots, shift, workingHours) {
   // Sort slots by start time
   slots.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
   
+  // Lấy slot đầu tiên và cuối cùng
   const firstSlot = slots[0];
   const lastSlot = slots[slots.length - 1];
   
   const startTime = new Date(firstSlot.startTime);
   const endTime = new Date(lastSlot.endTime);
+  
+  console.log(`📅 ${shift} shift: First slot ${firstSlot.startTime} - ${firstSlot.endTime}`);
+  console.log(`📅 ${shift} shift: Last slot ${lastSlot.startTime} - ${lastSlot.endTime}`);
+  console.log(`📅 ${shift} shift: Final range ${startTime.toLocaleTimeString('vi-VN')} - ${endTime.toLocaleTimeString('vi-VN')}`);
   
   return {
     hasAvailable: true,
