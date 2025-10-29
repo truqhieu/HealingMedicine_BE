@@ -16,6 +16,7 @@ const paymentRoutes = require('./payment.route');
 const policyRoutes = require('./policy.route');
 const complaintRoutes = require('./complaint.route')
 const leaveRequestRoutes = require('./leaveRequest.route')
+const patientRequestRoutes = require('./patientRequest.route')
 
 
 // --- ROUTES ---
@@ -36,6 +37,7 @@ router.use('/payments', paymentRoutes);
 router.use('/policies', policyRoutes);
 router.use('/complaints', complaintRoutes)
 router.use('/leave-requests', leaveRequestRoutes)
+router.use('/patient-requests', patientRequestRoutes)
 
 // --- API INFO ENDPOINT ---
 router.get('/', (req, res) => {
