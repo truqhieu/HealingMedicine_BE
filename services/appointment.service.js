@@ -391,7 +391,8 @@ class AppointmentService {
       mode: appointmentMode, // Consultation=Online, Examination=Offline
       notes: notes || null,
       bookedByUserId: patientUserId,
-      paymentHoldExpiresAt: paymentHoldExpiresAt
+      paymentHoldExpiresAt: paymentHoldExpiresAt,
+      appointmentFor: formData?.appointmentFor || 'self' // ⭐ THÊM: Lưu appointmentFor
     });
 
     console.log('✅ Appointment đã được tạo:', {
