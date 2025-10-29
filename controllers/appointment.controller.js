@@ -178,9 +178,9 @@ const createConsultationAppointment = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error in createConsultationAppointment:', error);
-    return res.status(500).json({
-        success: false,
-      message: 'Lỗi server khi tạo lịch tư vấn',
+    return res.status(400).json({
+      success: false,
+      message: error.message || 'Lỗi server khi tạo lịch tư vấn',
       error: error.message
     });
   }
