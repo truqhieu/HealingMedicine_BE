@@ -1173,9 +1173,13 @@ class AvailableSlotService {
         const slotStart = new Date(slot.startTime);
         const slotEnd = new Date(slot.endTime);
         
-        // Kiểm tra xem slot có bị trung với booked slot nào không
+        // ⭐ THÊM: Tính buffer time cho slot mới
+        const slotEndWithBuffer = new Date(slotEnd.getTime() + breakAfterMinutes * 60000);
+        
+        // Kiểm tra xem slot có bị trung với booked slot nào không (bao gồm buffer time)
         return !bookedSlots.some(booked => {
-          return (slotStart < booked.end && slotEnd > booked.start);
+          // Conflict nếu: slotStart < booked.end && slotEndWithBuffer > booked.start
+          return (slotStart < booked.end && slotEndWithBuffer > booked.start);
         });
       });
 
@@ -1199,14 +1203,16 @@ class AvailableSlotService {
           const slotStart = new Date(slot.startTime);
           const slotEnd = new Date(slot.endTime);
           
-          // Kiểm tra xem slot có trùng với slots user đã đặt không
+          // ⭐ THÊM: Tính buffer time cho slot mới
+          const slotEndWithBuffer = new Date(slotEnd.getTime() + breakAfterMinutes * 60000);
+          
+          // Kiểm tra xem slot có trùng với slots user đã đặt không (bao gồm buffer time)
           const isBooked = patientBookedSlots.some(booked => {
-            return (slotStart.getTime() === booked.start.getTime() && 
-                    slotEnd.getTime() === booked.end.getTime());
+            return (slotStart < booked.end && slotEndWithBuffer > booked.start);
           });
           
           if (isBooked) {
-            console.log(`     ❌ EXCLUDED: ${slot.startTime} - ${slot.endTime}`);
+            console.log(`     ❌ EXCLUDED: ${slot.startTime} - ${slot.endTime} (conflicts with user booked slot)`);
           }
           
           return !isBooked;
@@ -1238,13 +1244,15 @@ class AvailableSlotService {
           const slotStart = new Date(slot.startTime);
           const slotEnd = new Date(slot.endTime);
           
+          // ⭐ THÊM: Tính buffer time cho slot mới
+          const slotEndWithBuffer = new Date(slotEnd.getTime() + breakAfterMinutes * 60000);
+          
           const isBooked = customerBookedSlots.some(booked => {
-            return (slotStart.getTime() === booked.start.getTime() && 
-                    slotEnd.getTime() === booked.end.getTime());
+            return (slotStart < booked.end && slotEndWithBuffer > booked.start);
           });
           
           if (isBooked) {
-            console.log(`❌ EXCLUDED: ${slot.startTime} - ${slot.endTime}`);
+            console.log(`❌ EXCLUDED: ${slot.startTime} - ${slot.endTime} (conflicts with customer booked slot)`);
           }
           
           return !isBooked;
