@@ -2,6 +2,7 @@ const appointmentService = require('../services/appointment.service');
 const emailService = require('../services/email.service');
 const Policy = require('../models/policy.model');
 const Appointment = require('../models/appointment.model');
+const Timeslot = require('../models/timeslot.model');
 const availableSlotService = require('../services/availableSlot.service');
 
 // Helper function to calculate available time range for morning/afternoon shifts
@@ -1099,7 +1100,6 @@ const getAvailableDoctorsForTimeSlot = async (req, res) => {
     // Lấy tất cả bác sĩ ACTIVE
     const User = require('../models/user.model');
     const Doctor = require('../models/doctor.model');
-    const Timeslot = require('../models/timeslot.model');
 
     const doctors = await User.find({
       role: 'Doctor',
@@ -1159,7 +1159,6 @@ const getAvailableDoctorsForTimeSlot = async (req, res) => {
       }
 
       // Kiểm tra xem có timeslot đã bị reserved chưa
-      const Timeslot = require('../models/timeslot.model');
       const reservedTimeslot = await Timeslot.findOne({
         doctorUserId: doctor._id,
         startTime: startDateTime,
