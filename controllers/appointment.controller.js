@@ -740,15 +740,19 @@ const requestReschedule = async (req, res) => {
     
     // Tìm lịch làm việc của bác sĩ trong ngày mới
     const newDate = newStart.toISOString().split('T')[0];
+    const selectedHour = newStart.getHours();
+    const shift = selectedHour < 12 ? 'Morning' : 'Afternoon';
+    
     let doctorSchedule = await DoctorSchedule.findOne({
       doctorUserId: appointment.doctorUserId._id,
       date: newDate,
-      isActive: true
+      shift: shift,
+      status: 'Available'
     });
 
     // Nếu không có doctorSchedule, tạo mới dựa trên workingHours của bác sĩ
     if (!doctorSchedule) {
-      console.log('📅 No doctorSchedule found, creating new one for date:', newDate);
+      console.log('📅 No doctorSchedule found, creating new ones for date:', newDate);
       
       // Lấy workingHours từ bác sĩ
       const Doctor = require('../models/doctor.model');
@@ -767,18 +771,19 @@ const requestReschedule = async (req, res) => {
         };
       }
 
-      // Tạo doctorSchedule mới
+      // Tạo doctorSchedule cho ca phù hợp
       doctorSchedule = new DoctorSchedule({
         doctorUserId: appointment.doctorUserId._id,
         date: new Date(newDate),
+        shift: shift,
+        maxSlots: 20, // Số slot tối đa cho ca
         workingHours: workingHours,
-        isActive: true,
         status: 'Available',
         createdBy: userId || appointment.doctorUserId._id
       });
 
       await doctorSchedule.save();
-      console.log('✅ Created new doctorSchedule:', doctorSchedule._id);
+      console.log('✅ Created new doctorSchedule:', doctorSchedule._id, 'for shift:', shift);
     }
 
     // Kiểm tra timeslot có khớp không - tìm timeslot rảnh trong ngày
