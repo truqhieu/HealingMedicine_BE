@@ -211,11 +211,12 @@ const reviewAppointment = async (req, res) => {
       });
     }
 
-    const result = await appointmentService.reviewAppointment({
+    const result = await appointmentService.reviewAppointment(
       appointmentId,
+      req.user.id, // staffUserId
       action,
       cancelReason
-    });
+    );
 
     return res.status(200).json({
       success: true,
