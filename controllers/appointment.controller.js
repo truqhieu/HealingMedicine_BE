@@ -838,19 +838,69 @@ const requestReschedule = async (req, res) => {
       });
     }
 
-    // Tìm timeslot mới
+    // Kiểm tra xem thời gian yêu cầu có khả dụng không
+    // Sử dụng logic tương tự như getRescheduleAvailableSlots
+    const DoctorSchedule = require('../models/doctorSchedule.model');
     const Timeslot = require('../models/timeslot.model');
-    let newTimeslot = await Timeslot.findOne({
+    
+    // Lấy lịch làm việc của bác sĩ
+    const doctorSchedule = await DoctorSchedule.findOne({
       doctorUserId: appointment.doctorUserId._id,
-      startTime: newStart,
-      endTime: newEnd,
-      status: 'Available'
+      isActive: true
     });
 
-    if (!newTimeslot) {
-      return res.status(404).json({
+    let workingHours = {
+      morningStart: 8, morningEnd: 12,
+      afternoonStart: 13, afternoonEnd: 17
+    };
+
+    if (doctorSchedule) {
+      workingHours = {
+        morningStart: doctorSchedule.morningStartHour,
+        morningEnd: doctorSchedule.morningEndHour,
+        afternoonStart: doctorSchedule.afternoonStartHour,
+        afternoonEnd: doctorSchedule.afternoonEndHour
+      };
+    }
+
+    // Kiểm tra thời gian yêu cầu có nằm trong giờ làm việc không
+    const requestDate = new Date(newStart);
+    const requestHour = requestDate.getUTCHours();
+    const requestMinute = requestDate.getUTCMinutes();
+    
+    const isInMorning = requestHour >= workingHours.morningStart && 
+                       (requestHour < workingHours.morningEnd || 
+                        (requestHour === workingHours.morningEnd && requestMinute === 0));
+    const isInAfternoon = requestHour >= workingHours.afternoonStart && 
+                          (requestHour < workingHours.afternoonEnd || 
+                           (requestHour === workingHours.afternoonEnd && requestMinute === 0));
+
+    if (!isInMorning && !isInAfternoon) {
+      return res.status(400).json({
         success: false,
-        message: 'Khung giờ yêu cầu không khả dụng'
+        message: 'Thời gian yêu cầu không nằm trong giờ làm việc của bác sĩ'
+      });
+    }
+
+    // Kiểm tra xem có bị trùng với lịch hẹn khác không
+    const existingAppointments = await Appointment.find({
+      doctorUserId: appointment.doctorUserId._id,
+      _id: { $ne: appointmentId },
+      status: { $in: ['Pending', 'Approved', 'CheckedIn'] }
+    }).populate('timeslotId');
+
+    const hasConflict = existingAppointments.some(apt => {
+      if (!apt.timeslotId) return false;
+      const aptStart = new Date(apt.timeslotId.startTime);
+      const aptEnd = new Date(apt.timeslotId.endTime);
+      
+      return (newStart < aptEnd && newEnd > aptStart);
+    });
+
+    if (hasConflict) {
+      return res.status(400).json({
+        success: false,
+        message: 'Thời gian yêu cầu bị trùng với lịch hẹn khác'
       });
     }
 
@@ -866,7 +916,6 @@ const requestReschedule = async (req, res) => {
         endTime: appointment.timeslotId.endTime
       },
       requestedData: {
-        timeslotId: newTimeslot._id,
         startTime: newStart,
         endTime: newEnd,
         reason: reason || 'Yêu cầu đổi lịch hẹn'
