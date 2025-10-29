@@ -4,6 +4,53 @@ const Policy = require('../models/policy.model');
 const Appointment = require('../models/appointment.model');
 const availableSlotService = require('../services/availableSlot.service');
 
+// Helper function to calculate available time range for morning/afternoon shifts
+function calculateAvailableTimeRange(availableSlots, shift, workingHours) {
+  const slots = availableSlots.filter(slot => {
+    const startTime = new Date(slot.startTime);
+    const hour = startTime.getHours();
+    
+    if (shift === 'morning') {
+      return hour >= 8 && hour < 12;
+    } else {
+      return hour >= 14 && hour < 18;
+    }
+  });
+
+  if (slots.length === 0) {
+    return {
+      hasAvailable: false,
+      startTime: null,
+      endTime: null,
+      message: shift === 'morning' ? 'Ca sáng đã hết chỗ' : 'Ca chiều đã hết chỗ'
+    };
+  }
+
+  // Sort slots by start time
+  slots.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+  
+  const firstSlot = slots[0];
+  const lastSlot = slots[slots.length - 1];
+  
+  const startTime = new Date(firstSlot.startTime);
+  const endTime = new Date(lastSlot.endTime);
+  
+  return {
+    hasAvailable: true,
+    startTime: startTime.toLocaleTimeString('vi-VN', { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      hour12: false 
+    }),
+    endTime: endTime.toLocaleTimeString('vi-VN', { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      hour12: false 
+    }),
+    message: shift === 'morning' ? 'Ca sáng có sẵn' : 'Ca chiều có sẵn'
+  };
+}
+
 const createConsultationAppointment = async (req, res) => {
   try {
     const {
@@ -641,6 +688,10 @@ const getRescheduleAvailableSlots = async (req, res) => {
       filtered = availableSlots.filter((s) => new Date(s.startTime) > now);
     }
 
+    // Tính toán thời gian khả dụng theo ca sáng và chiều
+    const morningAvailable = calculateAvailableTimeRange(filtered, 'morning', workingHours);
+    const afternoonAvailable = calculateAvailableTimeRange(filtered, 'afternoon', workingHours);
+
     return res.status(200).json({
       success: true,
       data: {
@@ -653,7 +704,9 @@ const getRescheduleAvailableSlots = async (req, res) => {
         hasDoctorSchedule: hasDoctorSchedule,
         message: hasDoctorSchedule 
           ? 'Các khung giờ có sẵn từ lịch làm việc của bác sĩ'
-          : 'Các khung giờ được tạo từ giờ làm việc mặc định của bác sĩ'
+          : 'Các khung giờ được tạo từ giờ làm việc mặc định của bác sĩ',
+        morningAvailable: morningAvailable,
+        afternoonAvailable: afternoonAvailable
       },
     });
   } catch (error) {
