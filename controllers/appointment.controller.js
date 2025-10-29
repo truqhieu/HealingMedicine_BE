@@ -470,19 +470,111 @@ const getRescheduleAvailableSlots = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Không tìm thấy lịch hẹn' });
     }
 
-    // Gọi service sẵn có để lấy slots theo bác sĩ + dịch vụ + ngày
-    const result = await availableSlotService.getAvailableSlots({
-      doctorUserId: appointment.doctorUserId._id.toString(),
-      serviceId: appointment.serviceId._id.toString(),
-      date,
+    // Kiểm tra lịch làm việc của bác sĩ trong ngày đó
+    const DoctorSchedule = require('../models/doctorSchedule.model');
+    const serviceDuration = appointment.serviceId.durationMinutes || 30;
+    const searchDate = new Date(date);
+    searchDate.setHours(0, 0, 0, 0);
+
+    // Tìm lịch làm việc của bác sĩ trong ngày
+    const doctorSchedules = await DoctorSchedule.find({
+      doctorUserId: appointment.doctorUserId._id,
+      date: searchDate,
+      status: 'Available'
+    }).sort({ startTime: 1 });
+
+    if (doctorSchedules.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          date,
+          serviceName: appointment.serviceId.serviceName,
+          doctorName: appointment.doctorUserId.fullName,
+          availableSlots: [],
+          totalSlots: 0,
+          message: 'Bác sĩ không có lịch làm việc trong ngày này'
+        },
+      });
+    }
+
+    // Tạo slots dựa trên lịch làm việc thực tế của bác sĩ
+    const allSlots = [];
+
+    for (const schedule of doctorSchedules) {
+      const scheduleStart = new Date(schedule.startTime);
+      const scheduleEnd = new Date(schedule.endTime);
+      
+      console.log(`📅 Processing schedule: ${schedule.shift} (${scheduleStart.toLocaleTimeString('vi-VN')} - ${scheduleEnd.toLocaleTimeString('vi-VN')})`);
+      
+      // Tạo slots trong khoảng thời gian làm việc
+      let currentTime = new Date(scheduleStart);
+      while (currentTime < scheduleEnd) {
+        const slotEnd = new Date(currentTime.getTime() + serviceDuration * 60000);
+        if (slotEnd <= scheduleEnd) {
+          allSlots.push({
+            startTime: currentTime.toISOString(),
+            endTime: slotEnd.toISOString(),
+            displayTime: `${currentTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${slotEnd.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}`
+          });
+        }
+        currentTime = new Date(currentTime.getTime() + serviceDuration * 60000);
+      }
+    }
+
+    // Debug: Log tất cả slots được tạo
+    console.log(`📅 Generated ${allSlots.length} slots for date ${date}`);
+    allSlots.forEach((slot, index) => {
+      console.log(`   Slot ${index + 1}: ${slot.displayTime}`);
     });
+
+    // Lọc bỏ các slots đã được đặt
+    const Timeslot = require('../models/timeslot.model');
+    const existingTimeslots = await Timeslot.find({
+      doctorUserId: appointment.doctorUserId._id,
+      startTime: { 
+        $gte: new Date(searchDate).setHours(0, 0, 0, 0),
+        $lt: new Date(searchDate).setHours(23, 59, 59, 999)
+      },
+      status: { $in: ['Reserved', 'Booked'] }
+    });
+
+    console.log(`🔴 Found ${existingTimeslots.length} existing timeslots for this doctor on ${date}`);
+
+    const bookedSlots = existingTimeslots.map(ts => ({
+      start: new Date(ts.startTime),
+      end: new Date(ts.endTime)
+    }));
+
+    // Debug: Log booked slots
+    bookedSlots.forEach((booked, index) => {
+      console.log(`   Booked ${index + 1}: ${booked.start.toLocaleTimeString('vi-VN')} - ${booked.end.toLocaleTimeString('vi-VN')}`);
+    });
+
+    const availableSlots = allSlots.filter(slot => {
+      const slotStart = new Date(slot.startTime);
+      const slotEnd = new Date(slot.endTime);
+      
+      const isBooked = bookedSlots.some(booked => {
+        return (slotStart >= booked.start && slotStart < booked.end) ||
+               (slotEnd > booked.start && slotEnd <= booked.end) ||
+               (slotStart <= booked.start && slotEnd >= booked.end);
+      });
+      
+      if (isBooked) {
+        console.log(`   ❌ Slot ${slot.displayTime} is booked`);
+      }
+      
+      return !isBooked;
+    });
+
+    console.log(`✅ Final available slots: ${availableSlots.length}`);
 
     // Ẩn giờ đã qua nếu là hôm nay
     const todayStr = new Date().toISOString().split('T')[0];
-    let filtered = result?.data?.availableSlots || [];
+    let filtered = availableSlots;
     if (date === todayStr) {
       const now = new Date();
-      filtered = filtered.filter((s) => new Date(s.startTime) > now);
+      filtered = availableSlots.filter((s) => new Date(s.startTime) > now);
     }
 
     return res.status(200).json({
