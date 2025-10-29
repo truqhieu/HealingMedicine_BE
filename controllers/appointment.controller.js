@@ -345,10 +345,11 @@ const updateAppointmentStatus = async (req, res) => {
       });
     }
 
-    const result = await appointmentService.updateAppointmentStatus({
+    const result = await appointmentService.updateAppointmentStatus(
       appointmentId,
-      status
-    });
+      status,
+      req.user.id // userId
+    );
 
     return res.status(200).json({
       success: true,
