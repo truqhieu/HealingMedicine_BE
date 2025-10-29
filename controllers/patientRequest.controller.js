@@ -53,9 +53,9 @@ const getAllPatientRequests = async (req, res) => {
     
   } catch (error) {
     console.error('❌ Error in getAllPatientRequests:', error);
-    return res.status(500).json({
+    return res.status(400).json({
       success: false,
-      message: 'Lỗi server khi lấy danh sách yêu cầu',
+      message: error.message || 'Có lỗi xảy ra khi lấy danh sách yêu cầu',
       error: error.message
     });
   }
@@ -96,9 +96,9 @@ const getPatientRequestById = async (req, res) => {
     
   } catch (error) {
     console.error('❌ Error in getPatientRequestById:', error);
-    return res.status(500).json({
+    return res.status(400).json({
       success: false,
-      message: 'Lỗi server khi lấy chi tiết yêu cầu',
+      message: error.message || 'Có lỗi xảy ra khi lấy chi tiết yêu cầu',
       error: error.message
     });
   }
@@ -242,9 +242,9 @@ const approveRequest = async (req, res) => {
     
   } catch (error) {
     console.error('❌ Error in approveRequest:', error);
-    return res.status(500).json({
+    return res.status(400).json({
       success: false,
-      message: 'Lỗi server khi duyệt yêu cầu',
+      message: error.message || 'Có lỗi xảy ra khi duyệt yêu cầu',
       error: error.message
     });
   }
@@ -348,9 +348,9 @@ const rejectRequest = async (req, res) => {
     
   } catch (error) {
     console.error('❌ Error in rejectRequest:', error);
-    return res.status(500).json({
+    return res.status(400).json({
       success: false,
-      message: 'Lỗi server khi từ chối yêu cầu',
+      message: error.message || 'Có lỗi xảy ra khi từ chối yêu cầu',
       error: error.message
     });
   }

@@ -225,9 +225,9 @@ const reviewAppointment = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error in reviewAppointment:', error);
-    return res.status(500).json({
-        success: false,
-      message: 'Lỗi server khi xử lý lịch hẹn',
+    return res.status(400).json({
+      success: false,
+      message: error.message || 'Có lỗi xảy ra khi xử lý lịch hẹn',
       error: error.message
     });
   }
@@ -245,9 +245,9 @@ const getPendingAppointments = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error in getPendingAppointments:', error);
-    return res.status(500).json({
+    return res.status(400).json({
       success: false,
-      message: 'Lỗi server khi lấy danh sách lịch hẹn chờ duyệt',
+      message: error.message || 'Có lỗi xảy ra khi lấy danh sách lịch hẹn chờ duyệt',
       error: error.message
     });
   }
@@ -281,9 +281,9 @@ const getAllAppointments = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error in getAllAppointments:', error);
-    return res.status(500).json({
+    return res.status(400).json({
       success: false,
-      message: 'Lỗi server khi lấy danh sách lịch hẹn',
+      message: error.message || 'Có lỗi xảy ra khi lấy danh sách lịch hẹn',
       error: error.message
     });
   }
@@ -317,9 +317,9 @@ const getMyAppointments = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error in getMyAppointments:', error);
-    return res.status(500).json({
+    return res.status(400).json({
       success: false,
-      message: 'Lỗi server khi lấy danh sách lịch hẹn',
+      message: error.message || 'Có lỗi xảy ra khi lấy danh sách lịch hẹn của bạn',
       error: error.message
     });
   }
@@ -357,9 +357,9 @@ const updateAppointmentStatus = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error in updateAppointmentStatus:', error);
-    return res.status(500).json({
-        success: false,
-      message: 'Lỗi server khi cập nhật trạng thái lịch hẹn',
+    return res.status(400).json({
+      success: false,
+      message: error.message || 'Có lỗi xảy ra khi cập nhật trạng thái lịch hẹn',
       error: error.message
     });
   }
@@ -407,9 +407,9 @@ const cancelAppointment = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error in cancelAppointment:', error);
-    return res.status(500).json({
+    return res.status(400).json({
       success: false,
-      message: 'Lỗi server khi hủy lịch hẹn',
+      message: error.message || 'Có lỗi xảy ra khi hủy lịch hẹn',
       error: error.message
     });
   }
@@ -458,9 +458,9 @@ const confirmCancelAppointment = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error in confirmCancelAppointment:', error);
-    return res.status(500).json({
+    return res.status(400).json({
       success: false,
-      message: 'Lỗi server khi xác nhận hủy lịch hẹn',
+      message: error.message || 'Có lỗi xảy ra khi xác nhận hủy lịch hẹn',
       error: error.message
     });
   }
@@ -494,9 +494,9 @@ const getAppointmentDetails = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error in getAppointmentDetails:', error);
-    return res.status(500).json({
+    return res.status(400).json({
       success: false,
-      message: 'Lỗi server khi lấy chi tiết lịch hẹn',
+      message: error.message || 'Có lỗi xảy ra khi lấy chi tiết lịch hẹn',
       error: error.message
     });
   }
@@ -523,9 +523,9 @@ const markAsRefunded = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error in markAsRefunded:', error);
-    return res.status(500).json({
+    return res.status(400).json({
       success: false,
-      message: 'Lỗi server khi đánh dấu đã hoàn tiền',
+      message: error.message || 'Có lỗi xảy ra khi đánh dấu đã hoàn tiền',
       error: error.message
     });
   }
@@ -647,74 +647,94 @@ const getRescheduleAvailableSlots = async (req, res) => {
       console.log(`   Booked ${index + 1}: ${vnStart.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${vnEnd.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}`);
     });
 
-    // ⭐ THÊM: Tính buffer time và điều chỉnh thời gian khả dụng
+    // ⭐ SỬA LỖI: Sử dụng logic buffer time giống như availableSlot service
     const appointmentServiceDuration = appointment.serviceId.durationMinutes || 30; // Lấy thời gian dịch vụ
-    const bufferTime = 10; // 10 phút buffer
-    const totalTimeNeeded = appointmentServiceDuration + bufferTime; // Tổng thời gian cần thiết
+    const breakAfterMinutes = 10; // 10 phút buffer (giống như availableSlot service)
     
     console.log(`⏱️ Service duration: ${appointmentServiceDuration} minutes`);
-    console.log(`⏱️ Buffer time: ${bufferTime} minutes`);
-    console.log(`⏱️ Total time needed: ${totalTimeNeeded} minutes`);
+    console.log(`⏱️ Break after minutes: ${breakAfterMinutes} minutes`);
 
     // Hàm kiểm tra xem có thể đặt lịch tại thời điểm startTime không
+    // Sử dụng logic giống như availableSlot service
     const canBookAtTime = (startTimeStr) => {
       const [startHour, startMinute] = startTimeStr.split(':').map(Number);
       const startDate = new Date(searchDate);
       startDate.setUTCHours(startHour, startMinute, 0, 0);
       
       const endDate = new Date(startDate.getTime() + appointmentServiceDuration * 60000);
-      const endWithBuffer = new Date(startDate.getTime() + totalTimeNeeded * 60000);
       
       // Kiểm tra xem có conflict với lịch đã có không
+      // Sử dụng logic giống như availableSlot service: slotStart < booked.end && slotEndWithBuffer > booked.start
       const hasConflict = bookedSlots.some(booked => {
         const bookedStart = new Date(booked.start);
         const bookedEnd = new Date(booked.end);
         
-        // Conflict nếu: startDate < bookedEnd && endWithBuffer > bookedStart
-        return startDate < bookedEnd && endWithBuffer > bookedStart;
+        // Tính buffer time cho slot mới (giống như availableSlot service)
+        const slotEndWithBuffer = new Date(endDate.getTime() + breakAfterMinutes * 60000);
+        
+        // Conflict nếu: startDate < bookedEnd && slotEndWithBuffer > bookedStart
+        return startDate < bookedEnd && slotEndWithBuffer > bookedStart;
       });
       
       return !hasConflict;
     };
 
-    // Điều chỉnh thời gian khả dụng dựa trên buffer time
+    // ⭐ SỬA LỖI: Đơn giản hóa logic điều chỉnh thời gian
+    // Chỉ điều chỉnh khi thực sự cần thiết, không làm thay đổi thời gian mặc định
     const adjustTimeRange = (range) => {
+      // Nếu không có lịch đặt, giữ nguyên thời gian mặc định
+      if (bookedSlots.length === 0) {
+        return {
+          start: range.start,
+          end: range.end,
+          available: true
+        };
+      }
+      
+      // Kiểm tra xem có cần điều chỉnh không
+      // Chỉ điều chỉnh nếu thời gian bắt đầu hoặc kết thúc bị conflict
       const [startHour, startMinute] = range.start.split(':').map(Number);
       const [endHour, endMinute] = range.end.split(':').map(Number);
       
       let adjustedStart = range.start;
       let adjustedEnd = range.end;
       
-      // Tìm thời gian bắt đầu khả dụng đầu tiên
-      for (let hour = startHour; hour <= endHour; hour++) {
-        const maxMinute = hour === endHour ? endMinute : 59;
-        const minMinute = hour === startHour ? startMinute : 0;
-        
-        for (let minute = minMinute; minute <= maxMinute; minute++) {
-          const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      // Kiểm tra thời gian bắt đầu có bị conflict không
+      if (!canBookAtTime(range.start)) {
+        // Tìm thời gian bắt đầu khả dụng đầu tiên
+        for (let hour = startHour; hour <= endHour; hour++) {
+          const maxMinute = hour === endHour ? endMinute : 59;
+          const minMinute = hour === startHour ? startMinute : 0;
           
-          if (canBookAtTime(timeStr)) {
-            adjustedStart = timeStr;
-            break;
+          for (let minute = minMinute; minute <= maxMinute; minute++) {
+            const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+            
+            if (canBookAtTime(timeStr)) {
+              adjustedStart = timeStr;
+              break;
+            }
           }
+          if (adjustedStart !== range.start) break;
         }
-        if (adjustedStart !== range.start) break;
       }
       
-      // Tìm thời gian kết thúc khả dụng cuối cùng
-      for (let hour = endHour; hour >= startHour; hour--) {
-        const minMinute = hour === startHour ? startMinute : 0;
-        const maxMinute = hour === endHour ? endMinute : 59;
-        
-        for (let minute = maxMinute; minute >= minMinute; minute--) {
-          const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      // Kiểm tra thời gian kết thúc có bị conflict không
+      if (!canBookAtTime(range.end)) {
+        // Tìm thời gian kết thúc khả dụng cuối cùng
+        for (let hour = endHour; hour >= startHour; hour--) {
+          const minMinute = hour === startHour ? startMinute : 0;
+          const maxMinute = hour === endHour ? endMinute : 59;
           
-          if (canBookAtTime(timeStr)) {
-            adjustedEnd = timeStr;
-            break;
+          for (let minute = maxMinute; minute >= minMinute; minute--) {
+            const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+            
+            if (canBookAtTime(timeStr)) {
+              adjustedEnd = timeStr;
+              break;
+            }
           }
+          if (adjustedEnd !== range.end) break;
         }
-        if (adjustedEnd !== range.end) break;
       }
       
       return {
@@ -974,9 +994,9 @@ const requestReschedule = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error in requestReschedule:', error);
-    return res.status(500).json({
+    return res.status(400).json({
       success: false,
-      message: 'Lỗi server khi xử lý yêu cầu đổi lịch',
+      message: error.message || 'Có lỗi xảy ra khi xử lý yêu cầu đổi lịch',
       error: error.message
     });
   }
@@ -1160,9 +1180,9 @@ const requestChangeDoctor = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error in requestChangeDoctor:', error);
-    return res.status(500).json({
-        success: false,
-      message: 'Lỗi server khi xử lý yêu cầu đổi bác sĩ',
+    return res.status(400).json({
+      success: false,
+      message: error.message || 'Có lỗi xảy ra khi xử lý yêu cầu đổi bác sĩ',
       error: error.message
     });
   }
