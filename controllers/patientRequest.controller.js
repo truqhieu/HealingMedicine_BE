@@ -202,15 +202,18 @@ const approveRequest = async (req, res) => {
             requestType: request.requestType === 'Reschedule' ? 'đổi lịch hẹn' : 'đổi bác sĩ',
             staffName: staff?.fullName || 'Nhân viên',
             approvedAt: new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
-            appointmentId: appointment._id
+            appointmentId: appointment._id.toString()
           }
         };
         
+        console.log('📧 Sending approval email with data:', emailData);
         await emailService.sendEmail(emailData);
         console.log(`✅ Email sent to ${patient.email} for approved request`);
       }
     } catch (emailError) {
       console.error('❌ Error sending approval email:', emailError);
+      console.error('❌ Email error details:', emailError.message);
+      console.error('❌ Email error stack:', emailError.stack);
       // Không throw error để không ảnh hưởng đến response chính
     }
     
@@ -296,15 +299,18 @@ const rejectRequest = async (req, res) => {
             staffName: staff?.fullName || 'Nhân viên',
             rejectedAt: new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
             reason: reason,
-            appointmentId: request.appointmentId
+            appointmentId: request.appointmentId.toString()
           }
         };
         
+        console.log('📧 Sending rejection email with data:', emailData);
         await emailService.sendEmail(emailData);
         console.log(`✅ Email sent to ${patient.email} for rejected request`);
       }
     } catch (emailError) {
       console.error('❌ Error sending rejection email:', emailError);
+      console.error('❌ Email error details:', emailError.message);
+      console.error('❌ Email error stack:', emailError.stack);
       // Không throw error để không ảnh hưởng đến response chính
     }
     

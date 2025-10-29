@@ -586,76 +586,26 @@ const getRescheduleAvailableSlots = async (req, res) => {
       hasDoctorSchedule = true;
     }
 
-    // Tạo slots dựa trên workingHours từ DoctorSchedule
-    const allSlots = [];
+    // ⭐ THAY ĐỔI: Trả về thông tin khoảng thời gian khả dụng thay vì tạo slots cố định
+    // Người dùng có thể chọn bất kỳ thời gian nào trong khoảng này
+    
+    // Tạo thông tin ca sáng và chiều
+    const morningRange = {
+      start: workingHours.morningStart,
+      end: workingHours.morningEnd,
+      available: true
+    };
+    
+    const afternoonRange = {
+      start: workingHours.afternoonStart,
+      end: workingHours.afternoonEnd,
+      available: true
+    };
+    
+    console.log(`📅 Morning range: ${morningRange.start} - ${morningRange.end}`);
+    console.log(`📅 Afternoon range: ${afternoonRange.start} - ${afternoonRange.end}`);
 
-    // Tạo slots cho ca sáng
-    if (workingHours.morningStart && workingHours.morningEnd) {
-      const morningStart = new Date(searchDate);
-      const [morningStartHour, morningStartMinute] = workingHours.morningStart.split(':').map(Number);
-      morningStart.setUTCHours(morningStartHour - 7, morningStartMinute, 0, 0); // Convert VN time to UTC
-
-      const morningEnd = new Date(searchDate);
-      const [morningEndHour, morningEndMinute] = workingHours.morningEnd.split(':').map(Number);
-      morningEnd.setUTCHours(morningEndHour - 7, morningEndMinute, 0, 0); // Convert VN time to UTC
-
-      const breakAfterMinutes = 10;
-      let currentTime = new Date(morningStart);
-      
-      while (currentTime < morningEnd) {
-        const slotEnd = new Date(currentTime.getTime() + serviceDuration * 60000);
-        if (slotEnd <= morningEnd) {
-          // Tạo displayTime bằng cách chuyển đổi UTC sang VN time
-          const vnStartTime = new Date(currentTime.getTime() + 7 * 60 * 60 * 1000);
-          const vnEndTime = new Date(slotEnd.getTime() + 7 * 60 * 60 * 1000);
-          
-          allSlots.push({
-            startTime: currentTime.toISOString(),
-            endTime: slotEnd.toISOString(),
-            displayTime: `${vnStartTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${vnEndTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}`
-          });
-        }
-        currentTime = new Date(slotEnd.getTime() + breakAfterMinutes * 60000);
-      }
-    }
-
-    // Tạo slots cho ca chiều
-    if (workingHours.afternoonStart && workingHours.afternoonEnd) {
-      const afternoonStart = new Date(searchDate);
-      const [afternoonStartHour, afternoonStartMinute] = workingHours.afternoonStart.split(':').map(Number);
-      afternoonStart.setUTCHours(afternoonStartHour - 7, afternoonStartMinute, 0, 0); // Convert VN time to UTC
-
-      const afternoonEnd = new Date(searchDate);
-      const [afternoonEndHour, afternoonEndMinute] = workingHours.afternoonEnd.split(':').map(Number);
-      afternoonEnd.setUTCHours(afternoonEndHour - 7, afternoonEndMinute, 0, 0); // Convert VN time to UTC
-
-      const breakAfterMinutes = 10;
-      let currentTime = new Date(afternoonStart);
-      
-      while (currentTime < afternoonEnd) {
-        const slotEnd = new Date(currentTime.getTime() + serviceDuration * 60000);
-        if (slotEnd <= afternoonEnd) {
-          // Tạo displayTime bằng cách chuyển đổi UTC sang VN time
-          const vnStartTime = new Date(currentTime.getTime() + 7 * 60 * 60 * 1000);
-          const vnEndTime = new Date(slotEnd.getTime() + 7 * 60 * 60 * 1000);
-          
-          allSlots.push({
-            startTime: currentTime.toISOString(),
-            endTime: slotEnd.toISOString(),
-            displayTime: `${vnStartTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${vnEndTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}`
-          });
-        }
-        currentTime = new Date(slotEnd.getTime() + breakAfterMinutes * 60000);
-      }
-    }
-
-    // Debug: Log tất cả slots được tạo
-    console.log(`📅 Generated ${allSlots.length} slots for date ${date}`);
-    allSlots.forEach((slot, index) => {
-      console.log(`   Slot ${index + 1}: ${slot.displayTime}`);
-    });
-
-    // Lọc bỏ các slots đã được đặt
+    // Lấy thông tin các timeslots đã được đặt để kiểm tra conflict
     const Timeslot = require('../models/timeslot.model');
     
     // Tạo date range chính xác cho ngày được chọn
@@ -675,7 +625,6 @@ const getRescheduleAvailableSlots = async (req, res) => {
     });
 
     console.log(`🔴 Found ${existingTimeslots.length} existing timeslots for this doctor on ${date}`);
-    console.log(`🔍 Date range: ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`);
 
     const bookedSlots = existingTimeslots.map(ts => ({
       start: new Date(ts.startTime),
@@ -689,44 +638,32 @@ const getRescheduleAvailableSlots = async (req, res) => {
       console.log(`   Booked ${index + 1}: ${vnStart.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${vnEnd.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}`);
     });
 
-    const availableSlots = allSlots.filter(slot => {
-      const slotStart = new Date(slot.startTime);
-      const slotEnd = new Date(slot.endTime);
+    // ⭐ THÊM: Kiểm tra thời gian hiện tại để điều chỉnh khoảng thời gian khả dụng
+    const now = new Date();
+    console.log(`⏰ Current time: ${now.toISOString()}`);
+    
+    // Nếu là hôm nay, điều chỉnh thời gian bắt đầu dựa trên thời gian hiện tại
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (date === todayStr) {
+      const currentVNTime = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+      const currentHour = currentVNTime.getHours();
+      const currentMinute = currentVNTime.getMinutes();
+      const currentTimeStr = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`;
       
-      const isBooked = bookedSlots.some(booked => {
-        const overlap = (slotStart >= booked.start && slotStart < booked.end) ||
-               (slotEnd > booked.start && slotEnd <= booked.end) ||
-               (slotStart <= booked.start && slotEnd >= booked.end);
-        
-        if (overlap) {
-          console.log(`   ❌ Slot ${slot.displayTime} overlaps with booked slot ${booked.start.toISOString()} - ${booked.end.toISOString()}`);
-        }
-        
-        return overlap;
-      });
+      console.log(`🕐 Current VN time: ${currentTimeStr}`);
       
-      if (isBooked) {
-        console.log(`   ❌ Slot ${slot.displayTime} is booked`);
-      } else {
-        console.log(`   ✅ Slot ${slot.displayTime} is available`);
+      // Điều chỉnh ca sáng nếu cần
+      if (morningRange.start < currentTimeStr && morningRange.end > currentTimeStr) {
+        morningRange.start = currentTimeStr;
+        console.log(`📅 Adjusted morning start to: ${morningRange.start}`);
       }
       
-      return !isBooked;
-    });
-
-    console.log(`✅ Final available slots: ${availableSlots.length}`);
-
-    // Ẩn giờ đã qua nếu là hôm nay
-    const todayStr = new Date().toISOString().split('T')[0];
-    let filtered = availableSlots;
-    if (date === todayStr) {
-      const now = new Date();
-      filtered = availableSlots.filter((s) => new Date(s.startTime) > now);
+      // Điều chỉnh ca chiều nếu cần
+      if (afternoonRange.start < currentTimeStr && afternoonRange.end > currentTimeStr) {
+        afternoonRange.start = currentTimeStr;
+        console.log(`📅 Adjusted afternoon start to: ${afternoonRange.start}`);
+      }
     }
-
-    // Tính toán thời gian khả dụng theo ca sáng và chiều
-    const morningAvailable = calculateAvailableTimeRange(filtered, 'morning', workingHours);
-    const afternoonAvailable = calculateAvailableTimeRange(filtered, 'afternoon', workingHours);
 
     return res.status(200).json({
       success: true,
@@ -735,14 +672,23 @@ const getRescheduleAvailableSlots = async (req, res) => {
         serviceName: appointment.serviceId.serviceName,
         serviceDuration: appointment.serviceId.durationMinutes,
         doctorName: appointment.doctorUserId.fullName,
-        availableSlots: filtered,
-        totalSlots: filtered.length,
+        // ⭐ THAY ĐỔI: Trả về thông tin khoảng thời gian thay vì slots cố định
+        morningRange: morningRange,
+        afternoonRange: afternoonRange,
+        bookedSlots: bookedSlots.map(slot => ({
+          start: slot.start.toISOString(),
+          end: slot.end.toISOString(),
+          // Convert to VN time for display
+          displayStart: new Date(slot.start.getTime() + 7 * 60 * 60 * 1000).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false }),
+          displayEnd: new Date(slot.end.getTime() + 7 * 60 * 60 * 1000).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })
+        })),
         hasDoctorSchedule: hasDoctorSchedule,
         message: hasDoctorSchedule 
-          ? 'Các khung giờ có sẵn từ lịch làm việc của bác sĩ'
-          : 'Các khung giờ được tạo từ giờ làm việc mặc định của bác sĩ',
-        morningAvailable: morningAvailable,
-        afternoonAvailable: afternoonAvailable
+          ? 'Bạn có thể chọn bất kỳ thời gian nào trong khoảng thời gian làm việc của bác sĩ'
+          : 'Bạn có thể chọn bất kỳ thời gian nào trong khoảng thời gian làm việc mặc định',
+        // Giữ lại để tương thích với frontend cũ
+        morningAvailable: morningRange,
+        afternoonAvailable: afternoonRange
       },
     });
   } catch (error) {
