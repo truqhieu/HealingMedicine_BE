@@ -125,13 +125,18 @@ class AppointmentService {
           }).populate('timeslotId');
 
           if (conflictAppt && conflictAppt.timeslotId) {
-            const appointmentStartTime = new Date(conflictAppt.timeslotId.startTime).getTime();
-            const appointmentEndTime = new Date(conflictAppt.timeslotId.endTime).getTime();
-            const slotStartTime = new Date(selectedSlot.startTime).getTime();
-            const slotEndTime = new Date(selectedSlot.endTime).getTime();
+            const appointmentStartTime = new Date(conflictAppt.timeslotId.startTime);
+            const appointmentEndTime = new Date(conflictAppt.timeslotId.endTime);
+            const slotStartTime = new Date(selectedSlot.startTime);
+            const slotEndTime = new Date(selectedSlot.endTime);
             
-            if (appointmentStartTime === slotStartTime && appointmentEndTime === slotEndTime) {
-              console.log(` Customer ${formData.fullName} đã có lịch khám vào khung giờ này`);
+            // ⭐ THÊM: Tính buffer time (10 phút)
+            const bufferTime = 10; // 10 phút buffer
+            const slotEndTimeWithBuffer = new Date(slotEndTime.getTime() + bufferTime * 60000);
+            
+            // Conflict nếu: slotStartTime < appointmentEndTime && slotEndTimeWithBuffer > appointmentStartTime
+            if (slotStartTime < appointmentEndTime && slotEndTimeWithBuffer > appointmentStartTime) {
+              console.log(`❌ Customer ${formData.fullName} đã có lịch khám vào khung giờ này (bao gồm buffer time)`);
               throw new Error(`${formData.fullName} đã có lịch khám vào khung giờ này rồi. Vui lòng chọn khung giờ khác!`);
             }
           }
@@ -144,21 +149,30 @@ class AppointmentService {
 
     // ⭐ THÊM: CHECK TIMESLOT TRƯỚC KHI TẠO ❌
     // Để tránh race condition: 2 request cùng lúc
-    const existingTimeslot = await Timeslot.findOne({
-      startTime: new Date(selectedSlot.startTime),
-      endTime: new Date(selectedSlot.endTime),
+    const slotStartTime = new Date(selectedSlot.startTime);
+    const slotEndTime = new Date(selectedSlot.endTime);
+    
+    // ⭐ THÊM: Tính buffer time (10 phút)
+    const bufferTime = 10; // 10 phút buffer
+    const slotEndTimeWithBuffer = new Date(slotEndTime.getTime() + bufferTime * 60000);
+    
+    // Kiểm tra conflict với timeslots đã có (bao gồm buffer time)
+    const conflictingTimeslots = await Timeslot.find({
       doctorUserId: doctorUserId,
-      status: { $in: ['Reserved', 'Booked'] } // Chỉ block nếu đang được giữ hoặc booked
+      startTime: { $lt: slotEndTimeWithBuffer },
+      endTime: { $gt: slotStartTime },
+      status: { $in: ['Reserved', 'Booked'] }
     });
 
-    if (existingTimeslot) {
-      console.log(' Khung giờ đã bị book/reserved:', existingTimeslot._id);
+    if (conflictingTimeslots.length > 0) {
+      console.log('❌ Khung giờ bị conflict với timeslots đã có:', conflictingTimeslots.length);
+      conflictingTimeslots.forEach(ts => {
+        console.log(`   - Timeslot ${ts._id}: ${ts.startTime} - ${ts.endTime} (${ts.status})`);
+      });
       throw new Error(`Khung giờ này đã có người đặt hoặc đang chờ thanh toán. Vui lòng chọn thời gian khác.`);
     }
 
     // Validate selectedSlot duration phải khớp với service duration
-    const slotStartTime = new Date(selectedSlot.startTime);
-    const slotEndTime = new Date(selectedSlot.endTime);
     const slotDurationMinutes = (slotEndTime - slotStartTime) / 60000;
 
     if (slotDurationMinutes !== service.durationMinutes) {
@@ -224,15 +238,19 @@ class AppointmentService {
         select: 'fullName email'
       });
 
-      // Filter appointments có overlap thời gian
+      // Filter appointments có overlap thời gian (bao gồm buffer time)
       for (const apt of overlappingAppointments) {
         if (!apt.timeslotId || !apt.customerId) continue;
 
         const aptStart = new Date(apt.timeslotId.startTime);
         const aptEnd = new Date(apt.timeslotId.endTime);
 
-        // Check overlap: (start1 < end2) AND (end1 > start2)
-        const hasTimeOverlap = (slotStart < aptEnd && slotEnd > aptStart);
+        // ⭐ THÊM: Tính buffer time (10 phút)
+        const bufferTime = 10; // 10 phút buffer
+        const slotEndWithBuffer = new Date(slotEnd.getTime() + bufferTime * 60000);
+
+        // Check overlap: (start1 < end2) AND (end1WithBuffer > start2)
+        const hasTimeOverlap = (slotStart < aptEnd && slotEndWithBuffer > aptStart);
 
         if (hasTimeOverlap) {
           // Có trùng thời gian → check xem có trùng customer không
