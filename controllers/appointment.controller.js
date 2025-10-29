@@ -506,8 +506,10 @@ const getRescheduleAvailableSlots = async (req, res) => {
       
       console.log(`📅 Processing schedule: ${schedule.shift} (${scheduleStart.toLocaleTimeString('vi-VN')} - ${scheduleEnd.toLocaleTimeString('vi-VN')})`);
       
-      // Tạo slots trong khoảng thời gian làm việc
+      // Tạo slots trong khoảng thời gian làm việc với break time
+      const breakAfterMinutes = 10; // 10 phút nghỉ giữa các ca
       let currentTime = new Date(scheduleStart);
+      
       while (currentTime < scheduleEnd) {
         const slotEnd = new Date(currentTime.getTime() + serviceDuration * 60000);
         if (slotEnd <= scheduleEnd) {
@@ -521,7 +523,8 @@ const getRescheduleAvailableSlots = async (req, res) => {
             displayTime: `${vietnamStartTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${vietnamEndTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}`
           });
         }
-        currentTime = new Date(currentTime.getTime() + serviceDuration * 60000);
+        // Tính thời gian bắt đầu slot tiếp theo: slot kết thúc + break time
+        currentTime = new Date(slotEnd.getTime() + breakAfterMinutes * 60000);
       }
     }
 
