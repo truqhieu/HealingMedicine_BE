@@ -654,6 +654,12 @@ const getRescheduleAvailableSlots = async (req, res) => {
     console.log(`⏱️ Service duration: ${appointmentServiceDuration} minutes`);
     console.log(`⏱️ Break after minutes: ${breakAfterMinutes} minutes`);
 
+    // Tạo danh sách booked slots đã cộng buffer ở cuối
+    const bookedSlotsWithBuffer = bookedSlots.map(b => ({
+      start: new Date(b.start),
+      end: new Date(new Date(b.end).getTime() + breakAfterMinutes * 60000)
+    }));
+
     // Hàm kiểm tra xem có thể đặt lịch tại thời điểm startTime không
     // Sử dụng logic giống như availableSlot service
     const canBookAtTime = (startTimeStr) => {
@@ -665,7 +671,7 @@ const getRescheduleAvailableSlots = async (req, res) => {
       
       // Kiểm tra xem có conflict với lịch đã có không
       // Sử dụng logic giống như availableSlot service: slotStart < booked.end && slotEndWithBuffer > booked.start
-      const hasConflict = bookedSlots.some(booked => {
+      const hasConflict = bookedSlotsWithBuffer.some(booked => {
         const bookedStart = new Date(booked.start);
         const bookedEnd = new Date(booked.end);
         
