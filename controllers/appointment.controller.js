@@ -586,6 +586,7 @@ const getRescheduleAvailableSlots = async (req, res) => {
       data: {
         date,
         serviceName: appointment.serviceId.serviceName,
+        serviceDuration: appointment.serviceId.durationMinutes,
         doctorName: appointment.doctorUserId.fullName,
         availableSlots: filtered,
         totalSlots: filtered.length,
