@@ -1119,6 +1119,42 @@ class AvailableSlotService {
       }
     }
 
+    // ⭐ THÊM: Lấy tất cả timeslots đã reserved hoặc booked (không chỉ từ appointments)
+    const Timeslot = require('../models/timeslot.model');
+    const allTimeslots = await Timeslot.find({
+      doctorUserId: { $in: doctors.map(d => d._id) },
+      startTime: { 
+        $gte: new Date(searchDate.getTime()),
+        $lt: new Date(searchDate.getTime() + 24 * 60 * 60 * 1000)
+      },
+      status: { $in: ['Reserved', 'Booked'] }
+    });
+
+    console.log(`🔍 Found ${allTimeslots.length} timeslots (Reserved/Booked) for this date`);
+
+    // Thêm timeslots vào bookedSlotsByDoctor
+    for (const timeslot of allTimeslots) {
+      const docId = timeslot.doctorUserId.toString();
+      if (!bookedSlotsByDoctor[docId]) {
+        bookedSlotsByDoctor[docId] = [];
+      }
+      bookedSlotsByDoctor[docId].push({
+        start: new Date(timeslot.startTime),
+        end: new Date(timeslot.endTime)
+      });
+    }
+
+    // Debug: Log booked slots for each doctor
+    for (const doctorId in bookedSlotsByDoctor) {
+      const doctor = doctors.find(d => d._id.toString() === doctorId);
+      console.log(`🔍 Doctor ${doctor?.fullName}: ${bookedSlotsByDoctor[doctorId].length} booked slots`);
+      bookedSlotsByDoctor[doctorId].forEach((slot, idx) => {
+        const vnStart = new Date(slot.start.getTime() + 7 * 60 * 60 * 1000);
+        const vnEnd = new Date(slot.end.getTime() + 7 * 60 * 60 * 1000);
+        console.log(`   - Slot ${idx + 1}: ${vnStart.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${vnEnd.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}`);
+      });
+    }
+
     // 8. Generate slots cho từng bác sĩ
     const allSlots = [];
     const now = new Date();
