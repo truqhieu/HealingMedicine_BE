@@ -1219,10 +1219,9 @@ class AvailableSlotService {
         });
       });
 
-      // ⭐ Exclude slots mà user hiện tại đã đặt (CHỈ khi appointmentFor === 'self')
-      // Khi appointmentFor === 'other', patientUserId sẽ là null → skip bước này
+      // ⭐ Exclude slots mà user hiện tại đã đặt với bác sĩ này
       if (patientUserId && patientBookedSlots.length > 0) {
-        console.log(`\n🔴 [Doctor ${doctor.fullName}] EXCLUDING USER BOOKED SLOTS (appointmentFor=self):`);
+        console.log(`\n🔴 [Doctor ${doctor.fullName}] EXCLUDING USER BOOKED SLOTS (appointmentFor=${appointmentFor}, only this doctor):`);
         console.log(`   - patientUserId: ${patientUserId}`);
         console.log(`   - patientBookedSlots count: ${patientBookedSlots.length}`);
         patientBookedSlots.forEach((booked, idx) => {
@@ -1256,9 +1255,9 @@ class AvailableSlotService {
         
         console.log(`   - availableSlots AFTER exclude: ${availableSlots.length} (removed ${slotsBeforeFilter - availableSlots.length})`);
       } else if (patientUserId && patientBookedSlots.length === 0) {
-        console.log(`\n✅ [Doctor ${doctor.fullName}] NO USER BOOKED SLOTS TO EXCLUDE (appointmentFor=self, user has no appointments)`);
+        console.log(`\n✅ [Doctor ${doctor.fullName}] NO USER BOOKED SLOTS TO EXCLUDE (user has no appointments with this doctor)`);
       } else if (!patientUserId) {
-        console.log(`\n🟢 [Doctor ${doctor.fullName}] NOT EXCLUDING USER SLOTS (appointmentFor=other, patientUserId=null)`);
+        console.log(`\n🟢 [Doctor ${doctor.fullName}] NOT EXCLUDING USER SLOTS (no patientUserId)`);
       }
       
       // ⭐ Exclude slots của customer (nếu đặt cho người khác và customer đã có appointment)
@@ -1467,9 +1466,9 @@ class AvailableSlotService {
       }
     }
 
-    // ⭐ THÊM: Lấy appointments của user trong cùng ngày (CHỈ khi appointmentFor === 'self')
+    // ⭐ THÊM: Lấy appointments của user trong cùng ngày
     let userBookedSlots = [];
-    if (patientUserId && appointmentFor === 'self') {
+    if (patientUserId) {
       const userAppointments = await Appointment.find({
         patientUserId,
         status: { $in: ['PendingPayment', 'Pending', 'Approved', 'CheckedIn'] },
@@ -1477,25 +1476,31 @@ class AvailableSlotService {
       })
       .populate({
         path: 'timeslotId',
-        select: 'startTime endTime'
+        select: 'startTime endTime doctorUserId'
       });
 
       // Filter appointments vào ngày đang xét
-      userBookedSlots = userAppointments
-        .filter(apt => {
-          if (!apt.timeslotId) return false;
-          const slotDate = new Date(apt.timeslotId.startTime);
-          return slotDate.toISOString().split('T')[0] === searchDate.toISOString().split('T')[0];
-        })
+      const userAppointmentsOnDate = userAppointments.filter(apt => {
+        if (!apt.timeslotId) return false;
+        const slotDate = new Date(apt.timeslotId.startTime);
+        return slotDate.toISOString().split('T')[0] === searchDate.toISOString().split('T')[0];
+      });
+
+      // Cả 'self' và 'other' đều chỉ exclude slots của bác sĩ hiện tại
+      // Cho phép đặt trùng giờ cùng ngày với bác sĩ khác
+      userBookedSlots = userAppointmentsOnDate
+        .filter(apt => apt.timeslotId.doctorUserId && apt.timeslotId.doctorUserId.toString() === doctorUserId)
         .map(apt => ({
           start: new Date(apt.timeslotId.startTime),
           end: new Date(apt.timeslotId.endTime),
           breakAfter: 10 // Default buffer time
         }));
-
-      console.log(`🔍 [getDoctorScheduleRange] User ${patientUserId} has ${userBookedSlots.length} appointments on this date (appointmentFor=self)`);
-    } else if (patientUserId && appointmentFor === 'other') {
-      console.log(`🔍 [getDoctorScheduleRange] User ${patientUserId} is booking for others - NOT excluding user's own slots`);
+      
+      if (appointmentFor === 'self') {
+        console.log(`🔍 [getDoctorScheduleRange] User ${patientUserId} has ${userBookedSlots.length} appointments with doctor ${doctorUserId} on this date (appointmentFor=self) - EXCLUDING ONLY THIS DOCTOR`);
+      } else if (appointmentFor === 'other') {
+        console.log(`🔍 [getDoctorScheduleRange] User ${patientUserId} has ${userBookedSlots.length} appointments with doctor ${doctorUserId} on this date (appointmentFor=other) - EXCLUDING ONLY THIS DOCTOR`);
+      }
     }
 
     // Gộp tất cả booked slots (doctor + user)
