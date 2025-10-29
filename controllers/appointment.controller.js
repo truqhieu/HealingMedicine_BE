@@ -2,6 +2,7 @@ const appointmentService = require('../services/appointment.service');
 const emailService = require('../services/email.service');
 const Policy = require('../models/policy.model');
 const Appointment = require('../models/appointment.model');
+const availableSlotService = require('../services/availableSlot.service');
 
 const createConsultationAppointment = async (req, res) => {
   try {
@@ -451,6 +452,55 @@ const markAsRefunded = async (req, res) => {
   }
 };
 
+// ⭐ Lấy danh sách khung giờ rảnh dùng cho đổi lịch hẹn (theo appointmentId)
+const getRescheduleAvailableSlots = async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const { date } = req.query; // YYYY-MM-DD
+
+    if (!date) {
+      return res.status(400).json({ success: false, message: 'Vui lòng cung cấp ngày (YYYY-MM-DD)' });
+    }
+
+    const appointment = await Appointment.findById(appointmentId)
+      .populate('serviceId', 'serviceName durationMinutes')
+      .populate('doctorUserId', 'fullName');
+
+    if (!appointment) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy lịch hẹn' });
+    }
+
+    // Gọi service sẵn có để lấy slots theo bác sĩ + dịch vụ + ngày
+    const result = await availableSlotService.getAvailableSlots({
+      doctorUserId: appointment.doctorUserId._id.toString(),
+      serviceId: appointment.serviceId._id.toString(),
+      date,
+    });
+
+    // Ẩn giờ đã qua nếu là hôm nay
+    const todayStr = new Date().toISOString().split('T')[0];
+    let filtered = result?.data?.availableSlots || [];
+    if (date === todayStr) {
+      const now = new Date();
+      filtered = filtered.filter((s) => new Date(s.startTime) > now);
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        date,
+        serviceName: appointment.serviceId.serviceName,
+        doctorName: appointment.doctorUserId.fullName,
+        availableSlots: filtered,
+        totalSlots: filtered.length,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Error in getRescheduleAvailableSlots:', error);
+    return res.status(500).json({ success: false, message: 'Lỗi khi lấy khung giờ rảnh', error: error.message });
+  }
+};
+
 // ⭐ Bệnh nhân gửi yêu cầu đổi lịch hẹn (chỉ đổi ngày/giờ)
 const requestReschedule = async (req, res) => {
   try {
@@ -761,5 +811,6 @@ module.exports = {
   getAppointmentDetails,
   markAsRefunded,
   requestReschedule,
-  requestChangeDoctor
+  requestChangeDoctor,
+  getRescheduleAvailableSlots
 };
