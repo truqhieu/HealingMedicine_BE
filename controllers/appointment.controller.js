@@ -49,169 +49,73 @@ const createConsultationAppointment = async (req, res) => {
     if (!serviceId || !doctorUserId || !doctorScheduleId || !selectedSlot) {
       return res.status(400).json({
         success: false,
-        message: 'Vui lòng chọn đầy đủ dịch vụ tư vấn, bác sĩ và khung giờ'
+        message: 'Vui lòng cung cấp đầy đủ thông tin: dịch vụ, bác sĩ, lịch làm việc và khung giờ'
       });
     }
 
+    // Validation selectedSlot
     if (!selectedSlot.startTime || !selectedSlot.endTime) {
       return res.status(400).json({
         success: false,
-        message: 'Thông tin khung giờ không hợp lệ'
+        message: 'Vui lòng chọn khung giờ hợp lệ'
       });
     }
 
-    if (!phoneNumber) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng nhập số điện thoại'
-      });
-    }
-
-    const phoneRegex = /^[0-9]{10,11}$/;
-    if (!phoneRegex.test(phoneNumber)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Số điện thoại không hợp lệ (phải là 10-11 số)'
-      });
-    }
-
-    // Nếu đặt cho người khác (customer), bắt buộc nhập đầy đủ họ tên và email
+    // Nếu appointmentFor là 'other', cần fullName và email
     if (appointmentFor === 'other') {
       if (!fullName || !email) {
         return res.status(400).json({
           success: false,
-          message: 'Vui lòng nhập đầy đủ họ tên và email của người được đặt lịch (customer)'
+          message: 'Khi đặt lịch cho người khác, vui lòng cung cấp họ tên và email'
         });
       }
+    }
 
-      // Validate email format
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        return res.status(400).json({
+    // Nếu appointmentFor là 'self', lấy thông tin từ user đã đăng nhập
+    if (appointmentFor === 'self') {
+      const User = require('../models/user.model');
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({
           success: false,
-          message: 'Email của customer không đúng định dạng'
+          message: 'Không tìm thấy thông tin người dùng'
         });
       }
+      fullName = user.fullName;
+      email = user.email;
     }
 
-    // Tạo appointment data
-    const appointmentData = {
-      patientUserId: userId, 
-      doctorUserId: doctorUserId, 
-      serviceId: serviceId,
-      doctorScheduleId: doctorScheduleId,
-      selectedSlot: selectedSlot, 
-      notes: notes || null,
-      formData: {
-        fullName: fullName || '',
-        email: email || '',
-        phoneNumber,
-        appointmentFor: appointmentFor || 'self'
-      }
-    };
+    console.log('   - Final fullName:', fullName);
+    console.log('   - Final email:', email);
 
-    const appointment = await appointmentService.createConsultationAppointment(appointmentData);
+    // Gọi service để tạo appointment
+    const result = await appointmentService.createConsultationAppointment({
+      patientUserId: userId,
+      fullName,
+      email,
+      phoneNumber,
+      appointmentFor,
+      serviceId,
+      doctorUserId,
+      doctorScheduleId,
+      selectedSlot,
+      notes
+    });
 
-    let emailRecipient, recipientName;
-    
-    if (appointment.customerId) {
-      // Nếu có customerId = đặt cho người khác → gửi email cho customer
-      emailRecipient = appointment.customerId.email;
-      recipientName = appointment.customerId.fullName;
-    } else {
-      // Nếu không có customerId = đặt cho bản thân → gửi email cho user
-      emailRecipient = appointment.patientUserId.email;
-      recipientName = appointment.patientUserId.fullName;
-    }
+    console.log('✅ Appointment created successfully:', result);
 
-    // Prepare email data
-    const emailData = {
-      fullName: recipientName,
-      serviceName: appointment.serviceId.serviceName,
-      doctorName: appointment.doctorUserId.fullName,
-      startTime: appointment.timeslotId.startTime,
-      endTime: appointment.timeslotId.endTime,
-      type: appointment.type,
-      mode: appointment.mode
-    };
-
-    // Xác định message và response dựa vào status
-    let successMessage;
-    let responseData = {
-      appointmentId: appointment._id,
-      service: appointment.serviceId.serviceName,
-      doctor: appointment.doctorUserId.fullName,
-      startTime: appointment.timeslotId.startTime,
-      endTime: appointment.timeslotId.endTime,
-      status: appointment.status,
-      type: appointment.type,
-      mode: appointment.mode
-    };
-
-    // Nếu appointment cần thanh toán trước
-    if (appointment.status === 'PendingPayment' && appointment.paymentId) {
-      successMessage = 'Vui lòng thanh toán để hoàn tất đặt lịch. Slot sẽ được giữ trong 15 phút.';
-      
-      // Thêm thông tin thanh toán vào response
-      responseData.payment = {
-        paymentId: appointment.paymentId._id,
-        amount: appointment.paymentId.amount,
-        method: appointment.paymentId.method,
-        status: appointment.paymentId.status,
-        expiresAt: appointment.paymentHoldExpiresAt,
-        QRurl: appointment.paymentId.QRurl
-      };
-      
-      responseData.requirePayment = true;
-      
-      // KHÔNG gửi email vì chưa thanh toán
-      console.log('⏳ Appointment đang chờ thanh toán, không gửi email');
-    } else {
-      // Appointment không cần thanh toán hoặc đã thanh toán
-      successMessage = appointment.customerId
-        ? `Đặt lịch tư vấn thành công! Email xác nhận đã được gửi đến ${emailRecipient}`
-        : 'Đặt lịch tư vấn thành công! Email xác nhận đã được gửi đến hộp thư của bạn.';
-      
-      responseData.requirePayment = false;
-
-      // Gửi email xác nhận (chỉ khi không cần thanh toán)
-      try {
-        await emailService.sendAppointmentConfirmationEmail(
-          emailRecipient,
-          emailData
-        );
-        console.log(`📧 Đã gửi email xác nhận đến: ${emailRecipient}`);
-      } catch (emailError) {
-        console.error('Lỗi gửi email:', emailError);
-      }
-    }
-
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
-      message: successMessage,
-      data: responseData
+      message: 'Đặt lịch tư vấn thành công',
+      data: result
     });
 
   } catch (error) {
-    console.error('Lỗi đặt lịch tư vấn:', error);
-
-    // Xử lý các lỗi cụ thể
-    if (error.message.includes('Khung giờ') || 
-        error.message.includes('Dịch vụ') || 
-        error.message.includes('Bác sĩ') ||
-        error.message.includes('không tồn tại') ||
-        error.message.includes('không khả dụng') ||
-        error.message.includes('Thiếu thông tin')) {
-      return res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-
-    res.status(500).json({
+    console.error('❌ Error in createConsultationAppointment:', error);
+    return res.status(500).json({
       success: false,
-      message: 'Lỗi server. Vui lòng thử lại sau',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'Lỗi server khi tạo lịch tư vấn',
+      error: error.message
     });
   }
 };
@@ -219,260 +123,180 @@ const createConsultationAppointment = async (req, res) => {
 const reviewAppointment = async (req, res) => {
   try {
     const { appointmentId, action, cancelReason } = req.body;
-    const staffUserId = req.user?.userId;
 
-    // Validation
-    if (!appointmentId) {
+    if (!appointmentId || !action) {
       return res.status(400).json({
         success: false,
-        message: 'Vui lòng cung cấp ID lịch hẹn'
+        message: 'Vui lòng cung cấp ID lịch hẹn và hành động'
       });
     }
 
-    // ⭐ Convert action to lowercase (case-insensitive)
-    const normalizedAction = action?.toLowerCase().trim();
-
-    if (!normalizedAction || !['approve', 'cancel'].includes(normalizedAction)) {
+    if (!['approve', 'cancel'].includes(action)) {
       return res.status(400).json({
         success: false,
-        message: 'Action phải là "approve" hoặc "cancel" (không phân biệt chữ hoa/thường)'
+        message: 'Hành động không hợp lệ. Chỉ chấp nhận: approve, cancel'
       });
     }
 
-    if (normalizedAction === 'cancel' && !cancelReason) {
+    if (action === 'cancel' && !cancelReason) {
       return res.status(400).json({
         success: false,
         message: 'Vui lòng cung cấp lý do hủy lịch'
       });
     }
 
-    if (!staffUserId) {
-      return res.status(401).json({
-        success: false,
-        message: 'Vui lòng đăng nhập để xử lý lịch hẹn'
-      });
-    }
-
-    // Gọi service với normalizedAction
-    const result = await appointmentService.reviewAppointment(
+    const result = await appointmentService.reviewAppointment({
       appointmentId,
-      staffUserId,
-      normalizedAction,
+      action,
       cancelReason
-    );
+    });
 
-    res.status(200).json(result);
+    return res.status(200).json({
+      success: true,
+      message: action === 'approve' ? 'Duyệt lịch hẹn thành công' : 'Hủy lịch hẹn thành công',
+      data: result
+    });
 
   } catch (error) {
-    console.error('Lỗi xử lý lịch hẹn:', error);
-
-    if (error.message.includes('Không tìm thấy') || 
-        error.message.includes('Không thể') ||
-        error.message.includes('phải là')) {
-      return res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-
-    res.status(500).json({
+    console.error('❌ Error in reviewAppointment:', error);
+    return res.status(500).json({
       success: false,
-      message: 'Lỗi server. Vui lòng thử lại sau',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'Lỗi server khi xử lý lịch hẹn',
+      error: error.message
     });
   }
 };
 
 const getPendingAppointments = async (req, res) => {
   try {
-    const { doctorUserId, startDate, endDate } = req.query;
-
-    const filters = {};
-    if (doctorUserId) filters.doctorUserId = doctorUserId;
-    if (startDate && endDate) {
-      filters.startDate = startDate;
-      filters.endDate = endDate;
-    }
-
-    const result = await appointmentService.getPendingAppointments(filters);
-
-    res.status(200).json(result);
+    const appointments = await appointmentService.getPendingAppointments();
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Lấy danh sách lịch hẹn chờ duyệt thành công',
+      data: appointments
+    });
 
   } catch (error) {
-    console.error('Lỗi lấy danh sách lịch hẹn chờ duyệt:', error);
-
-    res.status(500).json({
+    console.error('❌ Error in getPendingAppointments:', error);
+    return res.status(500).json({
       success: false,
-      message: 'Lỗi server. Vui lòng thử lại sau',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'Lỗi server khi lấy danh sách lịch hẹn chờ duyệt',
+      error: error.message
     });
   }
 };
 
 const getAllAppointments = async (req, res) => {
   try {
-    const { status, doctorUserId, patientUserId, mode, type } = req.query;
-
-    const filters = {};
-    if (status) filters.status = status;
-    if (doctorUserId) filters.doctorUserId = doctorUserId;
-    if (patientUserId) filters.patientUserId = patientUserId;
-    if (mode) filters.mode = mode;
-    if (type) filters.type = type;
-
-    const result = await appointmentService.getAllAppointments(filters);
-
-    res.status(200).json(result);
+    const { status, startDate, endDate, doctorId, serviceId, page = 1, limit = 10 } = req.query;
+    
+    const appointments = await appointmentService.getAllAppointments({
+      status,
+      startDate,
+      endDate,
+      doctorId,
+      serviceId,
+      page: parseInt(page),
+      limit: parseInt(limit)
+    });
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Lấy danh sách tất cả lịch hẹn thành công',
+      data: appointments
+    });
 
   } catch (error) {
-    console.error('Lỗi lấy danh sách lịch hẹn:', error);
-
-    res.status(500).json({
+    console.error('❌ Error in getAllAppointments:', error);
+    return res.status(500).json({
       success: false,
-      message: 'Lỗi server. Vui lòng thử lại sau',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'Lỗi server khi lấy danh sách lịch hẹn',
+      error: error.message
     });
   }
 };
 
-/**
- * Lấy tất cả ca khám của người dùng hiện tại
- * GET /api/appointments/my-appointments
- * 
- * Logic:
- *   - Mặc định: Lấy tất cả các ca khám đã hoàn tất đặt lịch (Pending, Approved, CheckedIn, Completed, Cancelled)
- *     → Bao gồm cả đặt lịch khám (không cần thanh toán) và tư vấn đã thanh toán xong
- *   - KHÔNG bao gồm: PendingPayment (các ca tư vấn đang chờ thanh toán)
- * 
- * Query params:
- *   - includePendingPayment: true/false (có bao gồm cả ca đang chờ thanh toán không)
- *   - status: Pending|Approved|CheckedIn|Completed|Cancelled|PendingPayment (lọc theo status cụ thể)
- */
 const getMyAppointments = async (req, res) => {
   try {
     const userId = req.user?.userId;
+    const { includePendingPayment, status } = req.query;
 
     if (!userId) {
       return res.status(401).json({
         success: false,
-        message: 'Vui lòng đăng nhập để xem ca khám'
+        message: 'Vui lòng đăng nhập để xem lịch hẹn'
       });
     }
 
-    // Lấy options từ query params
-    const options = {};
+    const appointments = await appointmentService.getMyAppointments({
+      userId,
+      includePendingPayment: includePendingPayment === 'true',
+      status
+    });
     
-    // Có bao gồm cả ca đang chờ thanh toán không
-    if (req.query.includePendingPayment === 'true') {
-      options.includePendingPayment = true;
-    }
-
-    // Lọc theo status cụ thể
-    if (req.query.status) {
-      options.status = req.query.status;
-    }
-
-    console.log('🔍 [getMyAppointments] Fetching appointments for userId:', userId);
-    console.log('🔍 [getMyAppointments] Options:', options);
-    
-    const appointments = await appointmentService.getUserAppointments(userId, options);
-
-    console.log('✅ [getMyAppointments] Returning:', appointments.length, 'appointments');
-
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: `Tìm thấy ${appointments.length} ca khám`,
-      data: appointments,
-      count: appointments.length
+      message: 'Lấy danh sách lịch hẹn của bạn thành công',
+      data: appointments
     });
 
   } catch (error) {
-    console.error('❌ Lỗi lấy ca khám của user:', error);
-    res.status(500).json({
+    console.error('❌ Error in getMyAppointments:', error);
+    return res.status(500).json({
       success: false,
-      message: 'Lỗi server. Vui lòng thử lại sau',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'Lỗi server khi lấy danh sách lịch hẹn',
+      error: error.message
     });
   }
 };
 
-/**
- * Cập nhật trạng thái ca khám
- * - Staff: Approved → CheckedIn (check-in bệnh nhân)
- * - Nurse: CheckedIn →
- * PUT /api/appointments/:appointmentId/status
- * Body: { status: 'CheckedIn' | 'Completed' | 'Cancelled' }
- */
 const updateAppointmentStatus = async (req, res) => {
   try {
     const { appointmentId } = req.params;
     const { status } = req.body;
-    const userId = req.user?.userId;
 
-    // Validation
-    if (!appointmentId) {
+    if (!appointmentId || !status) {
       return res.status(400).json({
         success: false,
-        message: 'Vui lòng cung cấp ID lịch hẹn'
+        message: 'Vui lòng cung cấp ID lịch hẹn và trạng thái mới'
       });
     }
 
-    const allowedStatuses = ['CheckedIn', 'Completed', 'Cancelled'];
-    if (!status || !allowedStatuses.includes(status)) {
+    if (!['CheckedIn', 'Completed', 'Cancelled'].includes(status)) {
       return res.status(400).json({
         success: false,
-        message: `Trạng thái phải là một trong: ${allowedStatuses.join(', ')}`
+        message: 'Trạng thái không hợp lệ. Chỉ chấp nhận: CheckedIn, Completed, Cancelled'
       });
     }
 
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: 'Vui lòng đăng nhập'
-      });
-    }
-
-    // Gọi service để cập nhật
-    const result = await appointmentService.updateAppointmentStatus(
+    const result = await appointmentService.updateAppointmentStatus({
       appointmentId,
-      status,
-      userId
-    );
+      status
+    });
 
-    res.status(200).json(result);
+    return res.status(200).json({
+      success: true,
+      message: 'Cập nhật trạng thái lịch hẹn thành công',
+      data: result
+    });
 
   } catch (error) {
-    console.error('❌ Lỗi cập nhật trạng thái ca khám:', error);
-
-    if (error.message.includes('Không tìm thấy') || 
-        error.message.includes('Không thể') ||
-        error.message.includes('chỉ có thể')) {
-      return res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-
-    res.status(500).json({
+    console.error('❌ Error in updateAppointmentStatus:', error);
+    return res.status(500).json({
       success: false,
-      message: 'Lỗi server. Vui lòng thử lại sau',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'Lỗi server khi cập nhật trạng thái lịch hẹn',
+      error: error.message
     });
   }
 };
 
-/**
- * Hủy ca khám với logic khác nhau cho Examination/Consultation
- * DELETE /api/appointments/:appointmentId/cancel
- * Body: { cancelReason?: string }
- */
 const cancelAppointment = async (req, res) => {
   try {
     const { appointmentId } = req.params;
     const { cancelReason } = req.body;
     const userId = req.user?.userId;
 
-    // Validation
     if (!appointmentId) {
       return res.status(400).json({
         success: false,
@@ -487,95 +311,34 @@ const cancelAppointment = async (req, res) => {
       });
     }
 
-    // Lấy thông tin appointment gốc
-    const appointment = await Appointment.findById(appointmentId)
-      .populate('patientUserId', '_id')
-      .lean();
-    
-    if (!appointment) {
-      return res.status(404).json({
-        success: false,
-        message: 'Không tìm thấy lịch hẹn'
-      });
-    }
+    const result = await appointmentService.cancelAppointment({
+      appointmentId,
+      userId,
+      cancelReason
+    });
 
-    // Kiểm tra quyền hủy lịch (chỉ người đặt lịch mới được hủy)
-    if (appointment.patientUserId._id.toString() !== userId) {
-      return res.status(403).json({
-        success: false,
-        message: 'Bạn không có quyền hủy lịch hẹn này'
-      });
-    }
-
-    // Kiểm tra trạng thái appointment có thể hủy được không
-    const cancellableStatuses = ['Pending', 'Approved', 'PendingPayment'];
-    if (!cancellableStatuses.includes(appointment.status)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Lịch hẹn này không thể hủy được'
-      });
-    }
-
-    // Logic khác nhau cho Examination và Consultation
-    if (appointment.type === 'Examination') {
-      // Hủy bình thường cho Examination
-      const result = await appointmentService.cancelAppointment(appointmentId, cancelReason, userId);
-      
-      res.status(200).json({
-        success: true,
-        message: 'Hủy lịch khám thành công',
-        data: result
-      });
-    } else if (appointment.type === 'Consultation') {
-      // Cho Consultation, trả về thông tin cần thiết để hiển thị popup
-      const policies = await Policy.getActivePolicies();
-      
-      res.status(200).json({
-        success: true,
-        message: 'Xác nhận hủy lịch tư vấn',
-        data: {
-          appointment: {
-            id: appointment._id,
-            type: appointment.type,
-            serviceName: appointment.serviceId.serviceName,
-            doctorName: appointment.doctorUserId.fullName,
-            startTime: appointment.timeslotId.startTime,
-            endTime: appointment.timeslotId.endTime,
-            status: appointment.status
-          },
-          policies: policies,
-          requiresConfirmation: true
-        }
-      });
-    } else {
-      return res.status(400).json({
-        success: false,
-        message: 'Loại lịch hẹn không được hỗ trợ'
-      });
-    }
+    return res.status(200).json({
+      success: true,
+      message: 'Hủy lịch hẹn thành công',
+      data: result
+    });
 
   } catch (error) {
-    console.error('Lỗi hủy lịch hẹn:', error);
-    res.status(500).json({
+    console.error('❌ Error in cancelAppointment:', error);
+    return res.status(500).json({
       success: false,
-      message: 'Lỗi server. Vui lòng thử lại sau',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'Lỗi server khi hủy lịch hẹn',
+      error: error.message
     });
   }
 };
 
-/**
- * Xác nhận hủy lịch tư vấn (sau khi user xác nhận trong popup)
- * POST /api/appointments/:appointmentId/confirm-cancel
- * Body: { confirmed: boolean, cancelReason?: string }
- */
 const confirmCancelAppointment = async (req, res) => {
   try {
     const { appointmentId } = req.params;
     const { confirmed, cancelReason, bankInfo } = req.body;
     const userId = req.user?.userId;
 
-    // Validation
     if (!appointmentId) {
       return res.status(400).json({
         success: false,
@@ -583,55 +346,57 @@ const confirmCancelAppointment = async (req, res) => {
       });
     }
 
-    if (typeof confirmed !== 'boolean') {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng xác nhận có muốn hủy lịch hay không'
-      });
-    }
-
     if (!userId) {
       return res.status(401).json({
         success: false,
-        message: 'Vui lòng đăng nhập'
+        message: 'Vui lòng đăng nhập để xác nhận hủy lịch hẹn'
       });
     }
 
-    if (confirmed) {
-      // User xác nhận hủy
-      const result = await appointmentService.cancelAppointment(appointmentId, cancelReason, userId, bankInfo);
-      
-      res.status(200).json({
-        success: true,
-        message: 'Hủy lịch tư vấn thành công',
-        data: result
-      });
-    } else {
-      // User không hủy
-      res.status(200).json({
-        success: true,
-        message: 'Đã hủy bỏ thao tác hủy lịch hẹn',
-        data: { cancelled: false }
+    if (confirmed === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng xác nhận có muốn hủy lịch hẹn không'
       });
     }
+
+    const result = await appointmentService.confirmCancelAppointment({
+      appointmentId,
+      userId,
+      confirmed,
+      cancelReason,
+      bankInfo
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: confirmed ? 'Xác nhận hủy lịch hẹn thành công' : 'Đã hủy thao tác hủy lịch hẹn',
+      data: result
+    });
 
   } catch (error) {
-    console.error('Lỗi xác nhận hủy lịch hẹn:', error);
-    res.status(500).json({
+    console.error('❌ Error in confirmCancelAppointment:', error);
+    return res.status(500).json({
       success: false,
-      message: 'Lỗi server. Vui lòng thử lại sau',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'Lỗi server khi xác nhận hủy lịch hẹn',
+      error: error.message
     });
   }
 };
 
-// Lấy chi tiết appointment với bank info
 const getAppointmentDetails = async (req, res) => {
   try {
     const { appointmentId } = req.params;
-    
-    const appointment = await appointmentService.getAppointmentById(appointmentId);
-    
+
+    if (!appointmentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp ID lịch hẹn'
+      });
+    }
+
+    const appointment = await appointmentService.getAppointmentDetails(appointmentId);
+
     if (!appointment) {
       return res.status(404).json({
         success: false,
@@ -639,14 +404,15 @@ const getAppointmentDetails = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: 'Lấy chi tiết lịch hẹn thành công',
       data: appointment
     });
+
   } catch (error) {
-    console.error('Error getting appointment details:', error);
-    res.status(500).json({
+    console.error('❌ Error in getAppointmentDetails:', error);
+    return res.status(500).json({
       success: false,
       message: 'Lỗi server khi lấy chi tiết lịch hẹn',
       error: error.message
@@ -654,24 +420,328 @@ const getAppointmentDetails = async (req, res) => {
   }
 };
 
-// Cập nhật status thành Refunded
 const markAsRefunded = async (req, res) => {
   try {
     const { appointmentId } = req.params;
-    const userId = req.user?.userId;
-    
-    const result = await appointmentService.updateAppointmentStatus(appointmentId, 'Refunded', userId);
-    
-    res.status(200).json({
+
+    if (!appointmentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp ID lịch hẹn'
+      });
+    }
+
+    const result = await appointmentService.markAsRefunded(appointmentId);
+
+    return res.status(200).json({
       success: true,
-      message: 'Cập nhật trạng thái hoàn tiền thành công',
+      message: 'Đánh dấu đã hoàn tiền thành công',
       data: result
     });
+
   } catch (error) {
-    console.error('Error marking as refunded:', error);
-    res.status(500).json({
+    console.error('❌ Error in markAsRefunded:', error);
+    return res.status(500).json({
       success: false,
-      message: 'Lỗi server khi cập nhật trạng thái hoàn tiền',
+      message: 'Lỗi server khi đánh dấu đã hoàn tiền',
+      error: error.message
+    });
+  }
+};
+
+// ⭐ Bệnh nhân gửi yêu cầu đổi lịch hẹn (chỉ đổi ngày/giờ)
+const requestReschedule = async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const { newStartTime, newEndTime } = req.body;
+    const userId = req.user?.userId;
+
+    console.log('🔍 DEBUG requestReschedule:');
+    console.log('   - appointmentId:', appointmentId);
+    console.log('   - userId:', userId);
+    console.log('   - newStartTime:', newStartTime);
+    console.log('   - newEndTime:', newEndTime);
+
+    // Validation
+    if (!newStartTime || !newEndTime) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp thời gian bắt đầu và kết thúc mới'
+      });
+    }
+
+    const newStart = new Date(newStartTime);
+    const newEnd = new Date(newEndTime);
+
+    if (newStart >= newEnd) {
+      return res.status(400).json({
+        success: false,
+        message: 'Thời gian bắt đầu phải nhỏ hơn thời gian kết thúc'
+      });
+    }
+
+    if (newStart <= new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Thời gian mới phải trong tương lai'
+      });
+    }
+
+    // Tìm appointment và kiểm tra quyền sở hữu
+    const appointment = await Appointment.findById(appointmentId)
+      .populate('patientUserId', 'fullName email')
+      .populate('doctorUserId', 'fullName email')
+      .populate('serviceId', 'serviceName')
+      .populate('timeslotId');
+
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy lịch hẹn'
+      });
+    }
+
+    // Lưu thông tin cũ trước khi cập nhật
+    const oldStartTime = appointment.timeslotId ? appointment.timeslotId.startTime : null;
+    const oldEndTime = appointment.timeslotId ? appointment.timeslotId.endTime : null;
+
+    // Kiểm tra quyền sở hữu
+    if (appointment.patientUserId._id.toString() !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Bạn không có quyền thay đổi lịch hẹn này'
+      });
+    }
+
+    // Kiểm tra trạng thái cho phép đổi lịch
+    if (!['Pending', 'Approved'].includes(appointment.status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Chỉ có thể đổi lịch khi trạng thái là Chờ duyệt hoặc Đã xác nhận'
+      });
+    }
+
+    // Kiểm tra bác sĩ có rảnh trong khung giờ mới không
+    const DoctorSchedule = require('../models/doctorSchedule.model');
+    const Timeslot = require('../models/timeslot.model');
+    
+    // Tìm lịch làm việc của bác sĩ trong ngày mới
+    const newDate = newStart.toISOString().split('T')[0];
+    const doctorSchedule = await DoctorSchedule.findOne({
+      doctorUserId: appointment.doctorUserId._id,
+      date: newDate,
+      isActive: true
+    });
+
+    if (!doctorSchedule) {
+      return res.status(400).json({
+        success: false,
+        message: 'Bác sĩ không có lịch làm việc trong ngày này'
+      });
+    }
+
+    // Kiểm tra timeslot có khớp không - tìm timeslot rảnh trong ngày
+    const timeslot = await Timeslot.findOne({
+      doctorScheduleId: doctorSchedule._id,
+      startTime: newStart,
+      endTime: newEnd,
+      status: 'Available'
+    });
+
+    if (!timeslot) {
+      return res.status(400).json({
+        success: false,
+        message: 'Khung giờ này không có sẵn hoặc đã được đặt. Vui lòng chọn khung giờ khác.'
+      });
+    }
+
+    // Kiểm tra xem có appointment nào khác đã đặt timeslot này chưa
+    const existingAppointment = await Appointment.findOne({
+      timeslotId: timeslot._id,
+      status: { $nin: ['Cancelled', 'Expired'] },
+      _id: { $ne: appointmentId }
+    });
+
+    if (existingAppointment) {
+      return res.status(409).json({
+        success: false,
+        message: 'Khung giờ này đã được đặt bởi bệnh nhân khác'
+      });
+    }
+
+    // Cập nhật appointment với thông tin mới
+    appointment.timeslotId = timeslot._id;
+    appointment.status = 'Pending'; // Reset về chờ duyệt
+    await appointment.save();
+
+    // Không gửi email thông báo theo yêu cầu
+
+    console.log('✅ Reschedule request successful');
+    return res.status(200).json({
+      success: true,
+      message: 'Yêu cầu đổi lịch đã được gửi thành công',
+      data: {
+        appointmentId: appointment._id,
+        newStartTime: newStartTime,
+        newEndTime: newEndTime,
+        status: 'Pending'
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error in requestReschedule:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi xử lý yêu cầu đổi lịch',
+      error: error.message
+    });
+  }
+};
+
+// ⭐ Bệnh nhân gửi yêu cầu đổi bác sĩ (chỉ đổi bác sĩ)
+const requestChangeDoctor = async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const { newDoctorUserId } = req.body;
+    const userId = req.user?.userId;
+
+    console.log('🔍 DEBUG requestChangeDoctor:');
+    console.log('   - appointmentId:', appointmentId);
+    console.log('   - userId:', userId);
+    console.log('   - newDoctorUserId:', newDoctorUserId);
+
+    // Validation
+    if (!newDoctorUserId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp ID bác sĩ mới'
+      });
+    }
+
+    // Tìm appointment và kiểm tra quyền sở hữu
+    const appointment = await Appointment.findById(appointmentId)
+      .populate('patientUserId', 'fullName email')
+      .populate('doctorUserId', 'fullName email')
+      .populate('serviceId', 'serviceName')
+      .populate('timeslotId');
+
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy lịch hẹn'
+      });
+    }
+
+    // Lưu thông tin cũ trước khi cập nhật
+    const oldDoctorName = appointment.doctorUserId.fullName;
+
+    // Kiểm tra quyền sở hữu
+    if (appointment.patientUserId._id.toString() !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Bạn không có quyền thay đổi lịch hẹn này'
+      });
+    }
+
+    // Kiểm tra trạng thái cho phép đổi bác sĩ
+    if (!['Pending', 'Approved'].includes(appointment.status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Chỉ có thể đổi bác sĩ khi trạng thái là Chờ duyệt hoặc Đã xác nhận'
+      });
+    }
+
+    // Kiểm tra bác sĩ mới có tồn tại không
+    const User = require('../models/user.model');
+    const newDoctor = await User.findById(newDoctorUserId);
+    
+    if (!newDoctor || newDoctor.role !== 'Doctor') {
+      return res.status(400).json({
+        success: false,
+        message: 'Bác sĩ không tồn tại hoặc không hợp lệ'
+      });
+    }
+
+    // Kiểm tra bác sĩ mới có khác bác sĩ cũ không
+    if (appointment.doctorUserId._id.toString() === newDoctorUserId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Bác sĩ mới phải khác bác sĩ hiện tại'
+      });
+    }
+
+    // Kiểm tra bác sĩ mới có rảnh trong khung giờ hiện tại không
+    const DoctorSchedule = require('../models/doctorSchedule.model');
+    const Timeslot = require('../models/timeslot.model');
+    
+    const currentDate = new Date(appointment.timeslotId.startTime).toISOString().split('T')[0];
+    const doctorSchedule = await DoctorSchedule.findOne({
+      doctorUserId: newDoctorUserId,
+      date: currentDate,
+      isActive: true
+    });
+
+    if (!doctorSchedule) {
+      return res.status(400).json({
+        success: false,
+        message: 'Bác sĩ mới không có lịch làm việc trong ngày này'
+      });
+    }
+
+    // Kiểm tra timeslot có khớp không - tìm timeslot rảnh trong khung giờ hiện tại
+    const timeslot = await Timeslot.findOne({
+      doctorScheduleId: doctorSchedule._id,
+      startTime: appointment.timeslotId.startTime,
+      endTime: appointment.timeslotId.endTime,
+      status: 'Available'
+    });
+
+    if (!timeslot) {
+      return res.status(400).json({
+        success: false,
+        message: 'Bác sĩ mới không có khung giờ rảnh trong thời gian này. Vui lòng chọn bác sĩ khác hoặc đổi lịch hẹn.'
+      });
+    }
+
+    // Kiểm tra xem có appointment nào khác đã đặt timeslot này chưa
+    const existingAppointment = await Appointment.findOne({
+      timeslotId: timeslot._id,
+      status: { $nin: ['Cancelled', 'Expired'] },
+      _id: { $ne: appointmentId }
+    });
+
+    if (existingAppointment) {
+      return res.status(409).json({
+        success: false,
+        message: 'Khung giờ này đã được đặt bởi bệnh nhân khác'
+      });
+    }
+
+    // Cập nhật appointment với bác sĩ mới
+    appointment.doctorUserId = newDoctorUserId;
+    appointment.timeslotId = timeslot._id;
+    appointment.status = 'Pending'; // Reset về chờ duyệt
+    await appointment.save();
+
+    // Không gửi email thông báo theo yêu cầu
+
+    console.log('✅ Change doctor request successful');
+    return res.status(200).json({
+      success: true,
+      message: 'Yêu cầu đổi bác sĩ đã được gửi thành công',
+      data: {
+        appointmentId: appointment._id,
+        newDoctorUserId: newDoctorUserId,
+        newDoctorName: newDoctor.fullName,
+        status: 'Pending'
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error in requestChangeDoctor:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi xử lý yêu cầu đổi bác sĩ',
       error: error.message
     });
   }
@@ -687,5 +757,7 @@ module.exports = {
   cancelAppointment,
   confirmCancelAppointment,
   getAppointmentDetails,
-  markAsRefunded
+  markAsRefunded,
+  requestReschedule,
+  requestChangeDoctor
 };
