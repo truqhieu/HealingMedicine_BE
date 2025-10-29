@@ -489,28 +489,38 @@ const getRescheduleAvailableSlots = async (req, res) => {
       status: 'Available'
     }).sort({ startTime: 1 });
 
-    if (doctorSchedules.length === 0) {
-      return res.status(200).json({
-        success: true,
-        data: {
-          date,
-          serviceName: appointment.serviceId.serviceName,
-          serviceDuration: appointment.serviceId.durationMinutes,
-          doctorName: appointment.doctorUserId.fullName,
-          availableSlots: [],
-          totalSlots: 0,
-          message: 'Bác sĩ không có lịch làm việc trong ngày này'
-        },
-      });
-    }
+    let workingHours;
+    let hasDoctorSchedule = false;
 
-    // Sử dụng workingHours từ DoctorSchedule đầu tiên
-    const workingHours = doctorSchedules[0].workingHours || {
-      morningStart: '08:00',
-      morningEnd: '12:00',
-      afternoonStart: '14:00',
-      afternoonEnd: '18:00'
-    };
+    if (doctorSchedules.length === 0) {
+      // Nếu không có doctorSchedule, sử dụng workingHours mặc định
+      // Lấy workingHours từ bác sĩ hoặc sử dụng mặc định
+      const Doctor = require('../models/doctor.model');
+      const doctor = await Doctor.findOne({ userId: appointment.doctorUserId._id });
+      
+      if (doctor && doctor.workingHours) {
+        workingHours = doctor.workingHours;
+      } else {
+        // Sử dụng workingHours mặc định nếu không có
+        workingHours = {
+          morningStart: '08:00',
+          morningEnd: '12:00',
+          afternoonStart: '14:00',
+          afternoonEnd: '18:00'
+        };
+      }
+      
+      console.log('📅 No doctorSchedule found, using default workingHours:', workingHours);
+    } else {
+      // Sử dụng workingHours từ DoctorSchedule đầu tiên
+      workingHours = doctorSchedules[0].workingHours || {
+        morningStart: '08:00',
+        morningEnd: '12:00',
+        afternoonStart: '14:00',
+        afternoonEnd: '18:00'
+      };
+      hasDoctorSchedule = true;
+    }
 
     // Tạo slots dựa trên workingHours từ DoctorSchedule
     const allSlots = [];
@@ -640,6 +650,10 @@ const getRescheduleAvailableSlots = async (req, res) => {
         doctorName: appointment.doctorUserId.fullName,
         availableSlots: filtered,
         totalSlots: filtered.length,
+        hasDoctorSchedule: hasDoctorSchedule,
+        message: hasDoctorSchedule 
+          ? 'Các khung giờ có sẵn từ lịch làm việc của bác sĩ'
+          : 'Các khung giờ được tạo từ giờ làm việc mặc định của bác sĩ'
       },
     });
   } catch (error) {
@@ -726,32 +740,70 @@ const requestReschedule = async (req, res) => {
     
     // Tìm lịch làm việc của bác sĩ trong ngày mới
     const newDate = newStart.toISOString().split('T')[0];
-    const doctorSchedule = await DoctorSchedule.findOne({
+    let doctorSchedule = await DoctorSchedule.findOne({
       doctorUserId: appointment.doctorUserId._id,
       date: newDate,
       isActive: true
     });
 
+    // Nếu không có doctorSchedule, tạo mới dựa trên workingHours của bác sĩ
     if (!doctorSchedule) {
-      return res.status(400).json({
-        success: false,
-        message: 'Bác sĩ không có lịch làm việc trong ngày này'
+      console.log('📅 No doctorSchedule found, creating new one for date:', newDate);
+      
+      // Lấy workingHours từ bác sĩ
+      const Doctor = require('../models/doctor.model');
+      const doctor = await Doctor.findOne({ userId: appointment.doctorUserId._id });
+      
+      let workingHours;
+      if (doctor && doctor.workingHours) {
+        workingHours = doctor.workingHours;
+      } else {
+        // Sử dụng workingHours mặc định
+        workingHours = {
+          morningStart: '08:00',
+          morningEnd: '12:00',
+          afternoonStart: '14:00',
+          afternoonEnd: '18:00'
+        };
+      }
+
+      // Tạo doctorSchedule mới
+      doctorSchedule = new DoctorSchedule({
+        doctorUserId: appointment.doctorUserId._id,
+        date: new Date(newDate),
+        workingHours: workingHours,
+        isActive: true,
+        status: 'Available',
+        createdBy: userId || appointment.doctorUserId._id
       });
+
+      await doctorSchedule.save();
+      console.log('✅ Created new doctorSchedule:', doctorSchedule._id);
     }
 
     // Kiểm tra timeslot có khớp không - tìm timeslot rảnh trong ngày
-    const timeslot = await Timeslot.findOne({
+    let timeslot = await Timeslot.findOne({
       doctorScheduleId: doctorSchedule._id,
       startTime: newStart,
       endTime: newEnd,
       status: 'Available'
     });
 
+    // Nếu không tìm thấy timeslot, tạo mới
     if (!timeslot) {
-      return res.status(400).json({
-        success: false,
-        message: 'Khung giờ này không có sẵn hoặc đã được đặt. Vui lòng chọn khung giờ khác.'
+      console.log('📅 No timeslot found, creating new one for time:', newStart, '-', newEnd);
+      
+      timeslot = new Timeslot({
+        doctorScheduleId: doctorSchedule._id,
+        doctorUserId: appointment.doctorUserId._id,
+        startTime: newStart,
+        endTime: newEnd,
+        status: 'Available',
+        createdBy: userId || appointment.doctorUserId._id
       });
+
+      await timeslot.save();
+      console.log('✅ Created new timeslot:', timeslot._id);
     }
 
     // Kiểm tra xem có appointment nào khác đã đặt timeslot này chưa
