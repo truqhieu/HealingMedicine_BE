@@ -14,17 +14,43 @@ class AvailableSlotService {
     try {
       const now = new Date();
       
-      // Tìm tất cả schedules có endTime <= now và status vẫn là 'Available'
-      const expiredSchedules = await DoctorSchedule.find({
-        endTime: { $lte: now },
+      // Tìm tất cả schedules có status 'Available'
+      const availableSchedules = await DoctorSchedule.find({
         status: 'Available'
       });
+
+      const expiredSchedules = [];
+      
+      for (const schedule of availableSchedules) {
+        // Sử dụng workingHours để tính endTime
+        const workingHours = schedule.workingHours || {
+          morningStart: '08:00',
+          morningEnd: '12:00',
+          afternoonStart: '14:00',
+          afternoonEnd: '18:00'
+        };
+
+        let scheduleEnd;
+        if (schedule.shift === 'Morning') {
+          scheduleEnd = new Date(schedule.date);
+          const [endHour, endMinute] = workingHours.morningEnd.split(':').map(Number);
+          scheduleEnd.setUTCHours(endHour - 7, endMinute, 0, 0);
+        } else { // Afternoon
+          scheduleEnd = new Date(schedule.date);
+          const [endHour, endMinute] = workingHours.afternoonEnd.split(':').map(Number);
+          scheduleEnd.setUTCHours(endHour - 7, endMinute, 0, 0);
+        }
+
+        if (scheduleEnd <= now) {
+          expiredSchedules.push(schedule._id);
+        }
+      }
 
       if (expiredSchedules.length > 0) {
         // Update tất cả schedules đã hết thành 'Unavailable'
         const result = await DoctorSchedule.updateMany(
           {
-            endTime: { $lte: now },
+            _id: { $in: expiredSchedules },
             status: 'Available'
           },
           {
@@ -75,18 +101,30 @@ class AvailableSlotService {
       const now = new Date(); // Thời gian hiện tại (UTC thực)
       
       for (const doctor of doctors) {
-        // ⭐ Lưu UTC thực: 8h VN = 1h UTC, 14h VN = 7h UTC (VN = UTC+7)
+        // Sử dụng workingHours mặc định
+        const workingHours = {
+          morningStart: '08:00',
+          morningEnd: '12:00',
+          afternoonStart: '14:00',
+          afternoonEnd: '18:00'
+        };
+
+        // ⭐ Sử dụng workingHours thay vì hardcode
         const morningStart = new Date(searchDate);
-        morningStart.setUTCHours(1, 0, 0, 0); // 08:00 VN = 01:00 UTC
+        const [morningStartHour, morningStartMinute] = workingHours.morningStart.split(':').map(Number);
+        morningStart.setUTCHours(morningStartHour - 7, morningStartMinute, 0, 0); // Convert VN time to UTC
         
         const morningEnd = new Date(searchDate);
-        morningEnd.setUTCHours(5, 0, 0, 0); // 12:00 VN = 05:00 UTC
+        const [morningEndHour, morningEndMinute] = workingHours.morningEnd.split(':').map(Number);
+        morningEnd.setUTCHours(morningEndHour - 7, morningEndMinute, 0, 0); // Convert VN time to UTC
         
         const afternoonStart = new Date(searchDate);
-        afternoonStart.setUTCHours(7, 0, 0, 0); // 14:00 VN = 07:00 UTC
+        const [afternoonStartHour, afternoonStartMinute] = workingHours.afternoonStart.split(':').map(Number);
+        afternoonStart.setUTCHours(afternoonStartHour - 7, afternoonStartMinute, 0, 0); // Convert VN time to UTC
         
         const afternoonEnd = new Date(searchDate);
-        afternoonEnd.setUTCHours(11, 0, 0, 0); // 18:00 VN = 11:00 UTC
+        const [afternoonEndHour, afternoonEndMinute] = workingHours.afternoonEnd.split(':').map(Number);
+        afternoonEnd.setUTCHours(afternoonEndHour - 7, afternoonEndMinute, 0, 0); // Convert VN time to UTC
         
         // ⭐ Check status dựa vào thời gian thực (so sánh UTC với UTC)
         const morningStatus = morningEnd <= now ? 'Unavailable' : 'Available';
@@ -105,19 +143,17 @@ class AvailableSlotService {
             doctorUserId: doctor._id,
             date: searchDate,
             shift: 'Morning',
-            startTime: morningStart,
-            endTime: morningEnd,
             status: morningStatus,
-            maxSlots: 4
+            maxSlots: 4,
+            workingHours: workingHours
           },
           {
             doctorUserId: doctor._id,
             date: searchDate,
             shift: 'Afternoon',
-            startTime: afternoonStart,
-            endTime: afternoonEnd,
             status: afternoonStatus,
-            maxSlots: 4
+            maxSlots: 4,
+            workingHours: workingHours
           }
         );
       }
@@ -189,33 +225,54 @@ class AvailableSlotService {
       doctorUserId,
       date: searchDate,
       status: 'Available'
-    }).sort({ startTime: 1 });
+    }).sort({ shift: 1 });
 
     // ⭐ THÊM: Nếu chưa có schedule cho ngày này → Tự động tạo mặc định
     if (schedules.length === 0) {
       console.log(`⚠️  Không tìm thấy DoctorSchedule cho ngày ${searchDate.toISOString().split('T')[0]}, tự động tạo...`);
       
       try {
-        // Tạo 2 schedule mặc định (Morning 8:00-12:00, Afternoon 14:00-18:00 Việt Nam)
-        // ⭐ Chuyển đổi từ giờ Việt Nam sang UTC: trừ 7 tiếng
+        // Sử dụng workingHours mặc định
+        const workingHours = {
+          morningStart: '08:00',
+          morningEnd: '12:00',
+          afternoonStart: '14:00',
+          afternoonEnd: '18:00'
+        };
+
+        // Tạo schedule dựa trên workingHours
+        const morningStart = new Date(searchDate);
+        const [morningStartHour, morningStartMinute] = workingHours.morningStart.split(':').map(Number);
+        morningStart.setUTCHours(morningStartHour - 7, morningStartMinute, 0, 0);
+
+        const morningEnd = new Date(searchDate);
+        const [morningEndHour, morningEndMinute] = workingHours.morningEnd.split(':').map(Number);
+        morningEnd.setUTCHours(morningEndHour - 7, morningEndMinute, 0, 0);
+
+        const afternoonStart = new Date(searchDate);
+        const [afternoonStartHour, afternoonStartMinute] = workingHours.afternoonStart.split(':').map(Number);
+        afternoonStart.setUTCHours(afternoonStartHour - 7, afternoonStartMinute, 0, 0);
+
+        const afternoonEnd = new Date(searchDate);
+        const [afternoonEndHour, afternoonEndMinute] = workingHours.afternoonEnd.split(':').map(Number);
+        afternoonEnd.setUTCHours(afternoonEndHour - 7, afternoonEndMinute, 0, 0);
+
         const defaultSchedules = [
           {
             doctorUserId,
             date: searchDate,
             shift: 'Morning',
-            startTime: new Date(searchDate).setHours(1, 0, 0),  // 1h UTC = 8h Vietnam time
-            endTime: new Date(searchDate).setHours(5, 0, 0),    // 5h UTC = 12h Vietnam time
             status: 'Available',
-            maxSlots: 4
+            maxSlots: 4,
+            workingHours: workingHours
           },
           {
             doctorUserId,
             date: searchDate,
             shift: 'Afternoon',
-            startTime: new Date(searchDate).setHours(7, 0, 0),  // 7h UTC = 14h Vietnam time
-            endTime: new Date(searchDate).setHours(11, 0, 0),   // 11h UTC = 18h Vietnam time
             status: 'Available',
-            maxSlots: 4
+            maxSlots: 4,
+            workingHours: workingHours
           }
         ];
         
@@ -368,8 +425,34 @@ class AvailableSlotService {
     const allAvailableSlots = [];
 
     for (const schedule of schedules) {
-      const scheduleStart = new Date(schedule.startTime);
-      const scheduleEnd = new Date(schedule.endTime);
+      // Sử dụng workingHours từ DoctorSchedule thay vì startTime/endTime
+      const workingHours = schedule.workingHours || {
+        morningStart: '08:00',
+        morningEnd: '12:00',
+        afternoonStart: '14:00',
+        afternoonEnd: '18:00'
+      };
+
+      // Tạo scheduleStart và scheduleEnd dựa trên workingHours
+      let scheduleStart, scheduleEnd;
+      
+      if (schedule.shift === 'Morning') {
+        scheduleStart = new Date(searchDate);
+        const [startHour, startMinute] = workingHours.morningStart.split(':').map(Number);
+        scheduleStart.setUTCHours(startHour - 7, startMinute, 0, 0);
+        
+        scheduleEnd = new Date(searchDate);
+        const [endHour, endMinute] = workingHours.morningEnd.split(':').map(Number);
+        scheduleEnd.setUTCHours(endHour - 7, endMinute, 0, 0);
+      } else { // Afternoon
+        scheduleStart = new Date(searchDate);
+        const [startHour, startMinute] = workingHours.afternoonStart.split(':').map(Number);
+        scheduleStart.setUTCHours(startHour - 7, startMinute, 0, 0);
+        
+        scheduleEnd = new Date(searchDate);
+        const [endHour, endMinute] = workingHours.afternoonEnd.split(':').map(Number);
+        scheduleEnd.setUTCHours(endHour - 7, endMinute, 0, 0);
+      }
 
       console.log(`\n   🕐 Schedule ${schedule.shift}: ${ScheduleHelper.formatTimeSlot(scheduleStart, scheduleEnd)}`);
 
@@ -713,24 +796,47 @@ class AvailableSlotService {
           console.log(`⚠️  Bác sĩ ${doctor._id} không có schedule cho ngày ${searchDate.toISOString().split('T')[0]}, tự động tạo...`);
           
           try {
+            // Sử dụng workingHours mặc định
+            const workingHours = {
+              morningStart: '08:00',
+              morningEnd: '12:00',
+              afternoonStart: '14:00',
+              afternoonEnd: '18:00'
+            };
+
+            // Tạo schedule dựa trên workingHours
+            const morningStart = new Date(searchDate);
+            const [morningStartHour, morningStartMinute] = workingHours.morningStart.split(':').map(Number);
+            morningStart.setUTCHours(morningStartHour - 7, morningStartMinute, 0, 0);
+
+            const morningEnd = new Date(searchDate);
+            const [morningEndHour, morningEndMinute] = workingHours.morningEnd.split(':').map(Number);
+            morningEnd.setUTCHours(morningEndHour - 7, morningEndMinute, 0, 0);
+
+            const afternoonStart = new Date(searchDate);
+            const [afternoonStartHour, afternoonStartMinute] = workingHours.afternoonStart.split(':').map(Number);
+            afternoonStart.setUTCHours(afternoonStartHour - 7, afternoonStartMinute, 0, 0);
+
+            const afternoonEnd = new Date(searchDate);
+            const [afternoonEndHour, afternoonEndMinute] = workingHours.afternoonEnd.split(':').map(Number);
+            afternoonEnd.setUTCHours(afternoonEndHour - 7, afternoonEndMinute, 0, 0);
+
             const defaultSchedules = [
               {
                 doctorUserId: doctor._id,
                 date: searchDate,
                 shift: 'Morning',
-                startTime: new Date(searchDate).setHours(1, 0, 0),  // 1h UTC = 8h Vietnam time
-                endTime: new Date(searchDate).setHours(5, 0, 0),    // 5h UTC = 12h Vietnam time
                 status: 'Available',
-                maxSlots: 4
+                maxSlots: 4,
+                workingHours: workingHours
               },
               {
                 doctorUserId: doctor._id,
                 date: searchDate,
                 shift: 'Afternoon',
-                startTime: new Date(searchDate).setHours(7, 0, 0),  // 7h UTC = 14h Vietnam time
-                endTime: new Date(searchDate).setHours(11, 0, 0),   // 11h UTC = 18h Vietnam time
                 status: 'Available',
-                maxSlots: 4
+                maxSlots: 4,
+                workingHours: workingHours
               }
             ];
             
@@ -745,9 +851,34 @@ class AvailableSlotService {
           }
         }
 
-        // Kiểm tra khung giờ có nằm trong schedule không
-        const scheduleStart = new Date(schedule.startTime);
-        const scheduleEnd = new Date(schedule.endTime);
+        // Sử dụng workingHours từ DoctorSchedule thay vì startTime/endTime
+        const workingHours = schedule.workingHours || {
+          morningStart: '08:00',
+          morningEnd: '12:00',
+          afternoonStart: '14:00',
+          afternoonEnd: '18:00'
+        };
+
+        // Tạo scheduleStart và scheduleEnd dựa trên workingHours
+        let scheduleStart, scheduleEnd;
+        
+        if (schedule.shift === 'Morning') {
+          scheduleStart = new Date(searchDate);
+          const [startHour, startMinute] = workingHours.morningStart.split(':').map(Number);
+          scheduleStart.setUTCHours(startHour - 7, startMinute, 0, 0);
+          
+          scheduleEnd = new Date(searchDate);
+          const [endHour, endMinute] = workingHours.morningEnd.split(':').map(Number);
+          scheduleEnd.setUTCHours(endHour - 7, endMinute, 0, 0);
+        } else { // Afternoon
+          scheduleStart = new Date(searchDate);
+          const [startHour, startMinute] = workingHours.afternoonStart.split(':').map(Number);
+          scheduleStart.setUTCHours(startHour - 7, startMinute, 0, 0);
+          
+          scheduleEnd = new Date(searchDate);
+          const [endHour, endMinute] = workingHours.afternoonEnd.split(':').map(Number);
+          scheduleEnd.setUTCHours(endHour - 7, endMinute, 0, 0);
+        }
 
         console.log(`   Schedule: ${scheduleStart.toISOString()} - ${scheduleEnd.toISOString()}`);
         console.log(`   Slot: ${slotStartTime.toISOString()} - ${slotEndTime.toISOString()}`);
@@ -818,10 +949,6 @@ class AvailableSlotService {
 
   /**
    * ⭐ NEW: Generate danh sách khung giờ trống cho một ngày (không cần chọn bác sĩ)
-   * FE dùng để hiển thị các slot khả dụng sau khi chọn dịch vụ + ngày
-   * @param {string} patientUserId - ID của user đang đặt lịch (để exclude slots đã đặt)
-   * @param {string} customerFullName - Tên người khác (để validate conflict)
-   * @param {string} customerEmail - Email người khác (để validate conflict)
    */
   async generateAvailableSlotsByDate({ 
     serviceId, 
@@ -1002,8 +1129,34 @@ class AvailableSlotService {
 
       if (!doctor) continue;
 
-      const scheduleStart = new Date(schedule.startTime);
-      const scheduleEnd = new Date(schedule.endTime);
+      // Sử dụng workingHours từ DoctorSchedule thay vì startTime/endTime
+      const workingHours = schedule.workingHours || {
+        morningStart: '08:00',
+        morningEnd: '12:00',
+        afternoonStart: '14:00',
+        afternoonEnd: '18:00'
+      };
+
+      // Tạo scheduleStart và scheduleEnd dựa trên workingHours
+      let scheduleStart, scheduleEnd;
+      
+      if (schedule.shift === 'Morning') {
+        scheduleStart = new Date(searchDate);
+        const [startHour, startMinute] = workingHours.morningStart.split(':').map(Number);
+        scheduleStart.setUTCHours(startHour - 7, startMinute, 0, 0);
+        
+        scheduleEnd = new Date(searchDate);
+        const [endHour, endMinute] = workingHours.morningEnd.split(':').map(Number);
+        scheduleEnd.setUTCHours(endHour - 7, endMinute, 0, 0);
+      } else { // Afternoon
+        scheduleStart = new Date(searchDate);
+        const [startHour, startMinute] = workingHours.afternoonStart.split(':').map(Number);
+        scheduleStart.setUTCHours(startHour - 7, startMinute, 0, 0);
+        
+        scheduleEnd = new Date(searchDate);
+        const [endHour, endMinute] = workingHours.afternoonEnd.split(':').map(Number);
+        scheduleEnd.setUTCHours(endHour - 7, endMinute, 0, 0);
+      }
       
       // ⭐ Query đã filter status='Available' rồi, nên schedules ở đây đều còn hiệu lực
       
@@ -1201,7 +1354,7 @@ class AvailableSlotService {
       doctorUserId,
       date: searchDate,
       status: 'Available'
-    }).sort({ startTime: 1 });
+    }).sort({ shift: 1 });
 
     if (schedules.length === 0) {
       return {
@@ -1331,8 +1484,21 @@ class AvailableSlotService {
     const scheduleRanges = [];
     
     if (morningSchedules.length > 0) {
-      const morningStart = new Date(Math.min(...morningSchedules.map(s => new Date(s.startTime).getTime())));
-      const morningEnd = new Date(Math.max(...morningSchedules.map(s => new Date(s.endTime).getTime())));
+      // Sử dụng workingHours từ DoctorSchedule thay vì startTime/endTime
+      const workingHours = morningSchedules[0].workingHours || {
+        morningStart: '08:00',
+        morningEnd: '12:00',
+        afternoonStart: '14:00',
+        afternoonEnd: '18:00'
+      };
+
+      const morningStart = new Date(searchDate);
+      const [startHour, startMinute] = workingHours.morningStart.split(':').map(Number);
+      morningStart.setUTCHours(startHour - 7, startMinute, 0, 0);
+      
+      const morningEnd = new Date(searchDate);
+      const [endHour, endMinute] = workingHours.morningEnd.split(':').map(Number);
+      morningEnd.setUTCHours(endHour - 7, endMinute, 0, 0);
       
       const rawGaps = calculateAvailableGaps(morningStart, morningEnd, bookedSlots);
       const availableGaps = filterRealTimeGaps(rawGaps); // ⭐ Filter theo thời gian thực
@@ -1352,8 +1518,21 @@ class AvailableSlotService {
     }
     
     if (afternoonSchedules.length > 0) {
-      const afternoonStart = new Date(Math.min(...afternoonSchedules.map(s => new Date(s.startTime).getTime())));
-      const afternoonEnd = new Date(Math.max(...afternoonSchedules.map(s => new Date(s.endTime).getTime())));
+      // Sử dụng workingHours từ DoctorSchedule thay vì startTime/endTime
+      const workingHours = afternoonSchedules[0].workingHours || {
+        morningStart: '08:00',
+        morningEnd: '12:00',
+        afternoonStart: '14:00',
+        afternoonEnd: '18:00'
+      };
+
+      const afternoonStart = new Date(searchDate);
+      const [startHour, startMinute] = workingHours.afternoonStart.split(':').map(Number);
+      afternoonStart.setUTCHours(startHour - 7, startMinute, 0, 0);
+      
+      const afternoonEnd = new Date(searchDate);
+      const [endHour, endMinute] = workingHours.afternoonEnd.split(':').map(Number);
+      afternoonEnd.setUTCHours(endHour - 7, endMinute, 0, 0);
       
       const rawGaps = calculateAvailableGaps(afternoonStart, afternoonEnd, bookedSlots);
       const availableGaps = filterRealTimeGaps(rawGaps); // ⭐ Filter theo thời gian thực

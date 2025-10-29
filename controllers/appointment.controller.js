@@ -78,7 +78,7 @@ const createConsultationAppointment = async (req, res) => {
       const user = await User.findById(userId);
       if (!user) {
         return res.status(404).json({
-          success: false,
+        success: false,
           message: 'Không tìm thấy thông tin người dùng'
         });
       }
@@ -114,7 +114,7 @@ const createConsultationAppointment = async (req, res) => {
   } catch (error) {
     console.error('❌ Error in createConsultationAppointment:', error);
     return res.status(500).json({
-      success: false,
+        success: false,
       message: 'Lỗi server khi tạo lịch tư vấn',
       error: error.message
     });
@@ -161,7 +161,7 @@ const reviewAppointment = async (req, res) => {
   } catch (error) {
     console.error('❌ Error in reviewAppointment:', error);
     return res.status(500).json({
-      success: false,
+        success: false,
       message: 'Lỗi server khi xử lý lịch hẹn',
       error: error.message
     });
@@ -287,7 +287,7 @@ const updateAppointmentStatus = async (req, res) => {
   } catch (error) {
     console.error('❌ Error in updateAppointmentStatus:', error);
     return res.status(500).json({
-      success: false,
+        success: false,
       message: 'Lỗi server khi cập nhật trạng thái lịch hẹn',
       error: error.message
     });
@@ -321,10 +321,10 @@ const cancelAppointment = async (req, res) => {
     });
 
     return res.status(200).json({
-      success: true,
+        success: true,
       message: 'Hủy lịch hẹn thành công',
-      data: result
-    });
+        data: result
+      });
 
   } catch (error) {
     console.error('❌ Error in cancelAppointment:', error);
@@ -372,10 +372,10 @@ const confirmCancelAppointment = async (req, res) => {
     });
 
     return res.status(200).json({
-      success: true,
+        success: true,
       message: confirmed ? 'Xác nhận hủy lịch hẹn thành công' : 'Đã hủy thao tác hủy lịch hẹn',
-      data: result
-    });
+        data: result
+      });
 
   } catch (error) {
     console.error('❌ Error in confirmCancelAppointment:', error);
@@ -390,7 +390,7 @@ const confirmCancelAppointment = async (req, res) => {
 const getAppointmentDetails = async (req, res) => {
   try {
     const { appointmentId } = req.params;
-
+    
     if (!appointmentId) {
       return res.status(400).json({
         success: false,
@@ -399,7 +399,7 @@ const getAppointmentDetails = async (req, res) => {
     }
 
     const appointment = await appointmentService.getAppointmentDetails(appointmentId);
-
+    
     if (!appointment) {
       return res.status(404).json({
         success: false,
@@ -489,6 +489,7 @@ const getRescheduleAvailableSlots = async (req, res) => {
         data: {
           date,
           serviceName: appointment.serviceId.serviceName,
+          serviceDuration: appointment.serviceId.durationMinutes,
           doctorName: appointment.doctorUserId.fullName,
           availableSlots: [],
           totalSlots: 0,
@@ -497,22 +498,33 @@ const getRescheduleAvailableSlots = async (req, res) => {
       });
     }
 
-    // Tạo slots dựa trên lịch làm việc thực tế của bác sĩ
+    // Sử dụng workingHours từ DoctorSchedule đầu tiên
+    const workingHours = doctorSchedules[0].workingHours || {
+      morningStart: '08:00',
+      morningEnd: '12:00',
+      afternoonStart: '14:00',
+      afternoonEnd: '18:00'
+    };
+
+    // Tạo slots dựa trên workingHours từ DoctorSchedule
     const allSlots = [];
 
-    for (const schedule of doctorSchedules) {
-      const scheduleStart = new Date(schedule.startTime);
-      const scheduleEnd = new Date(schedule.endTime);
+    // Tạo slots cho ca sáng
+    if (workingHours.morningStart && workingHours.morningEnd) {
+      const morningStart = new Date(searchDate);
+      const [morningStartHour, morningStartMinute] = workingHours.morningStart.split(':').map(Number);
+      morningStart.setUTCHours(morningStartHour - 7, morningStartMinute, 0, 0); // Convert VN time to UTC
+
+      const morningEnd = new Date(searchDate);
+      const [morningEndHour, morningEndMinute] = workingHours.morningEnd.split(':').map(Number);
+      morningEnd.setUTCHours(morningEndHour - 7, morningEndMinute, 0, 0); // Convert VN time to UTC
+
+      const breakAfterMinutes = 10;
+      let currentTime = new Date(morningStart);
       
-      console.log(`📅 Processing schedule: ${schedule.shift} (${scheduleStart.toLocaleTimeString('vi-VN')} - ${scheduleEnd.toLocaleTimeString('vi-VN')})`);
-      
-      // Tạo slots trong khoảng thời gian làm việc với break time
-      const breakAfterMinutes = 10; // 10 phút nghỉ giữa các ca
-      let currentTime = new Date(scheduleStart);
-      
-      while (currentTime < scheduleEnd) {
+      while (currentTime < morningEnd) {
         const slotEnd = new Date(currentTime.getTime() + serviceDuration * 60000);
-        if (slotEnd <= scheduleEnd) {
+        if (slotEnd <= morningEnd) {
           // Convert to Vietnam time (UTC+7) for display
           const vietnamStartTime = new Date(currentTime.getTime() + 7 * 60 * 60 * 1000);
           const vietnamEndTime = new Date(slotEnd.getTime() + 7 * 60 * 60 * 1000);
@@ -523,7 +535,36 @@ const getRescheduleAvailableSlots = async (req, res) => {
             displayTime: `${vietnamStartTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${vietnamEndTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}`
           });
         }
-        // Tính thời gian bắt đầu slot tiếp theo: slot kết thúc + break time
+        currentTime = new Date(slotEnd.getTime() + breakAfterMinutes * 60000);
+      }
+    }
+
+    // Tạo slots cho ca chiều
+    if (workingHours.afternoonStart && workingHours.afternoonEnd) {
+      const afternoonStart = new Date(searchDate);
+      const [afternoonStartHour, afternoonStartMinute] = workingHours.afternoonStart.split(':').map(Number);
+      afternoonStart.setUTCHours(afternoonStartHour - 7, afternoonStartMinute, 0, 0); // Convert VN time to UTC
+
+      const afternoonEnd = new Date(searchDate);
+      const [afternoonEndHour, afternoonEndMinute] = workingHours.afternoonEnd.split(':').map(Number);
+      afternoonEnd.setUTCHours(afternoonEndHour - 7, afternoonEndMinute, 0, 0); // Convert VN time to UTC
+
+      const breakAfterMinutes = 10;
+      let currentTime = new Date(afternoonStart);
+      
+      while (currentTime < afternoonEnd) {
+        const slotEnd = new Date(currentTime.getTime() + serviceDuration * 60000);
+        if (slotEnd <= afternoonEnd) {
+          // Convert to Vietnam time (UTC+7) for display
+          const vietnamStartTime = new Date(currentTime.getTime() + 7 * 60 * 60 * 1000);
+          const vietnamEndTime = new Date(slotEnd.getTime() + 7 * 60 * 60 * 1000);
+          
+          allSlots.push({
+            startTime: currentTime.toISOString(),
+            endTime: slotEnd.toISOString(),
+            displayTime: `${vietnamStartTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${vietnamEndTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}`
+          });
+        }
         currentTime = new Date(slotEnd.getTime() + breakAfterMinutes * 60000);
       }
     }
@@ -645,7 +686,7 @@ const requestReschedule = async (req, res) => {
       .populate('doctorUserId', 'fullName email')
       .populate('serviceId', 'serviceName')
       .populate('timeslotId');
-
+    
     if (!appointment) {
       return res.status(404).json({
         success: false,
@@ -756,7 +797,7 @@ const requestChangeDoctor = async (req, res) => {
     const { appointmentId } = req.params;
     const { newDoctorUserId } = req.body;
     const userId = req.user?.userId;
-
+    
     console.log('🔍 DEBUG requestChangeDoctor:');
     console.log('   - appointmentId:', appointmentId);
     console.log('   - userId:', userId);
@@ -817,7 +858,7 @@ const requestChangeDoctor = async (req, res) => {
     // Kiểm tra bác sĩ mới có khác bác sĩ cũ không
     if (appointment.doctorUserId._id.toString() === newDoctorUserId) {
       return res.status(400).json({
-        success: false,
+      success: false,
         message: 'Bác sĩ mới phải khác bác sĩ hiện tại'
       });
     }
@@ -850,7 +891,7 @@ const requestChangeDoctor = async (req, res) => {
 
     if (!timeslot) {
       return res.status(400).json({
-        success: false,
+      success: false,
         message: 'Bác sĩ mới không có khung giờ rảnh trong thời gian này. Vui lòng chọn bác sĩ khác hoặc đổi lịch hẹn.'
       });
     }
