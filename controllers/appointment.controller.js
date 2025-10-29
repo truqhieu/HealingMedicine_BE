@@ -378,6 +378,14 @@ const cancelAppointment = async (req, res) => {
       });
     }
 
+    // Validate appointmentId format
+    if (typeof appointmentId !== 'string' || appointmentId.length !== 24) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID lịch hẹn không hợp lệ'
+      });
+    }
+
     if (!userId) {
       return res.status(401).json({
         success: false,

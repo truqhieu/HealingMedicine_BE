@@ -1368,7 +1368,7 @@ class AvailableSlotService {
   /**
    * ⭐ NEW: Lấy khoảng thời gian khả dụng của một bác sĩ cụ thể vào 1 ngày
    */
-  async getDoctorScheduleRange({ doctorUserId, serviceId, date }) {
+  async getDoctorScheduleRange({ doctorUserId, serviceId, date, patientUserId = null }) {
     // 1. Validate doctor
     const doctor = await User.findById(doctorUserId);
     if (!doctor) {
@@ -1467,9 +1467,52 @@ class AvailableSlotService {
       }
     }
 
-    const bookedSlots = uniqueBookedSlots.sort((a, b) => a.start - b.start);
+    // ⭐ THÊM: Lấy appointments của user trong cùng ngày (nếu có patientUserId)
+    let userBookedSlots = [];
+    if (patientUserId) {
+      const userAppointments = await Appointment.find({
+        patientUserId,
+        status: { $in: ['PendingPayment', 'Pending', 'Approved', 'CheckedIn'] },
+        timeslotId: { $exists: true }
+      })
+      .populate({
+        path: 'timeslotId',
+        select: 'startTime endTime'
+      });
 
-    console.log(`🔍 [getDoctorScheduleRange] Total unique booked slots: ${bookedSlots.length}`);
+      // Filter appointments vào ngày đang xét
+      userBookedSlots = userAppointments
+        .filter(apt => {
+          if (!apt.timeslotId) return false;
+          const slotDate = new Date(apt.timeslotId.startTime);
+          return slotDate.toISOString().split('T')[0] === searchDate.toISOString().split('T')[0];
+        })
+        .map(apt => ({
+          start: new Date(apt.timeslotId.startTime),
+          end: new Date(apt.timeslotId.endTime),
+          breakAfter: 10 // Default buffer time
+        }));
+
+      console.log(`🔍 [getDoctorScheduleRange] User ${patientUserId} has ${userBookedSlots.length} appointments on this date`);
+    }
+
+    // Gộp tất cả booked slots (doctor + user)
+    const allBookedSlotsFinal = [...uniqueBookedSlots, ...userBookedSlots];
+    const finalUniqueBookedSlots = [];
+    
+    for (const slot of allBookedSlotsFinal) {
+      const isDuplicate = finalUniqueBookedSlots.some(existing => 
+        existing.start.getTime() === slot.start.getTime() && 
+        existing.end.getTime() === slot.end.getTime()
+      );
+      if (!isDuplicate) {
+        finalUniqueBookedSlots.push(slot);
+      }
+    }
+
+    const bookedSlots = finalUniqueBookedSlots.sort((a, b) => a.start - b.start);
+
+    console.log(`🔍 [getDoctorScheduleRange] Total unique booked slots (doctor + user): ${bookedSlots.length}`);
     bookedSlots.forEach((slot, idx) => {
       const vnStart = new Date(slot.start.getTime() + 7 * 60 * 60 * 1000);
       const vnEnd = new Date(slot.end.getTime() + 7 * 60 * 60 * 1000);
