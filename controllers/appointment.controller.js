@@ -48,14 +48,18 @@ function calculateAvailableTimeRange(availableSlots, shift, workingHours) {
   console.log(`📅 ${shift} shift: Last slot ${lastSlot.startTime} - ${lastSlot.endTime}`);
   console.log(`📅 ${shift} shift: Final range ${startTime.toLocaleTimeString('vi-VN')} - ${endTime.toLocaleTimeString('vi-VN')}`);
   
+  // Convert UTC to Vietnam time for display
+  const vnStartTime = new Date(startTime.getTime() + 7 * 60 * 60 * 1000);
+  const vnEndTime = new Date(endTime.getTime() + 7 * 60 * 60 * 1000);
+  
   return {
     hasAvailable: true,
-    startTime: startTime.toLocaleTimeString('vi-VN', { 
+    startTime: vnStartTime.toLocaleTimeString('vi-VN', { 
       hour: '2-digit', 
       minute: '2-digit', 
       hour12: false 
     }),
-    endTime: endTime.toLocaleTimeString('vi-VN', { 
+    endTime: vnEndTime.toLocaleTimeString('vi-VN', { 
       hour: '2-digit', 
       minute: '2-digit', 
       hour12: false 
@@ -601,10 +605,14 @@ const getRescheduleAvailableSlots = async (req, res) => {
       while (currentTime < morningEnd) {
         const slotEnd = new Date(currentTime.getTime() + serviceDuration * 60000);
         if (slotEnd <= morningEnd) {
+          // Tạo displayTime bằng cách chuyển đổi UTC sang VN time
+          const vnStartTime = new Date(currentTime.getTime() + 7 * 60 * 60 * 1000);
+          const vnEndTime = new Date(slotEnd.getTime() + 7 * 60 * 60 * 1000);
+          
           allSlots.push({
             startTime: currentTime.toISOString(),
             endTime: slotEnd.toISOString(),
-            displayTime: `${currentTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' })} - ${slotEnd.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' })}`
+            displayTime: `${vnStartTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${vnEndTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}`
           });
         }
         currentTime = new Date(slotEnd.getTime() + breakAfterMinutes * 60000);
@@ -627,10 +635,14 @@ const getRescheduleAvailableSlots = async (req, res) => {
       while (currentTime < afternoonEnd) {
         const slotEnd = new Date(currentTime.getTime() + serviceDuration * 60000);
         if (slotEnd <= afternoonEnd) {
+          // Tạo displayTime bằng cách chuyển đổi UTC sang VN time
+          const vnStartTime = new Date(currentTime.getTime() + 7 * 60 * 60 * 1000);
+          const vnEndTime = new Date(slotEnd.getTime() + 7 * 60 * 60 * 1000);
+          
           allSlots.push({
             startTime: currentTime.toISOString(),
             endTime: slotEnd.toISOString(),
-            displayTime: `${currentTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' })} - ${slotEnd.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' })}`
+            displayTime: `${vnStartTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${vnEndTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}`
           });
         }
         currentTime = new Date(slotEnd.getTime() + breakAfterMinutes * 60000);
@@ -645,16 +657,25 @@ const getRescheduleAvailableSlots = async (req, res) => {
 
     // Lọc bỏ các slots đã được đặt
     const Timeslot = require('../models/timeslot.model');
+    
+    // Tạo date range chính xác cho ngày được chọn
+    const startOfDay = new Date(searchDate);
+    startOfDay.setUTCHours(0, 0, 0, 0);
+    
+    const endOfDay = new Date(searchDate);
+    endOfDay.setUTCHours(23, 59, 59, 999);
+    
     const existingTimeslots = await Timeslot.find({
       doctorUserId: appointment.doctorUserId._id,
       startTime: { 
-        $gte: new Date(searchDate).setHours(0, 0, 0, 0),
-        $lt: new Date(searchDate).setHours(23, 59, 59, 999)
+        $gte: startOfDay,
+        $lt: endOfDay
       },
       status: { $in: ['Reserved', 'Booked'] }
     });
 
     console.log(`🔴 Found ${existingTimeslots.length} existing timeslots for this doctor on ${date}`);
+    console.log(`🔍 Date range: ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`);
 
     const bookedSlots = existingTimeslots.map(ts => ({
       start: new Date(ts.startTime),
@@ -663,7 +684,9 @@ const getRescheduleAvailableSlots = async (req, res) => {
 
     // Debug: Log booked slots
     bookedSlots.forEach((booked, index) => {
-      console.log(`   Booked ${index + 1}: ${booked.start.toLocaleTimeString('vi-VN')} - ${booked.end.toLocaleTimeString('vi-VN')}`);
+      const vnStart = new Date(booked.start.getTime() + 7 * 60 * 60 * 1000);
+      const vnEnd = new Date(booked.end.getTime() + 7 * 60 * 60 * 1000);
+      console.log(`   Booked ${index + 1}: ${vnStart.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${vnEnd.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}`);
     });
 
     const availableSlots = allSlots.filter(slot => {
@@ -671,13 +694,21 @@ const getRescheduleAvailableSlots = async (req, res) => {
       const slotEnd = new Date(slot.endTime);
       
       const isBooked = bookedSlots.some(booked => {
-        return (slotStart >= booked.start && slotStart < booked.end) ||
-               (slotEnd > booked.start && slotEnd <= booked.end) ||
-               (slotStart <= booked.start && slotEnd >= booked.end);
+        const overlap = (slotStart >= booked.start && slotStart < booked.end) ||
+                       (slotEnd > booked.start && slotEnd <= booked.end) ||
+                       (slotStart <= booked.start && slotEnd >= booked.end);
+        
+        if (overlap) {
+          console.log(`   ❌ Slot ${slot.displayTime} overlaps with booked slot ${booked.start.toISOString()} - ${booked.end.toISOString()}`);
+        }
+        
+        return overlap;
       });
       
       if (isBooked) {
         console.log(`   ❌ Slot ${slot.displayTime} is booked`);
+      } else {
+        console.log(`   ✅ Slot ${slot.displayTime} is available`);
       }
       
       return !isBooked;
