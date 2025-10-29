@@ -134,10 +134,43 @@ const approveRequest = async (req, res) => {
     
     // Cập nhật dữ liệu appointment
     if (request.requestType === 'Reschedule') {
-      appointment.timeslotId = request.requestedData.timeslotId;
-      appointment.rescheduleCount += 1;
+      // Lấy timeslot đã reserved
+      const slot = await Timeslot.findById(request.requestedData.timeslotId);
+      
+      if (!slot) {
+        return res.status(404).json({
+          success: false,
+          message: 'Không tìm thấy timeslot đã đặt trước'
+        });
+      }
+
+      // Chuyển status từ Reserved thành Booked
+      slot.status = 'Booked';
+      slot.appointmentId = appointment._id;
+      await slot.save();
+
+      // Cập nhật appointment
+      appointment.timeslotId = slot._id;
+      appointment.rescheduleCount = (appointment.rescheduleCount || 0) + 1;
     } else if (request.requestType === 'ChangeDoctor') {
+      // Lấy timeslot đã reserved cho bác sĩ mới
+      const slot = await Timeslot.findById(request.requestedData.timeslotId);
+      
+      if (!slot) {
+        return res.status(404).json({
+          success: false,
+          message: 'Không tìm thấy timeslot đã đặt trước cho bác sĩ mới'
+        });
+      }
+
+      // Chuyển status từ Reserved thành Booked
+      slot.status = 'Booked';
+      slot.appointmentId = appointment._id;
+      await slot.save();
+
+      // Cập nhật appointment với bác sĩ mới và timeslot mới
       appointment.doctorUserId = request.requestedData.doctorUserId;
+      appointment.timeslotId = slot._id;
     }
     
     await appointment.save();
@@ -196,6 +229,16 @@ const rejectRequest = async (req, res) => {
       });
     }
     
+    // Nếu là yêu cầu đổi lịch hoặc đổi bác sĩ, chuyển timeslot về Available
+    if ((request.requestType === 'Reschedule' || request.requestType === 'ChangeDoctor') && request.requestedData.timeslotId) {
+      const slot = await Timeslot.findById(request.requestedData.timeslotId);
+      if (slot && slot.status === 'Reserved') {
+        slot.status = 'Available';
+        slot.appointmentId = null;
+        await slot.save();
+      }
+    }
+
     // Cập nhật request status
     request.status = 'Rejected';
     request.staffResponse = {

@@ -839,55 +839,30 @@ const requestReschedule = async (req, res) => {
     }
 
     // Kiểm tra xem thời gian yêu cầu có khả dụng không
-    // Sử dụng logic tương tự như getRescheduleAvailableSlots
-    const DoctorSchedule = require('../models/doctorSchedule.model');
+    // Không bó buộc vào DoctorSchedule; nếu ngày chưa có lịch sẽ tự tạo khi duyệt
     const Timeslot = require('../models/timeslot.model');
-    
-    // Lấy lịch làm việc của bác sĩ
-    const doctorSchedule = await DoctorSchedule.findOne({
-      doctorUserId: appointment.doctorUserId._id,
-      isActive: true
-    });
 
-    let workingHours = {
-      morningStart: 8, morningEnd: 12,
-      afternoonStart: 13, afternoonEnd: 17
-    };
-
-    if (doctorSchedule) {
-      workingHours = {
-        morningStart: doctorSchedule.morningStartHour,
-        morningEnd: doctorSchedule.morningEndHour,
-        afternoonStart: doctorSchedule.afternoonStartHour,
-        afternoonEnd: doctorSchedule.afternoonEndHour
-      };
-    }
-
-    // Kiểm tra thời gian yêu cầu có nằm trong giờ làm việc không
-    const requestDate = new Date(newStart);
-    const requestHour = requestDate.getUTCHours();
-    const requestMinute = requestDate.getUTCMinutes();
-    
-    const isInMorning = requestHour >= workingHours.morningStart && 
-                       (requestHour < workingHours.morningEnd || 
-                        (requestHour === workingHours.morningEnd && requestMinute === 0));
-    const isInAfternoon = requestHour >= workingHours.afternoonStart && 
-                          (requestHour < workingHours.afternoonEnd || 
-                           (requestHour === workingHours.afternoonEnd && requestMinute === 0));
-
-    if (!isInMorning && !isInAfternoon) {
-      return res.status(400).json({
-        success: false,
-        message: 'Thời gian yêu cầu không nằm trong giờ làm việc của bác sĩ'
-      });
-    }
-
-    // Kiểm tra xem có bị trùng với lịch hẹn khác không
+    // Kiểm tra xem có bị trùng với lịch hẹn khác không (bao gồm cả timeslot đã reserved)
     const existingAppointments = await Appointment.find({
       doctorUserId: appointment.doctorUserId._id,
       _id: { $ne: appointmentId },
       status: { $in: ['Pending', 'Approved', 'CheckedIn'] }
     }).populate('timeslotId');
+
+    // Kiểm tra timeslot đã bị reserved chưa
+    const existingTimeslot = await Timeslot.findOne({
+      doctorUserId: appointment.doctorUserId._id,
+      startTime: newStart,
+      endTime: newEnd,
+      status: { $in: ['Reserved', 'Booked'] }
+    });
+
+    if (existingTimeslot) {
+      return res.status(400).json({
+        success: false,
+        message: 'Khung giờ này đã được đặt hoặc đang chờ xử lý'
+      });
+    }
 
     const hasConflict = existingAppointments.some(apt => {
       if (!apt.timeslotId) return false;
@@ -904,6 +879,15 @@ const requestReschedule = async (req, res) => {
       });
     }
 
+    // Tạo timeslot với status "Reserved" để tránh xung đột
+    const reservedTimeslot = await Timeslot.create({
+      doctorUserId: appointment.doctorUserId._id,
+      serviceId: appointment.serviceId._id,
+      startTime: newStart,
+      endTime: newEnd,
+      status: 'Reserved'
+    });
+
     // Tạo PatientRequest
     const request = new PatientRequest({
       appointmentId,
@@ -916,6 +900,7 @@ const requestReschedule = async (req, res) => {
         endTime: appointment.timeslotId.endTime
       },
       requestedData: {
+        timeslotId: reservedTimeslot._id,
         startTime: newStart,
         endTime: newEnd,
         reason: reason || 'Yêu cầu đổi lịch hẹn'
@@ -1034,6 +1019,57 @@ const requestChangeDoctor = async (req, res) => {
       });
     }
 
+    // Kiểm tra xem bác sĩ mới có khả dụng trong khung giờ hiện tại không
+    const Timeslot = require('../models/timeslot.model');
+    const currentStartTime = appointment.timeslotId.startTime;
+    const currentEndTime = appointment.timeslotId.endTime;
+
+    // Kiểm tra xem bác sĩ mới có appointments trong khung giờ này không
+    const conflictingAppointments = await Appointment.find({
+      doctorUserId: newDoctorUserId,
+      _id: { $ne: appointmentId },
+      status: { $in: ['Pending', 'Approved', 'CheckedIn'] }
+    }).populate('timeslotId');
+
+    const hasConflict = conflictingAppointments.some(apt => {
+      if (!apt.timeslotId) return false;
+      const aptStart = new Date(apt.timeslotId.startTime);
+      const aptEnd = new Date(apt.timeslotId.endTime);
+      
+      return (currentStartTime < aptEnd && currentEndTime > aptStart);
+    });
+
+    if (hasConflict) {
+      return res.status(400).json({
+        success: false,
+        message: 'Bác sĩ mới đã có lịch hẹn trong khung giờ này'
+      });
+    }
+
+    // Kiểm tra xem bác sĩ mới có timeslot đã bị reserved chưa
+    const existingTimeslot = await Timeslot.findOne({
+      doctorUserId: newDoctorUserId,
+      startTime: currentStartTime,
+      endTime: currentEndTime,
+      status: { $in: ['Reserved', 'Booked'] }
+    });
+
+    if (existingTimeslot) {
+      return res.status(400).json({
+        success: false,
+        message: 'Bác sĩ mới đã có khung giờ này được đặt hoặc đang chờ xử lý'
+      });
+    }
+
+    // Tạo timeslot với status "Reserved" cho bác sĩ mới
+    const reservedTimeslot = await Timeslot.create({
+      doctorUserId: newDoctorUserId,
+      serviceId: appointment.serviceId._id,
+      startTime: currentStartTime,
+      endTime: currentEndTime,
+      status: 'Reserved'
+    });
+
     // Tạo PatientRequest
     const request = new PatientRequest({
       appointmentId,
@@ -1046,7 +1082,8 @@ const requestChangeDoctor = async (req, res) => {
         endTime: appointment.timeslotId.endTime
       },
       requestedData: {
-      doctorUserId: newDoctorUserId,
+        doctorUserId: newDoctorUserId,
+        timeslotId: reservedTimeslot._id,
         reason: reason || 'Yêu cầu đổi bác sĩ'
       }
     });
@@ -1172,6 +1209,20 @@ const getAvailableDoctorsForTimeSlot = async (req, res) => {
 
       if (conflictingAppointments.length > 0) {
         console.log(`   ❌ Doctor ${doctor.fullName} has ${conflictingAppointments.length} conflicting appointments`);
+        continue;
+      }
+
+      // Kiểm tra xem có timeslot đã bị reserved chưa
+      const Timeslot = require('../models/timeslot.model');
+      const reservedTimeslot = await Timeslot.findOne({
+        doctorUserId: doctor._id,
+        startTime: startDateTime,
+        endTime: endDateTime,
+        status: { $in: ['Reserved', 'Booked'] }
+      });
+
+      if (reservedTimeslot) {
+        console.log(`   ❌ Doctor ${doctor.fullName} - time slot already reserved or booked`);
         continue;
       }
 
