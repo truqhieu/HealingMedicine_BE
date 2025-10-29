@@ -1,6 +1,8 @@
 const PatientRequest = require('../models/patientRequest.model');
 const Appointment = require('../models/appointment.model');
 const Timeslot = require('../models/timeslot.model');
+const User = require('../models/user.model');
+const emailService = require('../services/email.service');
 
 // ⭐ Lấy danh sách tất cả yêu cầu của bệnh nhân (cho staff)
 const getAllPatientRequests = async (req, res) => {
@@ -106,7 +108,7 @@ const getPatientRequestById = async (req, res) => {
 const approveRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
-    const { staffUserId } = req.body;
+    const staffUserId = req.user?.userId;
     
     const request = await PatientRequest.findById(requestId);
     if (!request) {
@@ -185,6 +187,33 @@ const approveRequest = async (req, res) => {
     
     await request.save();
     
+    // Gửi email thông báo cho bệnh nhân
+    try {
+      const patient = await User.findById(request.patientUserId);
+      const staff = await User.findById(staffUserId);
+      
+      if (patient && patient.email) {
+        const emailData = {
+          to: patient.email,
+          subject: `Yêu cầu ${request.requestType === 'Reschedule' ? 'đổi lịch hẹn' : 'đổi bác sĩ'} đã được duyệt`,
+          template: 'requestApproved',
+          data: {
+            patientName: patient.fullName,
+            requestType: request.requestType === 'Reschedule' ? 'đổi lịch hẹn' : 'đổi bác sĩ',
+            staffName: staff?.fullName || 'Nhân viên',
+            approvedAt: new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
+            appointmentId: appointment._id
+          }
+        };
+        
+        await emailService.sendEmail(emailData);
+        console.log(`✅ Email sent to ${patient.email} for approved request`);
+      }
+    } catch (emailError) {
+      console.error('❌ Error sending approval email:', emailError);
+      // Không throw error để không ảnh hưởng đến response chính
+    }
+    
     return res.status(200).json({
       success: true,
       message: 'Duyệt yêu cầu thành công',
@@ -205,7 +234,8 @@ const approveRequest = async (req, res) => {
 const rejectRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
-    const { staffUserId, reason } = req.body;
+    const { reason } = req.body;
+    const staffUserId = req.user?.userId;
     
     if (!reason) {
       return res.status(400).json({
@@ -249,6 +279,34 @@ const rejectRequest = async (req, res) => {
     };
     
     await request.save();
+    
+    // Gửi email thông báo cho bệnh nhân
+    try {
+      const patient = await User.findById(request.patientUserId);
+      const staff = await User.findById(staffUserId);
+      
+      if (patient && patient.email) {
+        const emailData = {
+          to: patient.email,
+          subject: `Yêu cầu ${request.requestType === 'Reschedule' ? 'đổi lịch hẹn' : 'đổi bác sĩ'} đã bị từ chối`,
+          template: 'requestRejected',
+          data: {
+            patientName: patient.fullName,
+            requestType: request.requestType === 'Reschedule' ? 'đổi lịch hẹn' : 'đổi bác sĩ',
+            staffName: staff?.fullName || 'Nhân viên',
+            rejectedAt: new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
+            reason: reason,
+            appointmentId: request.appointmentId
+          }
+        };
+        
+        await emailService.sendEmail(emailData);
+        console.log(`✅ Email sent to ${patient.email} for rejected request`);
+      }
+    } catch (emailError) {
+      console.error('❌ Error sending rejection email:', emailError);
+      // Không throw error để không ảnh hưởng đến response chính
+    }
     
     return res.status(200).json({
       success: true,
