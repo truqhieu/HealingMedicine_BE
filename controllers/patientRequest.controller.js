@@ -135,6 +135,7 @@ const approveRequest = async (req, res) => {
     }
     
     // Cập nhật dữ liệu appointment
+    let approvedSlot = null; // dùng để gửi email thời gian mới
     if (request.requestType === 'Reschedule') {
       // Lấy timeslot đã reserved
       const slot = await Timeslot.findById(request.requestedData.timeslotId);
@@ -154,6 +155,7 @@ const approveRequest = async (req, res) => {
       // Cập nhật appointment
       appointment.timeslotId = slot._id;
       appointment.rescheduleCount = (appointment.rescheduleCount || 0) + 1;
+      approvedSlot = slot;
     } else if (request.requestType === 'ChangeDoctor') {
       // Lấy timeslot đã reserved cho bác sĩ mới
       const slot = await Timeslot.findById(request.requestedData.timeslotId);
@@ -173,6 +175,7 @@ const approveRequest = async (req, res) => {
       // Cập nhật appointment với bác sĩ mới và timeslot mới
       appointment.doctorUserId = request.requestedData.doctorUserId;
       appointment.timeslotId = slot._id;
+      approvedSlot = slot;
     }
     
     await appointment.save();
@@ -193,16 +196,30 @@ const approveRequest = async (req, res) => {
       const staff = await User.findById(staffUserId);
       
       if (patient && patient.email) {
+        // Chuẩn bị thời gian hiển thị VN cho email
+        let appointmentDateVN = null;
+        let appointmentStartVN = null;
+        let appointmentEndVN = null;
+        if (approvedSlot) {
+          const start = new Date(approvedSlot.startTime);
+          const end = new Date(approvedSlot.endTime);
+          appointmentDateVN = start.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+          appointmentStartVN = start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' });
+          appointmentEndVN = end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' });
+        }
         const emailData = {
           to: patient.email,
-          subject: `Yêu cầu ${request.requestType === 'Reschedule' ? 'đổi lịch hẹn' : 'đổi bác sĩ'} đã được duyệt`,
+          subject: `Yêu cầu ${request.requestType === 'Reschedule' ? 'Đổi lịch hẹn' : 'Đổi bác sĩ'} đã được duyệt`,
           template: 'requestApproved',
           data: {
             patientName: patient.fullName,
-            requestType: request.requestType === 'Reschedule' ? 'đổi lịch hẹn' : 'đổi bác sĩ',
+            requestType: request.requestType === 'Reschedule' ? 'Đổi lịch hẹn' : 'Đổi bác sĩ',
             staffName: staff?.fullName || 'Nhân viên',
             approvedAt: new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
-            appointmentId: appointment._id.toString()
+            appointmentId: appointment._id.toString(),
+            appointmentDateVN,
+            appointmentStartVN,
+            appointmentEndVN
           }
         };
         
@@ -291,15 +308,24 @@ const rejectRequest = async (req, res) => {
       if (patient && patient.email) {
         const emailData = {
           to: patient.email,
-          subject: `Yêu cầu ${request.requestType === 'Reschedule' ? 'đổi lịch hẹn' : 'đổi bác sĩ'} đã bị từ chối`,
+          subject: `Yêu cầu ${request.requestType === 'Reschedule' ? 'Đổi lịch hẹn' : 'Đổi bác sĩ'} đã bị từ chối`,
           template: 'requestRejected',
           data: {
             patientName: patient.fullName,
-            requestType: request.requestType === 'Reschedule' ? 'đổi lịch hẹn' : 'đổi bác sĩ',
+            requestType: request.requestType === 'Reschedule' ? 'Đổi lịch hẹn' : 'Đổi bác sĩ',
             staffName: staff?.fullName || 'Nhân viên',
             rejectedAt: new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
             reason: reason,
-            appointmentId: request.appointmentId.toString()
+            // Nếu có thời gian yêu cầu, đính kèm để người bệnh nắm được
+            requestedDateVN: request.requestedData?.startTime 
+              ? new Date(request.requestedData.startTime).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) 
+              : null,
+            requestedStartVN: request.requestedData?.startTime 
+              ? new Date(request.requestedData.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' }) 
+              : null,
+            requestedEndVN: request.requestedData?.endTime 
+              ? new Date(request.requestedData.endTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' }) 
+              : null
           }
         };
         

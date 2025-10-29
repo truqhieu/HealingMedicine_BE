@@ -221,37 +221,46 @@ class EmailService {
         <meta charset="utf-8">
         <title>Yêu cầu đã được duyệt</title>
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #4CAF50; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
-          .content { background: #f9f9f9; padding: 20px; border-radius: 0 0 8px 8px; }
-          .success-icon { font-size: 48px; margin-bottom: 10px; }
-          .info-box { background: white; padding: 15px; margin: 15px 0; border-radius: 5px; border-left: 4px solid #4CAF50; }
+          body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; line-height: 1.6; color: #1f2937; background: #f3f4f6; }
+          .container { max-width: 620px; margin: 24px auto; padding: 0 12px; }
+          .card { overflow: hidden; background: #ffffff; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+          .header { background: linear-gradient(90deg, #22c55e, #16a34a); color: white; padding: 24px; text-align: center; }
+          .content { padding: 24px; }
+          .success-icon { font-size: 48px; margin-bottom: 8px; }
+          .title { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: 0.2px; }
+          .greeting { margin: 0 0 4px; }
+          .info-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin: 16px 0; }
+          .info-card h3 { margin: 0 0 8px; font-size: 16px; color: #111827; }
+          .info-card ul { padding-left: 18px; margin: 0; }
+          .info-card li { margin: 6px 0; }
+          .footer { color: #6b7280; margin-top: 18px; }
         </style>
       </head>
       <body>
         <div class="container">
-          <div class="header">
-            <div class="success-icon">✅</div>
-            <h1>Yêu cầu đã được duyệt</h1>
-          </div>
-          <div class="content">
+          <div class="card">
+            <div class="header">
+              <div class="success-icon">✅</div>
+              <h1 class="title">Yêu cầu đã được duyệt</h1>
+            </div>
+            <div class="content">
             <p>Xin chào <strong>${data.patientName}</strong>,</p>
             <p>Yêu cầu <strong>${data.requestType}</strong> của bạn đã được duyệt thành công!</p>
             
-            <div class="info-box">
-              <h3>Thông tin chi tiết:</h3>
-              <ul>
-                <li><strong>Loại yêu cầu:</strong> ${data.requestType}</li>
-                <li><strong>Thời gian duyệt:</strong> ${data.approvedAt}</li>
-                <li><strong>Người duyệt:</strong> ${data.staffName}</li>
-                <li><strong>Mã lịch hẹn:</strong> ${data.appointmentId}</li>
-              </ul>
+              <div class="info-card">
+                <h3>Thông tin chi tiết</h3>
+                <ul>
+                  <li><strong>Loại yêu cầu:</strong> ${data.requestType}</li>
+                  <li><strong>Thời gian duyệt:</strong> ${data.approvedAt}</li>
+                  <li><strong>Người duyệt:</strong> ${data.staffName}</li>
+                  ${data.appointmentDateVN ? `<li><strong>Ngày khám mới:</strong> ${data.appointmentDateVN}</li>` : ''}
+                  ${data.appointmentStartVN ? `<li><strong>Giờ khám:</strong> ${data.appointmentStartVN} - ${data.appointmentEndVN}</li>` : ''}
+                </ul>
+              </div>
+            
+              <p class="footer">Lịch hẹn của bạn đã được cập nhật theo yêu cầu. Vui lòng kiểm tra lại thông tin trong tài khoản của bạn.</p>
+              <p class="footer">Trân trọng,<br><strong>Đội ngũ Hải Anh Teeth</strong></p>
             </div>
-            
-            <p>Lịch hẹn của bạn đã được cập nhật theo yêu cầu. Vui lòng kiểm tra lại thông tin trong tài khoản của bạn.</p>
-            
-            <p>Trân trọng,<br>Đội ngũ Hải Anh Teeth</p>
           </div>
         </div>
       </body>
@@ -271,7 +280,8 @@ Thông tin chi tiết:
 - Loại yêu cầu: ${data.requestType}
 - Thời gian duyệt: ${data.approvedAt}
 - Người duyệt: ${data.staffName}
-- Mã lịch hẹn: ${data.appointmentId}
+${data.appointmentDateVN ? `- Ngày khám mới: ${data.appointmentDateVN}` : ''}
+${data.appointmentStartVN ? `- Giờ khám: ${data.appointmentStartVN} - ${data.appointmentEndVN}` : ''}
 
 Lịch hẹn của bạn đã được cập nhật theo yêu cầu. Vui lòng kiểm tra lại thông tin trong tài khoản của bạn.
 
@@ -288,43 +298,50 @@ Trân trọng,
         <meta charset="utf-8">
         <title>Yêu cầu bị từ chối</title>
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #f44336; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
-          .content { background: #f9f9f9; padding: 20px; border-radius: 0 0 8px 8px; }
-          .error-icon { font-size: 48px; margin-bottom: 10px; }
-          .info-box { background: white; padding: 15px; margin: 15px 0; border-radius: 5px; border-left: 4px solid #f44336; }
-          .reason-box { background: #fff3cd; padding: 15px; margin: 15px 0; border-radius: 5px; border: 1px solid #ffeaa7; }
+          body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; line-height: 1.6; color: #1f2937; background: #f3f4f6; }
+          .container { max-width: 620px; margin: 24px auto; padding: 0 12px; }
+          .card { overflow: hidden; background: #ffffff; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+          .header { background: linear-gradient(90deg, #ef4444, #dc2626); color: white; padding: 24px; text-align: center; }
+          .content { padding: 24px; }
+          .error-icon { font-size: 48px; margin-bottom: 8px; }
+          .title { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: 0.2px; }
+          .info-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin: 16px 0; }
+          .info-card h3 { margin: 0 0 8px; font-size: 16px; color: #111827; }
+          .info-card ul { padding-left: 18px; margin: 0; }
+          .info-card li { margin: 6px 0; }
+          .reason-box { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 14px; }
+          .footer { color: #6b7280; margin-top: 18px; }
         </style>
       </head>
       <body>
         <div class="container">
-          <div class="header">
-            <div class="error-icon">❌</div>
-            <h1>Yêu cầu bị từ chối</h1>
-          </div>
-          <div class="content">
+          <div class="card">
+            <div class="header">
+              <div class="error-icon">❌</div>
+              <h1 class="title">Yêu cầu bị từ chối</h1>
+            </div>
+            <div class="content">
             <p>Xin chào <strong>${data.patientName}</strong>,</p>
             <p>Rất tiếc, yêu cầu <strong>${data.requestType}</strong> của bạn đã bị từ chối.</p>
             
-            <div class="info-box">
-              <h3>Thông tin chi tiết:</h3>
-              <ul>
-                <li><strong>Loại yêu cầu:</strong> ${data.requestType}</li>
-                <li><strong>Thời gian từ chối:</strong> ${data.rejectedAt}</li>
-                <li><strong>Người xử lý:</strong> ${data.staffName}</li>
-                <li><strong>Mã lịch hẹn:</strong> ${data.appointmentId}</li>
-              </ul>
+              <div class="info-card">
+                <h3>Thông tin chi tiết</h3>
+                <ul>
+                  <li><strong>Loại yêu cầu:</strong> ${data.requestType}</li>
+                  <li><strong>Thời gian từ chối:</strong> ${data.rejectedAt}</li>
+                  <li><strong>Người xử lý:</strong> ${data.staffName}</li>
+                  ${data.requestedDateVN ? `<li><strong>Thời gian yêu cầu:</strong> ${data.requestedDateVN} ${data.requestedStartVN ? `- ${data.requestedStartVN} đến ${data.requestedEndVN}` : ''}</li>` : ''}
+                </ul>
+              </div>
+            
+              <div class="reason-box">
+                <h3>Lý do từ chối</h3>
+                <p style="margin: 6px 0 0;">${data.reason}</p>
+              </div>
+              
+              <p class="footer">Vui lòng liên hệ với chúng tôi nếu bạn có thắc mắc hoặc muốn đặt lịch mới.</p>
+              <p class="footer">Trân trọng,<br><strong>Đội ngũ Hải Anh Teeth</strong></p>
             </div>
-            
-            <div class="reason-box">
-              <h3>Lý do từ chối:</h3>
-              <p>${data.reason}</p>
-            </div>
-            
-            <p>Vui lòng liên hệ với chúng tôi nếu bạn có thắc mắc hoặc muốn đặt lịch mới.</p>
-            
-            <p>Trân trọng,<br>Đội ngũ Hải Anh Teeth</p>
           </div>
         </div>
       </body>
@@ -344,7 +361,7 @@ Thông tin chi tiết:
 - Loại yêu cầu: ${data.requestType}
 - Thời gian từ chối: ${data.rejectedAt}
 - Người xử lý: ${data.staffName}
-- Mã lịch hẹn: ${data.appointmentId}
+${data.requestedDateVN ? `- Thời gian yêu cầu: ${data.requestedDateVN}${data.requestedStartVN ? ` - ${data.requestedStartVN} đến ${data.requestedEndVN}` : ''}` : ''}
 
 Lý do từ chối:
 ${data.reason}
