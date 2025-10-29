@@ -101,8 +101,8 @@ class AppointmentService {
       // Tìm customer với matching fullName + email
       const Customer = require('../models/customer.model');
       const existingCustomer = await Customer.findOne({
-        fullName: new RegExp(`^${formData.fullName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
-        email: new RegExp(`^${formData.email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
+        fullName: new RegExp(`^${fullName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+        email: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
       });
       
       if (existingCustomer) {
@@ -139,13 +139,13 @@ class AppointmentService {
             
             // Conflict nếu: slotStartTime < appointmentEndTime && slotEndTimeWithBuffer > appointmentStartTime
             if (slotStartTime < appointmentEndTime && slotEndTimeWithBuffer > appointmentStartTime) {
-              console.log(`❌ Customer ${formData.fullName} đã có lịch khám vào khung giờ này (bao gồm buffer time)`);
-              throw new Error(`${formData.fullName} đã có lịch khám vào khung giờ này rồi. Vui lòng chọn khung giờ khác!`);
+              console.log(`❌ Customer ${fullName} đã có lịch khám vào khung giờ này (bao gồm buffer time)`);
+              throw new Error(`${fullName} đã có lịch khám vào khung giờ này rồi. Vui lòng chọn khung giờ khác!`);
             }
           }
         } else {
-          console.log(` Customer ${formData.fullName} đã có lịch khám vào khung giờ này`);
-          throw new Error(`${formData.fullName} đã có lịch khám vào khung giờ này rồi. Vui lòng chọn khung giờ khác!`);
+          console.log(` Customer ${fullName} đã có lịch khám vào khung giờ này`);
+          throw new Error(`${fullName} đã có lịch khám vào khung giờ này rồi. Vui lòng chọn khung giờ khác!`);
         }
       }
     }
@@ -310,7 +310,7 @@ class AppointmentService {
             const aptEndDisplay = `${String(aptEnd.getUTCHours()).padStart(2, '0')}:${String(aptEnd.getUTCMinutes()).padStart(2, '0')}`;
             
             throw new Error(
-              `Bạn đã đặt lịch cho "${formData.fullName}" vào ${aptStartDisplay} - ${aptEndDisplay}. ` +
+              `Bạn đã đặt lịch cho "${fullName}" vào ${aptStartDisplay} - ${aptEndDisplay}. ` +
               `Vui lòng chọn thời gian khác.`
             );
           }
