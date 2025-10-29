@@ -202,10 +202,16 @@ const getAllAppointments = async (req, res) => {
       limit: parseInt(limit)
     });
     
+    console.log('📋 getAllAppointments response:', {
+      success: appointments.success,
+      dataType: Array.isArray(appointments.data) ? 'array' : typeof appointments.data,
+      dataLength: appointments.data?.length || 0
+    });
+    
     return res.status(200).json({
       success: true,
       message: 'Lấy danh sách tất cả lịch hẹn thành công',
-      data: appointments
+      data: appointments.data || appointments
     });
 
   } catch (error) {
