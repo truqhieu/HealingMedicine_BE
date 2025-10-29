@@ -202,45 +202,49 @@ class AppointmentService {
       throw new Error('Bác sĩ bạn chọn hiện không khả dụng. Vui lòng chọn bác sĩ khác.');
     }
 
-    // ⭐ THÊM: Kiểm tra user đã có lịch hẹn trùng giờ trong cùng ngày chưa (cho cả self và other)
-    const slotStart = new Date(selectedSlot.startTime);
-    const slotEnd = new Date(selectedSlot.endTime);
-    
-    // Lấy tất cả appointments của user trong cùng ngày
-    const sameDayAppointments = await Appointment.find({
-      patientUserId,
-      status: { $in: ['PendingPayment', 'Pending', 'Approved', 'CheckedIn'] },
-      timeslotId: { $exists: true }
-    })
-    .populate({
-      path: 'timeslotId',
-      select: 'startTime endTime'
-    });
-
-    // Filter appointments có overlap thời gian (bao gồm buffer time)
-    const userBufferTime = 10; // 10 phút buffer
-    const slotEndWithBuffer = new Date(slotEnd.getTime() + userBufferTime * 60000);
-    
-    for (const apt of sameDayAppointments) {
-      if (!apt.timeslotId) continue;
-
-      const aptStart = new Date(apt.timeslotId.startTime);
-      const aptEnd = new Date(apt.timeslotId.endTime);
+    // ⭐ THÊM: Kiểm tra user đã có lịch hẹn trùng giờ trong cùng ngày chưa (CHỈ khi appointmentFor === 'self')
+    if (formData?.appointmentFor === 'self') {
+      const slotStart = new Date(selectedSlot.startTime);
+      const slotEnd = new Date(selectedSlot.endTime);
       
-      // Check overlap: (start1 < end2) AND (end1WithBuffer > start2)
-      const hasTimeOverlap = (slotStart < aptEnd && slotEndWithBuffer > aptStart);
+      // Lấy tất cả appointments của user trong cùng ngày
+      const sameDayAppointments = await Appointment.find({
+        patientUserId,
+        status: { $in: ['PendingPayment', 'Pending', 'Approved', 'CheckedIn'] },
+        timeslotId: { $exists: true }
+      })
+      .populate({
+        path: 'timeslotId',
+        select: 'startTime endTime'
+      });
+
+      // Filter appointments có overlap thời gian (bao gồm buffer time)
+      const userBufferTime = 10; // 10 phút buffer
+      const slotEndWithBuffer = new Date(slotEnd.getTime() + userBufferTime * 60000);
       
-      if (hasTimeOverlap) {
-        const aptDateVN = aptStart.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
-        const aptStartVN = aptStart.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' });
-        const aptEndVN = aptEnd.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' });
+      for (const apt of sameDayAppointments) {
+        if (!apt.timeslotId) continue;
+
+        const aptStart = new Date(apt.timeslotId.startTime);
+        const aptEnd = new Date(apt.timeslotId.endTime);
         
-        throw new Error(
-          `Bạn đã có lịch hẹn vào ${aptDateVN} từ ${aptStartVN} - ${aptEndVN}. ` +
-          `Một người không thể có nhiều lịch hẹn trùng giờ trong cùng một ngày. ` +
-          `Vui lòng chọn thời gian khác hoặc hủy lịch hẹn cũ trước.`
-        );
+        // Check overlap: (start1 < end2) AND (end1WithBuffer > start2)
+        const hasTimeOverlap = (slotStart < aptEnd && slotEndWithBuffer > aptStart);
+        
+        if (hasTimeOverlap) {
+          const aptDateVN = aptStart.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+          const aptStartVN = aptStart.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' });
+          const aptEndVN = aptEnd.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' });
+          
+          throw new Error(
+            `Bạn đã có lịch hẹn vào ${aptDateVN} từ ${aptStartVN} - ${aptEndVN}. ` +
+            `Một người không thể có nhiều lịch hẹn trùng giờ trong cùng một ngày. ` +
+            `Vui lòng chọn thời gian khác hoặc hủy lịch hẹn cũ trước.`
+          );
+        }
       }
+    } else if (formData?.appointmentFor === 'other') {
+      console.log(`🔍 [createConsultationAppointment] User ${patientUserId} is booking for others - NOT checking time conflicts with user's own appointments`);
     }
 
     // Nếu đặt cho người khác, tạo Customer

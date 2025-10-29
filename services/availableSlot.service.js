@@ -1368,7 +1368,7 @@ class AvailableSlotService {
   /**
    * ⭐ NEW: Lấy khoảng thời gian khả dụng của một bác sĩ cụ thể vào 1 ngày
    */
-  async getDoctorScheduleRange({ doctorUserId, serviceId, date, patientUserId = null }) {
+  async getDoctorScheduleRange({ doctorUserId, serviceId, date, patientUserId = null, appointmentFor = 'self' }) {
     // 1. Validate doctor
     const doctor = await User.findById(doctorUserId);
     if (!doctor) {
@@ -1467,9 +1467,9 @@ class AvailableSlotService {
       }
     }
 
-    // ⭐ THÊM: Lấy appointments của user trong cùng ngày (nếu có patientUserId)
+    // ⭐ THÊM: Lấy appointments của user trong cùng ngày (CHỈ khi appointmentFor === 'self')
     let userBookedSlots = [];
-    if (patientUserId) {
+    if (patientUserId && appointmentFor === 'self') {
       const userAppointments = await Appointment.find({
         patientUserId,
         status: { $in: ['PendingPayment', 'Pending', 'Approved', 'CheckedIn'] },
@@ -1493,7 +1493,9 @@ class AvailableSlotService {
           breakAfter: 10 // Default buffer time
         }));
 
-      console.log(`🔍 [getDoctorScheduleRange] User ${patientUserId} has ${userBookedSlots.length} appointments on this date`);
+      console.log(`🔍 [getDoctorScheduleRange] User ${patientUserId} has ${userBookedSlots.length} appointments on this date (appointmentFor=self)`);
+    } else if (patientUserId && appointmentFor === 'other') {
+      console.log(`🔍 [getDoctorScheduleRange] User ${patientUserId} is booking for others - NOT excluding user's own slots`);
     }
 
     // Gộp tất cả booked slots (doctor + user)
