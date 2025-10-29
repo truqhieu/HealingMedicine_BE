@@ -6,9 +6,15 @@ const availableSlotService = require('../services/availableSlot.service');
 
 // Helper function to calculate available time range for morning/afternoon shifts
 function calculateAvailableTimeRange(availableSlots, shift, workingHours) {
+  console.log(`🔍 Calculating ${shift} shift from ${availableSlots.length} available slots`);
+  
   const slots = availableSlots.filter(slot => {
     const startTime = new Date(slot.startTime);
-    const hour = startTime.getHours();
+    // Convert UTC to Vietnam time for comparison
+    const vietnamTime = new Date(startTime.getTime() + 7 * 60 * 60 * 1000);
+    const hour = vietnamTime.getHours();
+    
+    console.log(`   Slot: ${slot.displayTime} (UTC: ${startTime.toISOString()}, VN: ${vietnamTime.toLocaleTimeString('vi-VN')})`);
     
     if (shift === 'morning') {
       return hour >= 8 && hour < 12;
@@ -16,6 +22,8 @@ function calculateAvailableTimeRange(availableSlots, shift, workingHours) {
       return hour >= 14 && hour < 18;
     }
   });
+
+  console.log(`📅 ${shift} shift: Found ${slots.length} slots`);
 
   if (slots.length === 0) {
     return {
