@@ -511,10 +511,14 @@ const getRescheduleAvailableSlots = async (req, res) => {
       while (currentTime < scheduleEnd) {
         const slotEnd = new Date(currentTime.getTime() + serviceDuration * 60000);
         if (slotEnd <= scheduleEnd) {
+          // Convert to Vietnam time (UTC+7) for display
+          const vietnamStartTime = new Date(currentTime.getTime() + 7 * 60 * 60 * 1000);
+          const vietnamEndTime = new Date(slotEnd.getTime() + 7 * 60 * 60 * 1000);
+          
           allSlots.push({
             startTime: currentTime.toISOString(),
             endTime: slotEnd.toISOString(),
-            displayTime: `${currentTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${slotEnd.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}`
+            displayTime: `${vietnamStartTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${vietnamEndTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}`
           });
         }
         currentTime = new Date(currentTime.getTime() + serviceDuration * 60000);
