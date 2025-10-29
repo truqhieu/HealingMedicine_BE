@@ -710,8 +710,10 @@ const getRescheduleAvailableSlots = async (req, res) => {
       let earliestCandidateMins = rangeStartMins;
       bookedSlotsWithBuffer.forEach(b => {
         const endDate = new Date(b.end); // b.end đã bao gồm break
-        const endH = endDate.getUTCHours();
-        const endM = endDate.getUTCMinutes();
+        // Chuyển sang giờ Việt Nam (UTC+7) để so sánh với workingHours (định nghĩa theo VN time)
+        const endVN = new Date(endDate.getTime() + 7 * 60 * 60 * 1000);
+        const endH = endVN.getUTCHours();
+        const endM = endVN.getUTCMinutes();
         const endMins = toMinutes(endH, endM);
         // Nếu slot này nằm trước khi kết thúc ca và kéo dãn earliest
         if (endMins > earliestCandidateMins && endMins <= rangeEndMins) {
