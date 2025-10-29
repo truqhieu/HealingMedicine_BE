@@ -601,14 +601,10 @@ const getRescheduleAvailableSlots = async (req, res) => {
       while (currentTime < morningEnd) {
         const slotEnd = new Date(currentTime.getTime() + serviceDuration * 60000);
         if (slotEnd <= morningEnd) {
-          // Convert to Vietnam time (UTC+7) for display
-          const vietnamStartTime = new Date(currentTime.getTime() + 7 * 60 * 60 * 1000);
-          const vietnamEndTime = new Date(slotEnd.getTime() + 7 * 60 * 60 * 1000);
-          
           allSlots.push({
             startTime: currentTime.toISOString(),
             endTime: slotEnd.toISOString(),
-            displayTime: `${vietnamStartTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${vietnamEndTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}`
+            displayTime: `${currentTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' })} - ${slotEnd.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' })}`
           });
         }
         currentTime = new Date(slotEnd.getTime() + breakAfterMinutes * 60000);
@@ -631,14 +627,10 @@ const getRescheduleAvailableSlots = async (req, res) => {
       while (currentTime < afternoonEnd) {
         const slotEnd = new Date(currentTime.getTime() + serviceDuration * 60000);
         if (slotEnd <= afternoonEnd) {
-          // Convert to Vietnam time (UTC+7) for display
-          const vietnamStartTime = new Date(currentTime.getTime() + 7 * 60 * 60 * 1000);
-          const vietnamEndTime = new Date(slotEnd.getTime() + 7 * 60 * 60 * 1000);
-          
           allSlots.push({
             startTime: currentTime.toISOString(),
             endTime: slotEnd.toISOString(),
-            displayTime: `${vietnamStartTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${vietnamEndTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}`
+            displayTime: `${currentTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' })} - ${slotEnd.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' })}`
           });
         }
         currentTime = new Date(slotEnd.getTime() + breakAfterMinutes * 60000);
