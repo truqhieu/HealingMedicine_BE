@@ -15,7 +15,10 @@ class AppointmentService {
       doctorScheduleId,
       selectedSlot, // { startTime, endTime } từ available slots
       notes,
-      formData // This contains fullName, email, phoneNumber, appointmentFor
+      fullName,
+      email,
+      phoneNumber,
+      appointmentFor
     } = appointmentData;
 
     // Validate required fields
@@ -71,14 +74,14 @@ class AppointmentService {
     console.log('- Category:', service.category);
     console.log('- isPrepaid:', service.isPrepaid);
     console.log('- Mode được set:', appointmentMode);
-    console.log('- Họ tên từ form:', formData?.fullName);
-    console.log('- SĐT từ form:', formData?.phoneNumber);
+    console.log('- Họ tên từ form:', fullName);
+    console.log('- SĐT từ form:', phoneNumber);
     console.log('- Email từ user đăng nhập:', patient.email);
-    console.log('- Đặt cho:', formData?.appointmentFor || 'self');
+    console.log('- Đặt cho:', appointmentFor || 'self');
 
     // ⭐ THÊM: Validate customer conflict khi đặt cho người khác
-    if (formData?.appointmentFor === 'other' && formData?.fullName && formData?.email) {
-      console.log(`🔍 Checking customer conflict for: ${formData.fullName} <${formData.email}>`);
+    if (appointmentFor === 'other' && fullName && email) {
+      console.log(`🔍 Checking customer conflict for: ${fullName} <${email}>`);
       
       // Normalize name và email (lowercase, remove extra spaces/diacritics)
       const normalizeString = (str) => {
@@ -89,9 +92,9 @@ class AppointmentService {
           .normalize('NFD') // Remove diacritics
           .replace(/[\u0300-\u036f]/g, '');
       };
-      
-      const normalizedFullName = normalizeString(formData.fullName);
-      const normalizedEmail = normalizeString(formData.email);
+
+      const normalizedFullName = normalizeString(fullName);
+      const normalizedEmail = normalizeString(email);
       
       console.log(`   - Normalized: ${normalizedFullName} <${normalizedEmail}>`);
       
@@ -203,7 +206,7 @@ class AppointmentService {
     }
 
     // ⭐ THÊM: Kiểm tra user đã có lịch hẹn trùng giờ trong cùng ngày chưa (CHỈ khi appointmentFor === 'self')
-    if (formData?.appointmentFor === 'self') {
+    if (appointmentFor === 'self') {
       const slotStart = new Date(selectedSlot.startTime);
       const slotEnd = new Date(selectedSlot.endTime);
       
@@ -243,13 +246,13 @@ class AppointmentService {
           );
         }
       }
-    } else if (formData?.appointmentFor === 'other') {
+    } else if (appointmentFor === 'other') {
       console.log(`🔍 [createConsultationAppointment] User ${patientUserId} is booking for others - NOT checking time conflicts with user's own appointments`);
     }
 
     // Nếu đặt cho người khác, tạo Customer
-    if (formData?.appointmentFor === 'other') {
-      if (!formData?.fullName || !formData?.email || !formData?.phoneNumber) {
+    if (appointmentFor === 'other') {
+      if (!fullName || !email || !phoneNumber) {
         throw new Error('Vui lòng nhập đầy đủ họ tên, email và số điện thoại của người được đặt lịch (customer)');
       }
 
@@ -260,8 +263,8 @@ class AppointmentService {
         return str.toLowerCase().trim().replace(/\s+/g, ' ');
       };
 
-      const normalizedFullName = normalizeString(formData.fullName);
-      const normalizedEmail = normalizeString(formData.email);
+      const normalizedFullName = normalizeString(fullName);
+      const normalizedEmail = normalizeString(email);
 
       // Lấy tất cả appointments của user vào cùng thời gian
       const slotStart = new Date(selectedSlot.startTime);
@@ -317,9 +320,9 @@ class AppointmentService {
       // Tạo Customer mới
       const newCustomer = await Customer.create({
         patientUserId: patientUserId, 
-        fullName: formData.fullName,
-        email: formData.email, 
-        phoneNumber: formData.phoneNumber,
+        fullName: fullName,
+        email: email, 
+        phoneNumber: phoneNumber,
         hasAccount: false,
         linkedUserId: null
       });
@@ -327,9 +330,9 @@ class AppointmentService {
       customerId = newCustomer._id;
       console.log('✅ Đã tạo Customer cho người được đặt lịch:');
       console.log('   - Customer ID:', newCustomer._id);
-      console.log('   - Họ tên:', formData.fullName);
-      console.log('   - Email:', formData.email);
-      console.log('   - SĐT:', formData.phoneNumber);
+      console.log('   - Họ tên:', fullName);
+      console.log('   - Email:', email);
+      console.log('   - SĐT:', phoneNumber);
     }
 
     // Tạo Timeslot mới từ slot được chọn
@@ -392,12 +395,14 @@ class AppointmentService {
       notes: notes || null,
       bookedByUserId: patientUserId,
       paymentHoldExpiresAt: paymentHoldExpiresAt,
-      appointmentFor: formData?.appointmentFor || 'self' // ⭐ THÊM: Lưu appointmentFor
+      appointmentFor: appointmentFor || 'self' // ⭐ THÊM: Lưu appointmentFor
     });
 
     console.log('✅ Appointment đã được tạo:', {
       id: newAppointment._id,
       patientUserId: newAppointment.patientUserId,
+      customerId: newAppointment.customerId,
+      appointmentFor: newAppointment.appointmentFor,
       status: newAppointment.status
     });
 
@@ -831,7 +836,10 @@ class AppointmentService {
       console.log('📋 [getUserAppointments] Appointments:', appointments.map(apt => ({
         id: apt._id,
         status: apt.status,
+        appointmentFor: apt.appointmentFor,
         patientUserId: apt.patientUserId?._id,
+        customerId: apt.customerId?._id,
+        customerName: apt.customerId?.fullName,
         serviceName: apt.serviceId?.serviceName
       })));
 
