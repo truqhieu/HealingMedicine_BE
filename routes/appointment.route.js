@@ -13,7 +13,8 @@ const {
   markAsRefunded,
   requestReschedule,
   requestChangeDoctor,
-  getRescheduleAvailableSlots
+  getRescheduleAvailableSlots,
+  getAvailableDoctorsForTimeSlot
 } = require('../controllers/appointment.controller');
 const { verifyToken, verifyRole } = require('../middleware/auth.middleware');
 
@@ -60,5 +61,8 @@ router.post('/:appointmentId/request-reschedule', verifyToken, requestReschedule
 
 // ⭐ Bệnh nhân gửi yêu cầu đổi bác sĩ (chỉ đổi bác sĩ)
 router.post('/:appointmentId/request-change-doctor', verifyToken, requestChangeDoctor);
+
+// ⭐ Lấy danh sách bác sĩ khả dụng cho thời gian cụ thể
+router.get('/:appointmentId/available-doctors', verifyToken, getAvailableDoctorsForTimeSlot);
 
 module.exports = router;

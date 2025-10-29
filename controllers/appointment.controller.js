@@ -653,7 +653,7 @@ const getRescheduleAvailableSlots = async (req, res) => {
     console.log(`📅 Generated ${allSlots.length} slots for date ${date}`);
     allSlots.forEach((slot, index) => {
       console.log(`   Slot ${index + 1}: ${slot.displayTime}`);
-    });
+      image.png    });
 
     // Lọc bỏ các slots đã được đặt
     const Timeslot = require('../models/timeslot.model');
@@ -1092,6 +1092,168 @@ const requestChangeDoctor = async (req, res) => {
   }
 };
 
+// ⭐ Lấy danh sách bác sĩ khả dụng cho thời gian cụ thể (dùng cho đổi bác sĩ)
+const getAvailableDoctorsForTimeSlot = async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const { startTime, endTime } = req.query;
+
+    console.log('🔍 DEBUG getAvailableDoctorsForTimeSlot:');
+    console.log('   - appointmentId:', appointmentId);
+    console.log('   - startTime:', startTime);
+    console.log('   - endTime:', endTime);
+
+    // Validation
+    if (!startTime || !endTime) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp thời gian bắt đầu và kết thúc'
+      });
+    }
+
+    // Tìm appointment để lấy thông tin dịch vụ
+    const appointment = await Appointment.findById(appointmentId)
+      .populate('serviceId', 'serviceName durationMinutes')
+      .populate('doctorUserId', 'fullName');
+
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy lịch hẹn'
+      });
+    }
+
+    const startDateTime = new Date(startTime);
+    const endDateTime = new Date(endTime);
+    const serviceDuration = appointment.serviceId.durationMinutes || 30;
+
+    console.log(`🔍 Looking for doctors available from ${startDateTime.toISOString()} to ${endDateTime.toISOString()}`);
+
+    // Lấy tất cả bác sĩ ACTIVE
+    const User = require('../models/user.model');
+    const Doctor = require('../models/doctor.model');
+    const Timeslot = require('../models/timeslot.model');
+
+    const doctors = await User.find({
+      role: 'Doctor',
+      status: 'Active'
+    }).select('_id fullName email');
+
+    console.log(`🔍 Found ${doctors.length} active doctors`);
+
+    const availableDoctors = [];
+
+    for (const doctor of doctors) {
+      // Bỏ qua bác sĩ hiện tại
+      if (doctor._id.toString() === appointment.doctorUserId._id.toString()) {
+        continue;
+      }
+
+      // Kiểm tra xem bác sĩ có lịch làm việc trong thời gian này không
+      const DoctorSchedule = require('../models/doctorSchedule.model');
+      const doctorSchedule = await DoctorSchedule.findOne({
+        doctorUserId: doctor._id,
+        date: {
+          $gte: new Date(startDateTime.getFullYear(), startDateTime.getMonth(), startDateTime.getDate()),
+          $lt: new Date(startDateTime.getFullYear(), startDateTime.getMonth(), startDateTime.getDate() + 1)
+        },
+        status: 'Available'
+      });
+
+      if (!doctorSchedule) {
+        console.log(`   ❌ Doctor ${doctor.fullName} has no schedule for this date`);
+        continue;
+      }
+
+      // Kiểm tra xem bác sĩ có rảnh trong khoảng thời gian này không
+      const conflictingTimeslots = await Timeslot.find({
+        doctorUserId: doctor._id,
+        startTime: { $lt: endDateTime },
+        endTime: { $gt: startDateTime },
+        status: { $in: ['Reserved', 'Booked'] }
+      });
+
+      if (conflictingTimeslots.length > 0) {
+        console.log(`   ❌ Doctor ${doctor.fullName} has ${conflictingTimeslots.length} conflicting appointments`);
+        continue;
+      }
+
+      // Kiểm tra xem bác sĩ có appointments trong khoảng thời gian này không
+      const conflictingAppointments = await Appointment.find({
+        doctorUserId: doctor._id,
+        'timeslotId.startTime': { $lt: endDateTime },
+        'timeslotId.endTime': { $gt: startDateTime },
+        status: { $in: ['Approved', 'CheckedIn', 'Completed'] }
+      }).populate('timeslotId');
+
+      if (conflictingAppointments.length > 0) {
+        console.log(`   ❌ Doctor ${doctor.fullName} has ${conflictingAppointments.length} conflicting appointments`);
+        continue;
+      }
+
+      // Kiểm tra working hours
+      const workingHours = doctorSchedule.workingHours || {
+        morningStart: '08:00',
+        morningEnd: '12:00',
+        afternoonStart: '14:00',
+        afternoonEnd: '18:00'
+      };
+
+      const startHour = startDateTime.getUTCHours() + 7; // Convert to VN time
+      const endHour = endDateTime.getUTCHours() + 7;
+
+      const isInMorningShift = startHour >= 8 && endHour <= 12;
+      const isInAfternoonShift = startHour >= 14 && endHour <= 18;
+
+      if (!isInMorningShift && !isInAfternoonShift) {
+        console.log(`   ❌ Doctor ${doctor.fullName} - time slot outside working hours`);
+        continue;
+      }
+
+      // Lấy thông tin chi tiết của bác sĩ
+      const doctorInfo = await Doctor.findOne({ userId: doctor._id });
+      
+      availableDoctors.push({
+        _id: doctor._id,
+        fullName: doctor.fullName,
+        email: doctor.email,
+        specialization: doctorInfo?.specialization || 'N/A',
+        experience: doctorInfo?.experience || 'N/A',
+        workingHours: workingHours
+      });
+
+      console.log(`   ✅ Doctor ${doctor.fullName} is available`);
+    }
+
+    console.log(`✅ Found ${availableDoctors.length} available doctors`);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        appointmentId,
+        currentDoctor: {
+          _id: appointment.doctorUserId._id,
+          fullName: appointment.doctorUserId.fullName
+        },
+        serviceName: appointment.serviceId.serviceName,
+        serviceDuration,
+        requestedStartTime: startTime,
+        requestedEndTime: endTime,
+        availableDoctors,
+        totalAvailable: availableDoctors.length
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error in getAvailableDoctorsForTimeSlot:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi lấy danh sách bác sĩ khả dụng',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   createConsultationAppointment,
   reviewAppointment,
@@ -1105,5 +1267,6 @@ module.exports = {
   markAsRefunded,
   requestReschedule,
   requestChangeDoctor,
-  getRescheduleAvailableSlots
+  getRescheduleAvailableSlots,
+  getAvailableDoctorsForTimeSlot
 };
