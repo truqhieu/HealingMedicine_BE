@@ -7,7 +7,7 @@ const createLeaveRequest = async(req,res) =>{
         
         if(!startDate || !endDate || !reason){
             return res.status(400).json({
-                status : false,
+                success : false,
                 message : 'Vui lòng nhập đầy đủ thông tin'
             });
         }
@@ -18,19 +18,19 @@ const createLeaveRequest = async(req,res) =>{
 
         if(isNaN(start.getTime())){
             return res.status(400).json({
-                status : false,
+                success : false,
                 message : 'Ngày bắt đầu không hợp lệ.'
             });
         }
         if(start < now) {
             return res.status(400).json({
-                status : false,
+                success : false,
                 message : 'Ngày bắt đầu phải tính từ hiện tại.'
             });           
         }
         if(end <= start){
             return res.status(400).json({
-                status : false,
+                success : false,
                 message : 'Ngày kết thúc phải lớn hơn ngày bắt đầu.'
             });  
         }
@@ -52,8 +52,8 @@ const createLeaveRequest = async(req,res) =>{
               });
             }
             
-            // Kiểm tra độ dài tối thiểu (ít nhất 2 ký tự)
-            if (cleanName.length < 3) {
+            // Kiểm tra độ dài tối thiểu (ít nhất 3 ký tự)
+            if (cleanReason.length < 3) {
               return res.status(400).json({
                 success: false,
                 message: 'Lí do nghỉ phải có ít nhất 2 ký tự'
@@ -70,14 +70,14 @@ const createLeaveRequest = async(req,res) =>{
         await newRequest.save();
 
         res.status(201).json({
-            status : true,
+            success : true,
             message : 'Gửi khiếu nại thành công',
             data : newRequest
         })
     } catch (error) {
         console.log('Lỗi khi tạo yêu cầu xin nghỉ', error)
         return res.status(500).json({
-            status : false,
+            success : false,
             message : 'Đã xảy ra lỗi khi gửi yêu cầu xin nghỉ'
         })
     }
@@ -130,7 +130,7 @@ const getAllLeaveRequest = async(req,res) =>{
     } catch (error) {
         console.log('Lỗi khi xem danh sách yêu cầu xin nghỉ', error)
         return res.status(500).json({
-            status : false,
+            success : false,
             message : 'Đã xảy ra lỗi khi xem danh sách yêu càu xin nghỉ'
         })
     }        

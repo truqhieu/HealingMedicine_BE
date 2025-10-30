@@ -9,7 +9,7 @@ const createClinicRoom = async(req,res) =>{
         const createRoom = new Clinicroom({name, description});
         await createRoom.save();
         res.status(201).json({
-            status : true,
+            success : true,
             message : 'Tạo mới phòng khám thành công',
             data : createRoom
         })
@@ -69,7 +69,7 @@ const getAllClinicRooms = async(req,res) =>{
         })
     } catch (error) {
         console.log('Lỗi lấy danh sách phòng khám', error);
-        return res.status(500).json({success : falsem, message : 'Đã xảy ra lỗi khi lấy danh sách phòng khám'})
+        return res.status(500).json({success : false, message : 'Đã xảy ra lỗi khi lấy danh sách phòng khám'})
     }
 }
 
@@ -83,19 +83,19 @@ const viewDetailClinicRoom = async(req,res) =>{
         });
         if(!detailRoom){
             return res.status(400).json({
-                status : false,
+                success : false,
                 message : 'Không tìm thấy phòng khám'
             });
         }
 
         res.status(200).json({
-            status : true,
+            success : true,
             message : 'Chi tiết phòng khám',
             data : detailRoom
         })
     } catch (error) {
         console.log('Lỗi khi xem chi tiết phòng khám', error);
-        res.status(500).json({status : false, message : 'Đã xảy ra lỗi khi xem chi tiết phòng khám' });
+        res.status(500).json({success : false, message : 'Đã xảy ra lỗi khi xem chi tiết phòng khám' });
     }
 }
 
@@ -115,7 +115,7 @@ const updateClinicRoom = async(req,res) =>{
         });
         if(Object.keys(updates).length === 0){
             return res.status(400).json({
-                status : false,
+                success : false,
                 message : 'Không có trường hợp lệ để cập nhật'
             });
         }
@@ -128,18 +128,18 @@ const updateClinicRoom = async(req,res) =>{
 
         if(!room){
             return res.status(400).json({
-                status : false, 
+                success : false, 
                 message : 'Không tìm thấy phòng khám'
             }); 
         }
         res.status(200).json({
-            status : true, 
+            success : true, 
             message : 'Cập nhật thông tin phòng khám thành công',
             data : room
         })
     } catch (error) {
         console.log('Lỗi cập nhật phòng khám', error);
-        res.status(500).json({status : false, message : 'Đã xảy ra lỗi khi cập nhật thông tin phòng khám' });
+        res.status(500).json({success : false, message : 'Đã xảy ra lỗi khi cập nhật thông tin phòng khám' });
     }
 }
 
@@ -148,12 +148,12 @@ const deleteClinicRoom = async(req,res) =>{
         const room = await Clinicroom.findByIdAndDelete(req.params.id)
         if(!room){
             return res.status(404).json({
-                status : false,
+                success : false,
                 message : 'Không tìm thấy phòng khám để xóa'
             })
         }
         res.status(200).json({
-            status : true,
+            success : true,
             message : 'Xóa phòng khám thành công.'
         })
     } catch (error) {
@@ -171,13 +171,13 @@ const listDoctor = async (req, res) => {
         _id : {$nin : offDoctor}
     })
     res.status(200).json({
-        status: true,
+        success: true,
         message: 'Danh sách bác sĩ chưa được gán phòng khám',
         data: onDoctor,
     });
   } catch (error) {
     console.log('Lỗi lấy danh sách bác sĩ.', error)
-    res.status(500).json({ status: false, message: 'Đã xảy ra lỗi khi lấy danh sách bác sĩ' });
+    res.status(500).json({ success: false, message: 'Đã xảy ra lỗi khi lấy danh sách bác sĩ' });
   }
 };
 
@@ -195,13 +195,13 @@ const assignDoctor = async(req,res) =>{
         })
         const doctor = await User.findById(doctorId);
         res.status(200).json({
-            status : true,
+            success : true,
             message : `Gán bác sĩ ${doctor.fullName} vào phòng khám ${clinic.name} thành công.`,
             data : clinic
         })
     } catch (error) {
         console.log('Lỗi gán bác sĩ cho phòng khám', error);
-        res.status(500).json({ status: false, message: 'Đã xảy ra lỗi khi gán bác sĩ vào phòng khám' });
+        res.status(500).json({ success: false, message: 'Đã xảy ra lỗi khi gán bác sĩ vào phòng khám' });
 
     }
 }
@@ -215,18 +215,18 @@ const unssignDoctor = async(req,res) =>{
         )
         if(!clinic){
             return res.status(404).json({
-                status : false,
+                success : false,
                 message : 'Không tìm thấy phòng khám'
             })
         }
         res.status(200).json({
-            status : true,
+            success : true,
             message : `Gỡ bác sĩ khỏi phòng khám thành công.`,
             data : clinic
         })
     } catch (error) {
         console.log('Lỗi gỡ bác sĩ cho phòng khám', error);
-        res.status(500).json({ status: false, messge: 'Đã xảy ra lỗi khi gỡ bác sĩ khỏi phòng khám' });
+        res.status(500).json({ success: false, messge: 'Đã xảy ra lỗi khi gỡ bác sĩ khỏi phòng khám' });
 
     }
 }

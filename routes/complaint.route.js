@@ -4,7 +4,7 @@ const { createComplaint, getAllComplaints, viewDetailComplaint, handleComplaint,
 const router = express.Router();
 
 router.post('/', verifyToken, verifyRole('Patient'), createComplaint)
-router.get('/', verifyToken, verifyRole('Manager'), getAllComplaints)
+router.get('/', verifyToken, verifyRole('Manager','Patient'), getAllComplaints)
 router.get('/:id', verifyToken, verifyRole('Manager'), viewDetailComplaint)
 router.patch('/:id', verifyToken, verifyRole('Manager'), handleComplaint)
 router.delete('/:id', verifyToken, verifyRole('Patient'),deleteComplaint)

@@ -65,7 +65,7 @@ const createAccount = async(req, res) =>{
         const checkEmail = await User.findOne({email})
         if(checkEmail){
             return res.status(400).json({
-                status : false,
+                success : false,
                 message : 'Email đã tồn tại!'
             });
         }
@@ -102,13 +102,13 @@ const createAccount = async(req, res) =>{
         }
         if(!password || password.lengh < 6){
             return res.status(400).json({
-                status : false,
+                success : false,
                 message : 'Mật khẩu phải có ít nhất 6 ký tự'
             });
         }
         if(!ROLE_ACCOUNT.includes(role)){
             return res.status(400).json({
-                status : false,
+                success : false,
                 message : 'Vai trò không hợp lệ'
             });
         }
@@ -173,7 +173,7 @@ const createAccount = async(req, res) =>{
         }
         
         res.status(201).json({
-            status : true,
+            success : true,
             message : `Tạo tài khoản cho ${roleMap[role]} thành công`,
             data: {
                 userId: newAccount._id,
@@ -186,7 +186,7 @@ const createAccount = async(req, res) =>{
     } catch (error) {
         console.error('Lỗi tạo tài khoản:', error);
         res.status(500).json({
-            status: false,
+            success: false,
             message: 'Đã xảy ra lỗi khi tạo tài khoản'
         });
     }
@@ -276,7 +276,7 @@ const updateAccount = async (req,res) => {
         const checkUser = await User.findById(req.params.id)
         if(checkUser.role === 'Patient'){
             return res.status(400).json({
-                status : false,
+                success : false,
                 message : 'Không thể cập nhật tài khoản bệnh nhân'
             })
         }
@@ -374,7 +374,7 @@ const updateAccount = async (req,res) => {
         
         if(Object.keys(updates).length === 0){
             return res.status(400).json({
-                status : false,
+                success : false,
                 message : 'Không có trường hợp lệ để cập nhật'
             });
         }
@@ -386,12 +386,12 @@ const updateAccount = async (req,res) => {
         ).select('-passwordHash');
         if(!account){
             return res.status(400).json({
-                status : false, 
+                success : false, 
                 message : 'Không tìm thấy tài khoản'
             });
         }
         res.status(200).json({
-            status : true,
+            success : true,
             message : 'Cập nhật thông tin tài khoản thành công',
             data : account
         })
@@ -407,14 +407,14 @@ const changePassword = async (req, res) => {
 
     if (!checkUser) {
       return res.status(404).json({
-        status: false,
+        success: false,
         message: 'Không tìm thấy người dùng'
       });
     }
 
     if (checkUser.role === 'Patient') {
       return res.status(403).json({
-        status: false,
+        success: false,
         message: 'Không thể thay đổi mật khẩu của bệnh nhân'
       });
     }
@@ -422,7 +422,7 @@ const changePassword = async (req, res) => {
     const { password } = req.body;
     if (!password) {
       return res.status(400).json({
-        status: false,
+        success: false,
         message: 'Vui lòng nhập mật khẩu mới'
       });
     }
@@ -434,14 +434,14 @@ const changePassword = async (req, res) => {
     await checkUser.save();
 
     res.status(200).json({
-      status: true,
+      success: true,
       message: `Đổi mật khẩu thành công cho người dùng: ${checkUser.fullName || checkUser.email}`
     });
 
   } catch (error) {
     console.error('Lỗi thay đổi mật khẩu:', error);
     return res.status(500).json({
-      status: false,
+      success: false,
       message: 'Đã có lỗi khi thay đổi mật khẩu'
     });
   }
@@ -456,12 +456,12 @@ const lockAcount = async (req,res) =>{
         );
         if(!lockAcc){
              return res.status(400).json({
-                status : false, 
+                success : false, 
                 message : 'Không tìm thấy tài khoản'
             });
         }
         res.status(200).json({
-            status : true,
+            success : true,
             message : 'Khóa tài khoản thành công',
             data : lockAcc
         })
@@ -479,12 +479,12 @@ const unlockAcount = async (req,res) =>{
         );
         if(!unlockAcc){
              return res.status(400).json({
-                status : false, 
+                success : false, 
                 message : 'Không tìm thấy tài khoản'
             });
         }
         res.status(200).json({
-            status : true,
+            success : true,
             message : 'Mở khóa tài khoản thành công',
             data : unlockAcc
         })
@@ -499,7 +499,7 @@ const assignRole = async (req,res) =>{
         const user = await User.findById(req.params.id)
         if(user.role !== 'Doctor' && user.role !== 'Nurse'){
             return res.status(400).json({
-                status : true,
+                success : false,
                 message : 'Chỉ có thể thay đổi vai trò của bác sĩ hoặc y tá'
             })
         }
@@ -508,7 +508,7 @@ const assignRole = async (req,res) =>{
         await user.save();
 
         res.status(200).json({
-            status : true,
+            success : true,
             message : 'Thay đổi vai trò thành công',
         })
     } catch (error) {

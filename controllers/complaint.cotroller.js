@@ -70,7 +70,7 @@ const createComplaint = async(req,res) =>{
         })
     } catch (error) {
         console.log('Lỗi khi gửi phản ánh', error);
-        return res.status(500).json({status : false, message: 'Đã xảy ra lỗi khi gửi phản ánh'})
+        return res.status(500).json({success : false, message: 'Đã xảy ra lỗi khi gửi phản ánh'})
     }
 }
 
@@ -91,6 +91,7 @@ const getAllComplaints = async(req,res) =>{
     const skip = (pageNum - 1) * limitNum;
 
     const filter = {};
+    if(req.user && req.user.role === 'Patient') filter.patientUserId = req.user.userId
     if(status && STATUS.includes(status)) filter.status = status;
 
     if(search && String(search).trim().length > 0){
@@ -106,6 +107,10 @@ const getAllComplaints = async(req,res) =>{
     const [total, complaints] = await Promise.all([
       Complaint.countDocuments(filter),
       Complaint.find(filter)
+      .populate({
+        path : 'patientUserId',
+        select : 'fullName phone'
+      })
       .populate({
         path : 'appointmentId',
         select : 'checkInAt'
@@ -130,9 +135,11 @@ const getAllComplaints = async(req,res) =>{
     })
   } catch (error) {
       console.log('Lỗi khi gửi phản ánh', error);
-      return res.status(500).json({status : false, message: 'Đã xảy ra lỗi khi gửi phản ánh'})
+      return res.status(500).json({success : false, message: 'Đã xảy ra lỗi khi gửi phản ánh'})
   }
 }
+
+
 
 const viewDetailComplaint = async(req,res) =>{
   try {
@@ -141,21 +148,20 @@ const viewDetailComplaint = async(req,res) =>{
     .populate('managerResponses.managerId', 'fullName')
     .populate('patientUserId', 'fullName phone')
     
-    if(!deleteComplaint){
+    if(!detailComplaint){
       return res.status(404).json({
-        status : false,
+        success : false,
         message : 'Không tìm thấy đơn khiếu nại'
       })
     }
 
     return res.status(200).json({
-      status : true,
-      message : 'Chi tiết đơn khiếu nại',
-      data : deleteComplaint
+      success : true,
+      message : 'Chi tiết đơn khiếu nại'
     })
   } catch (error) {
         console.log('Lỗi khi xử lý đơn khiếu nại', error);
-        return res.status(500).json({status : false, message: 'Đã xảy ra lỗi khi xử lý đơn khiếu nại'})    
+        return res.status(500).json({success : false, message: 'Đã xảy ra lỗi khi xử lý đơn khiếu nại'})    
   }
 }
 
@@ -165,13 +171,13 @@ const handleComplaint = async(req,res) =>{
     const findComplaint = await Complaint.findById(req.params.id);
     if(!findComplaint){
       return res.status(404).json({
-        status : false,
+        success : false,
         message : 'Không tìm thấy đơn khiếu nại'
       });
     }
     if(findComplaint.status !== 'Pending'){
       return res.status(400).json({
-        status : false, 
+        success : false, 
         message : 'Đơn khiếu nại đã được xử lý, không thể cập nhật'
       })
     }
@@ -192,12 +198,12 @@ const handleComplaint = async(req,res) =>{
     }
     
     res.status(201).json({
-      status : true,
+      success : true,
       message : `Đã ${map[status]} đơn khiếu nại`
     })
   } catch (error) {
         console.log('Lỗi khi xử lý đơn khiếu nại', error);
-        return res.status(500).json({status : false, message: 'Đã xảy ra lỗi khi xử lý đơn khiếu nại'})
+        return res.status(500).json({success : false, message: 'Đã xảy ra lỗi khi xử lý đơn khiếu nại'})
   }
 }
 
@@ -206,18 +212,18 @@ const deleteComplaint = async(req,res) =>{
     const complaint = await Complaint.findByIdAndDelete(req.params.id);
     if(!complaint){
       return res.status(404).json({
-        status : false,
+        success : false,
         message : 'Không tìm thấy đơn khiếu nại'
       })
     }
-    res.status(201).json({
-      status : true,
+    res.status(200).json({
+      success : true,
       message : 'Xóa đơn khiếu nại thành công'
     })
   } catch (error) {
         console.log('Lỗi khi xóa đơn khiếu nại', error);
-        return res.status(500).json({status : false, message: 'Đã xảy ra lỗi khi xóa đơn khiếu nại'})    
+        return res.status(500).json({success : false, message: 'Đã xảy ra lỗi khi xóa đơn khiếu nại'})    
   }
 }
 
-module.exports = {createComplaint, getAllComplaints, viewDetailComplaint, handleComplaint, deleteComplaint}
+module.exports = {createComplaint, getAllComplaints,viewDetailComplaint, handleComplaint, deleteComplaint}

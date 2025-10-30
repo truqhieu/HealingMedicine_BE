@@ -14,9 +14,10 @@ const appointmentRoutes = require('./appointment.route');
 const availableSlotRoutes = require('./availableSlot.route');
 const paymentRoutes = require('./payment.route');
 const policyRoutes = require('./policy.route');
-const complaintRoutes = require('./complaint.route')
-const leaveRequestRoutes = require('./leaveRequest.route')
-
+const complaintRoutes = require('./complaint.route');
+const leaveRequestRoutes = require('./leaveRequest.route');
+const deviceRoutes = require('./device.route');
+const blogRoutes = require('./blog.route');
 
 // --- ROUTES ---
 router.use('/auth', userRoutes);
@@ -24,6 +25,8 @@ router.use('/admin', adminRoutes);
 router.use('/manager', serviceRoutes);
 router.use('/manager', clinicRoutes);
 router.use('/manager', scheduleRoute);
+router.use('/manager', deviceRoutes);
+router.use('/manager', blogRoutes);
 
 router.use('/doctor', doctorRoutes);
 router.use('/nurse', nurseRoutes);
