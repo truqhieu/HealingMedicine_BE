@@ -937,8 +937,10 @@ class AppointmentService {
       const currentStatus = appointment.status;
 
       // ✅ Allowed transitions:
-      // Approved → CheckedIn (Staff check-in bệnh nhân đã đến)
-      // Approved/CheckedIn → Cancelled (hủy)
+      // Approved → CheckedIn (Staff/Nurse check-in bệnh nhân đã đến)
+      // CheckedIn → InProgress (Nurse bắt đầu ca khám)
+      // InProgress → Completed (kết thúc ca)
+      // Approved/CheckedIn/InProgress → Cancelled (hủy)
 
       if (newStatus === 'CheckedIn') {
         if (currentStatus !== 'Approved') {
@@ -949,16 +951,24 @@ class AppointmentService {
         appointment.checkInByUserId = userId;
       }
 
-      if (newStatus === 'Completed') {
+      if (newStatus === 'InProgress') {
         if (currentStatus !== 'CheckedIn') {
-          throw new Error(`Không thể hoàn thành. Ca khám phải ở trạng thái "CheckedIn" (hiện tại: ${currentStatus})`);
+          throw new Error(`Không thể chuyển sang đang trong ca. Ca phải ở trạng thái "CheckedIn" (hiện tại: ${currentStatus})`);
+        }
+        appointment.inProgressAt = new Date();
+        appointment.inProgressByUserId = userId;
+      }
+
+      if (newStatus === 'Completed') {
+        if (!['CheckedIn', 'InProgress'].includes(currentStatus)) {
+          throw new Error(`Không thể hoàn thành. Ca khám phải ở trạng thái "CheckedIn" hoặc "InProgress" (hiện tại: ${currentStatus})`);
         }
       }
 
       if (newStatus === 'Cancelled') {
-        const allowedStatuses = ['Approved', 'CheckedIn'];
+        const allowedStatuses = ['Approved', 'CheckedIn', 'InProgress'];
         if (!allowedStatuses.includes(currentStatus)) {
-          throw new Error(`Không thể hủy. Ca khám chỉ có thể hủy khi ở trạng thái Approved hoặc CheckedIn (hiện tại: ${currentStatus})`);
+          throw new Error(`Không thể hủy. Ca khám chỉ có thể hủy khi ở trạng thái Approved, CheckedIn hoặc InProgress (hiện tại: ${currentStatus})`);
         }
       }
 
