@@ -6,10 +6,15 @@ const Customer = require('../models/customer.model');
 function calcAge(dob) {
   if (!dob) return null;
   try {
-    const d = new Date(dob);
-    const diff = Date.now() - d.getTime();
-    const ageDt = new Date(diff);
-    return Math.abs(ageDt.getUTCFullYear() - 1970);
+    const birth = new Date(dob);
+    const today = new Date();
+    // Tính theo UTC để tránh lệch múi giờ
+    let age = today.getUTCFullYear() - birth.getUTCFullYear();
+    const monthDiff = today.getUTCMonth() - birth.getUTCMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getUTCDate() < birth.getUTCDate())) {
+      age--;
+    }
+    return age < 0 ? 0 : age;
   } catch (_) {
     return null;
   }
