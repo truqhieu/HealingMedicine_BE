@@ -24,7 +24,7 @@ const appointmentSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['PendingPayment', 'Pending', 'Approved', 'Cancelled', 'Completed', 'CheckedIn', 'Expired', 'Refunded'],
+    enum: ['PendingPayment', 'Pending', 'Approved', 'Cancelled', 'Completed', 'CheckedIn', 'InProgress', 'Expired', 'Refunded'],
     default: 'Pending',
   },
   paymentHoldExpiresAt: {
@@ -66,6 +66,15 @@ const appointmentSchema = new mongoose.Schema({
   },
   checkedInAt: {
     type: Date,
+    default: null
+  },
+  inProgressAt: {
+    type: Date,
+    default: null
+  },
+  inProgressByUserId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
     default: null
   },
   replacedDoctorUserId: {
