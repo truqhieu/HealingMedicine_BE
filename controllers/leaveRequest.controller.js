@@ -55,7 +55,7 @@ const createLeaveRequest = async (req, res) => {
     // ✅ Kiểm tra đơn nghỉ đã được duyệt có trùng thời gian không
     const existingApprovedLeave = await LeaveRequest.findOne({
       userId: req.user.userId,
-      status: 'approved',
+      status: 'Approved',
       $or: [
         { startDate: { $lte: end }, endDate: { $gte: start } } // có phần giao thời gian
       ]
@@ -74,7 +74,6 @@ const createLeaveRequest = async (req, res) => {
       startDate,
       endDate,
       reason,
-      status: 'pending'
     });
 
     await newRequest.save();
