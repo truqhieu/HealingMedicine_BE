@@ -33,8 +33,8 @@ exports.getOrCreateMedicalRecord = async (req, res) => {
 
     const appointment = await Appointment.findById(appointmentId)
       .populate('doctorUserId', 'fullName')
-      .populate('patientUserId', 'fullName dob address')
-      .populate('customerId', 'fullName address dob');
+      .populate('patientUserId', 'fullName dob address email phoneNumber gender')
+      .populate('customerId', 'fullName address dob email phoneNumber gender');
 
     if (!appointment) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy lịch hẹn' });
@@ -69,6 +69,9 @@ exports.getOrCreateMedicalRecord = async (req, res) => {
     const patientAge = record.patientAge ?? calcAge(patient?.dob);
     const address = record.address || patient?.address || '';
     const patientDob = patient?.dob || null;
+    const email = patient?.email || '';
+    const phoneNumber = patient?.phoneNumber || '';
+    const gender = patient?.gender || '';
 
     return res.status(200).json({
       success: true,
@@ -86,7 +89,10 @@ exports.getOrCreateMedicalRecord = async (req, res) => {
                 serviceName: s.serviceName,
                 price: s.price,
               }))
-            : []
+            : [],
+          email,
+          phoneNumber,
+          gender
         }
       }
     });
