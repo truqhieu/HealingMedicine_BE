@@ -15,7 +15,10 @@ class AppointmentService {
       doctorScheduleId,
       selectedSlot, // { startTime, endTime } từ available slots
       notes,
-      formData // This contains fullName, email, phoneNumber, appointmentFor
+      fullName,
+      email,
+      phoneNumber,
+      appointmentFor
     } = appointmentData;
 
     // Validate required fields
@@ -71,14 +74,14 @@ class AppointmentService {
     console.log('- Category:', service.category);
     console.log('- isPrepaid:', service.isPrepaid);
     console.log('- Mode được set:', appointmentMode);
-    console.log('- Họ tên từ form:', formData?.fullName);
-    console.log('- SĐT từ form:', formData?.phoneNumber);
+    console.log('- Họ tên từ form:', fullName);
+    console.log('- SĐT từ form:', phoneNumber);
     console.log('- Email từ user đăng nhập:', patient.email);
-    console.log('- Đặt cho:', formData?.appointmentFor || 'self');
+    console.log('- Đặt cho:', appointmentFor || 'self');
 
     // ⭐ THÊM: Validate customer conflict khi đặt cho người khác
-    if (formData?.appointmentFor === 'other' && formData?.fullName && formData?.email) {
-      console.log(`🔍 Checking customer conflict for: ${formData.fullName} <${formData.email}>`);
+    if (appointmentFor === 'other' && fullName && email) {
+      console.log(`🔍 Checking customer conflict for: ${fullName} <${email}>`);
       
       // Normalize name và email (lowercase, remove extra spaces/diacritics)
       const normalizeString = (str) => {
@@ -89,17 +92,17 @@ class AppointmentService {
           .normalize('NFD') // Remove diacritics
           .replace(/[\u0300-\u036f]/g, '');
       };
-      
-      const normalizedFullName = normalizeString(formData.fullName);
-      const normalizedEmail = normalizeString(formData.email);
+
+      const normalizedFullName = normalizeString(fullName);
+      const normalizedEmail = normalizeString(email);
       
       console.log(`   - Normalized: ${normalizedFullName} <${normalizedEmail}>`);
       
       // Tìm customer với matching fullName + email
       const Customer = require('../models/customer.model');
       const existingCustomer = await Customer.findOne({
-        fullName: new RegExp(`^${formData.fullName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
-        email: new RegExp(`^${formData.email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
+        fullName: new RegExp(`^${fullName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+        email: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
       });
       
       if (existingCustomer) {
@@ -125,40 +128,54 @@ class AppointmentService {
           }).populate('timeslotId');
 
           if (conflictAppt && conflictAppt.timeslotId) {
-            const appointmentStartTime = new Date(conflictAppt.timeslotId.startTime).getTime();
-            const appointmentEndTime = new Date(conflictAppt.timeslotId.endTime).getTime();
-            const slotStartTime = new Date(selectedSlot.startTime).getTime();
-            const slotEndTime = new Date(selectedSlot.endTime).getTime();
+            const appointmentStartTime = new Date(conflictAppt.timeslotId.startTime);
+            const appointmentEndTime = new Date(conflictAppt.timeslotId.endTime);
+            const slotStartTime = new Date(selectedSlot.startTime);
+            const slotEndTime = new Date(selectedSlot.endTime);
             
-            if (appointmentStartTime === slotStartTime && appointmentEndTime === slotEndTime) {
-              console.log(` Customer ${formData.fullName} đã có lịch khám vào khung giờ này`);
-              throw new Error(`${formData.fullName} đã có lịch khám vào khung giờ này rồi. Vui lòng chọn khung giờ khác!`);
+            // ⭐ THÊM: Tính buffer time (10 phút)
+            const bufferTime = 10; // 10 phút buffer
+            const slotEndTimeWithBuffer = new Date(slotEndTime.getTime() + bufferTime * 60000);
+            
+            // Conflict nếu: slotStartTime < appointmentEndTime && slotEndTimeWithBuffer > appointmentStartTime
+            if (slotStartTime < appointmentEndTime && slotEndTimeWithBuffer > appointmentStartTime) {
+              console.log(`❌ Customer ${fullName} đã có lịch khám vào khung giờ này (bao gồm buffer time)`);
+              throw new Error(`${fullName} đã có lịch khám vào khung giờ này rồi. Vui lòng chọn khung giờ khác!`);
             }
           }
         } else {
-          console.log(` Customer ${formData.fullName} đã có lịch khám vào khung giờ này`);
-          throw new Error(`${formData.fullName} đã có lịch khám vào khung giờ này rồi. Vui lòng chọn khung giờ khác!`);
+          console.log(` Customer ${fullName} đã có lịch khám vào khung giờ này`);
+          throw new Error(`${fullName} đã có lịch khám vào khung giờ này rồi. Vui lòng chọn khung giờ khác!`);
         }
       }
     }
 
     // ⭐ THÊM: CHECK TIMESLOT TRƯỚC KHI TẠO ❌
     // Để tránh race condition: 2 request cùng lúc
-    const existingTimeslot = await Timeslot.findOne({
-      startTime: new Date(selectedSlot.startTime),
-      endTime: new Date(selectedSlot.endTime),
+    const slotStartTime = new Date(selectedSlot.startTime);
+    const slotEndTime = new Date(selectedSlot.endTime);
+    
+    // ⭐ THÊM: Tính buffer time (10 phút)
+    const timeslotBufferTime = 10; // 10 phút buffer
+    const slotEndTimeWithBuffer = new Date(slotEndTime.getTime() + timeslotBufferTime * 60000);
+    
+    // Kiểm tra conflict với timeslots đã có (bao gồm buffer time)
+    const conflictingTimeslots = await Timeslot.find({
       doctorUserId: doctorUserId,
-      status: { $in: ['Reserved', 'Booked'] } // Chỉ block nếu đang được giữ hoặc booked
+      startTime: { $lt: slotEndTimeWithBuffer },
+      endTime: { $gt: slotStartTime },
+      status: { $in: ['Reserved', 'Booked'] }
     });
 
-    if (existingTimeslot) {
-      console.log(' Khung giờ đã bị book/reserved:', existingTimeslot._id);
+    if (conflictingTimeslots.length > 0) {
+      console.log('❌ Khung giờ bị conflict với timeslots đã có:', conflictingTimeslots.length);
+      conflictingTimeslots.forEach(ts => {
+        console.log(`   - Timeslot ${ts._id}: ${ts.startTime} - ${ts.endTime} (${ts.status})`);
+      });
       throw new Error(`Khung giờ này đã có người đặt hoặc đang chờ thanh toán. Vui lòng chọn thời gian khác.`);
     }
 
     // Validate selectedSlot duration phải khớp với service duration
-    const slotStartTime = new Date(selectedSlot.startTime);
-    const slotEndTime = new Date(selectedSlot.endTime);
     const slotDurationMinutes = (slotEndTime - slotStartTime) / 60000;
 
     if (slotDurationMinutes !== service.durationMinutes) {
@@ -188,9 +205,51 @@ class AppointmentService {
       throw new Error('Bác sĩ bạn chọn hiện không khả dụng. Vui lòng chọn bác sĩ khác.');
     }
 
+    // ⭐ THÊM: Kiểm tra user đã có lịch hẹn trùng giờ với bác sĩ hiện tại chưa
+    // Cho phép đặt trùng giờ với bác sĩ khác
+    const slotStart = new Date(selectedSlot.startTime);
+    const slotEnd = new Date(selectedSlot.endTime);
+    
+    // Lấy appointments của user với bác sĩ hiện tại trong cùng ngày
+    const sameDayAppointments = await Appointment.find({
+      patientUserId,
+      doctorUserId,
+      status: { $in: ['PendingPayment', 'Pending', 'Approved', 'CheckedIn'] },
+      timeslotId: { $exists: true }
+    })
+    .populate({
+      path: 'timeslotId',
+      select: 'startTime endTime'
+    });
+
+    // Filter appointments có overlap thời gian (bao gồm buffer time)
+    const userBufferTime = 10; // 10 phút buffer
+    const slotEndWithBuffer = new Date(slotEnd.getTime() + userBufferTime * 60000);
+    
+    for (const apt of sameDayAppointments) {
+      if (!apt.timeslotId) continue;
+
+      const aptStart = new Date(apt.timeslotId.startTime);
+      const aptEnd = new Date(apt.timeslotId.endTime);
+      
+      // Check overlap: (start1 < end2) AND (end1WithBuffer > start2)
+      const hasTimeOverlap = (slotStart < aptEnd && slotEndWithBuffer > aptStart);
+      
+      if (hasTimeOverlap) {
+        const aptDateVN = aptStart.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+        const aptStartVN = aptStart.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' });
+        const aptEndVN = aptEnd.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' });
+        
+        throw new Error(
+          `Bạn đã có lịch hẹn với bác sĩ này vào ${aptDateVN} từ ${aptStartVN} - ${aptEndVN}. ` +
+          `Vui lòng chọn bác sĩ khác hoặc thời gian khác.`
+        );
+      }
+    }
+
     // Nếu đặt cho người khác, tạo Customer
-    if (formData?.appointmentFor === 'other') {
-      if (!formData?.fullName || !formData?.email || !formData?.phoneNumber) {
+    if (appointmentFor === 'other') {
+      if (!fullName || !email || !phoneNumber) {
         throw new Error('Vui lòng nhập đầy đủ họ tên, email và số điện thoại của người được đặt lịch (customer)');
       }
 
@@ -201,8 +260,8 @@ class AppointmentService {
         return str.toLowerCase().trim().replace(/\s+/g, ' ');
       };
 
-      const normalizedFullName = normalizeString(formData.fullName);
-      const normalizedEmail = normalizeString(formData.email);
+      const normalizedFullName = normalizeString(fullName);
+      const normalizedEmail = normalizeString(email);
 
       // Lấy tất cả appointments của user vào cùng thời gian
       const slotStart = new Date(selectedSlot.startTime);
@@ -224,15 +283,19 @@ class AppointmentService {
         select: 'fullName email'
       });
 
-      // Filter appointments có overlap thời gian
+      // Filter appointments có overlap thời gian (bao gồm buffer time)
       for (const apt of overlappingAppointments) {
         if (!apt.timeslotId || !apt.customerId) continue;
 
         const aptStart = new Date(apt.timeslotId.startTime);
         const aptEnd = new Date(apt.timeslotId.endTime);
 
-        // Check overlap: (start1 < end2) AND (end1 > start2)
-        const hasTimeOverlap = (slotStart < aptEnd && slotEnd > aptStart);
+        // ⭐ THÊM: Tính buffer time (10 phút)
+        const customerBufferTime = 10; // 10 phút buffer
+        const slotEndWithBuffer = new Date(slotEnd.getTime() + customerBufferTime * 60000);
+
+        // Check overlap: (start1 < end2) AND (end1WithBuffer > start2)
+        const hasTimeOverlap = (slotStart < aptEnd && slotEndWithBuffer > aptStart);
 
         if (hasTimeOverlap) {
           // Có trùng thời gian → check xem có trùng customer không
@@ -244,7 +307,7 @@ class AppointmentService {
             const aptEndDisplay = `${String(aptEnd.getUTCHours()).padStart(2, '0')}:${String(aptEnd.getUTCMinutes()).padStart(2, '0')}`;
             
             throw new Error(
-              `Bạn đã đặt lịch cho "${formData.fullName}" vào ${aptStartDisplay} - ${aptEndDisplay}. ` +
+              `Bạn đã đặt lịch cho "${fullName}" vào ${aptStartDisplay} - ${aptEndDisplay}. ` +
               `Vui lòng chọn thời gian khác.`
             );
           }
@@ -254,9 +317,9 @@ class AppointmentService {
       // Tạo Customer mới
       const newCustomer = await Customer.create({
         patientUserId: patientUserId, 
-        fullName: formData.fullName,
-        email: formData.email, 
-        phoneNumber: formData.phoneNumber,
+        fullName: fullName,
+        email: email, 
+        phoneNumber: phoneNumber,
         hasAccount: false,
         linkedUserId: null
       });
@@ -264,9 +327,9 @@ class AppointmentService {
       customerId = newCustomer._id;
       console.log('✅ Đã tạo Customer cho người được đặt lịch:');
       console.log('   - Customer ID:', newCustomer._id);
-      console.log('   - Họ tên:', formData.fullName);
-      console.log('   - Email:', formData.email);
-      console.log('   - SĐT:', formData.phoneNumber);
+      console.log('   - Họ tên:', fullName);
+      console.log('   - Email:', email);
+      console.log('   - SĐT:', phoneNumber);
     }
 
     // Tạo Timeslot mới từ slot được chọn
@@ -328,12 +391,15 @@ class AppointmentService {
       mode: appointmentMode, // Consultation=Online, Examination=Offline
       notes: notes || null,
       bookedByUserId: patientUserId,
-      paymentHoldExpiresAt: paymentHoldExpiresAt
+      paymentHoldExpiresAt: paymentHoldExpiresAt,
+      appointmentFor: appointmentFor || 'self' // ⭐ THÊM: Lưu appointmentFor
     });
 
     console.log('✅ Appointment đã được tạo:', {
       id: newAppointment._id,
       patientUserId: newAppointment.patientUserId,
+      customerId: newAppointment.customerId,
+      appointmentFor: newAppointment.appointmentFor,
       status: newAppointment.status
     });
 
@@ -767,7 +833,10 @@ class AppointmentService {
       console.log('📋 [getUserAppointments] Appointments:', appointments.map(apt => ({
         id: apt._id,
         status: apt.status,
+        appointmentFor: apt.appointmentFor,
         patientUserId: apt.patientUserId?._id,
+        customerId: apt.customerId?._id,
+        customerName: apt.customerId?.fullName,
         serviceName: apt.serviceId?.serviceName
       })));
 
@@ -916,9 +985,11 @@ class AppointmentService {
   /**
    * Hủy appointment
    */
-  async cancelAppointment(appointmentId, cancelReason, userId, bankInfo = null) {
+  async cancelAppointment({ appointmentId, userId, cancelReason, bankInfo = null }) {
     try {
       console.log(`🔄 Hủy appointment ${appointmentId}`);
+      console.log(`   - Type: ${typeof appointmentId}`);
+      console.log(`   - Value: ${appointmentId}`);
 
       const appointment = await Appointment.findById(appointmentId);
       if (!appointment) {

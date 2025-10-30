@@ -2,6 +2,7 @@ const Appointment = require('../models/appointment.model');
 const Timeslot = require('../models/timeslot.model');
 const User = require('../models/user.model');
 const Patient = require('../models/patient.model');
+const Doctor = require('../models/doctor.model');
 
 /**
  * Lấy danh sách lịch hẹn của bác sĩ cho tuần hiện tại + tuần tiếp theo (2 tuần)

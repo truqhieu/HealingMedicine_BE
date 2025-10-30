@@ -14,17 +14,43 @@ class AvailableSlotService {
     try {
       const now = new Date();
       
-      // Tìm tất cả schedules có endTime <= now và status vẫn là 'Available'
-      const expiredSchedules = await DoctorSchedule.find({
-        endTime: { $lte: now },
+      // Tìm tất cả schedules có status 'Available'
+      const availableSchedules = await DoctorSchedule.find({
         status: 'Available'
       });
+
+      const expiredSchedules = [];
+      
+      for (const schedule of availableSchedules) {
+        // Sử dụng workingHours để tính endTime
+        const workingHours = schedule.workingHours || {
+          morningStart: '08:00',
+          morningEnd: '12:00',
+          afternoonStart: '14:00',
+          afternoonEnd: '18:00'
+        };
+
+        let scheduleEnd;
+        if (schedule.shift === 'Morning') {
+          scheduleEnd = new Date(schedule.date);
+          const [endHour, endMinute] = workingHours.morningEnd.split(':').map(Number);
+          scheduleEnd.setUTCHours(endHour - 7, endMinute, 0, 0);
+        } else { // Afternoon
+          scheduleEnd = new Date(schedule.date);
+          const [endHour, endMinute] = workingHours.afternoonEnd.split(':').map(Number);
+          scheduleEnd.setUTCHours(endHour - 7, endMinute, 0, 0);
+        }
+
+        if (scheduleEnd <= now) {
+          expiredSchedules.push(schedule._id);
+        }
+      }
 
       if (expiredSchedules.length > 0) {
         // Update tất cả schedules đã hết thành 'Unavailable'
         const result = await DoctorSchedule.updateMany(
           {
-            endTime: { $lte: now },
+            _id: { $in: expiredSchedules },
             status: 'Available'
           },
           {
@@ -75,18 +101,30 @@ class AvailableSlotService {
       const now = new Date(); // Thời gian hiện tại (UTC thực)
       
       for (const doctor of doctors) {
-        // ⭐ Lưu UTC thực: 8h VN = 1h UTC, 14h VN = 7h UTC (VN = UTC+7)
+        // Sử dụng workingHours mặc định
+        const workingHours = {
+          morningStart: '08:00',
+          morningEnd: '12:00',
+          afternoonStart: '14:00',
+          afternoonEnd: '18:00'
+        };
+
+        // ⭐ Sử dụng workingHours thay vì hardcode
         const morningStart = new Date(searchDate);
-        morningStart.setUTCHours(1, 0, 0, 0); // 08:00 VN = 01:00 UTC
+        const [morningStartHour, morningStartMinute] = workingHours.morningStart.split(':').map(Number);
+        morningStart.setUTCHours(morningStartHour - 7, morningStartMinute, 0, 0); // Convert VN time to UTC
         
         const morningEnd = new Date(searchDate);
-        morningEnd.setUTCHours(5, 0, 0, 0); // 12:00 VN = 05:00 UTC
+        const [morningEndHour, morningEndMinute] = workingHours.morningEnd.split(':').map(Number);
+        morningEnd.setUTCHours(morningEndHour - 7, morningEndMinute, 0, 0); // Convert VN time to UTC
         
         const afternoonStart = new Date(searchDate);
-        afternoonStart.setUTCHours(7, 0, 0, 0); // 14:00 VN = 07:00 UTC
+        const [afternoonStartHour, afternoonStartMinute] = workingHours.afternoonStart.split(':').map(Number);
+        afternoonStart.setUTCHours(afternoonStartHour - 7, afternoonStartMinute, 0, 0); // Convert VN time to UTC
         
         const afternoonEnd = new Date(searchDate);
-        afternoonEnd.setUTCHours(11, 0, 0, 0); // 18:00 VN = 11:00 UTC
+        const [afternoonEndHour, afternoonEndMinute] = workingHours.afternoonEnd.split(':').map(Number);
+        afternoonEnd.setUTCHours(afternoonEndHour - 7, afternoonEndMinute, 0, 0); // Convert VN time to UTC
         
         // ⭐ Check status dựa vào thời gian thực (so sánh UTC với UTC)
         const morningStatus = morningEnd <= now ? 'Unavailable' : 'Available';
@@ -105,19 +143,17 @@ class AvailableSlotService {
             doctorUserId: doctor._id,
             date: searchDate,
             shift: 'Morning',
-            startTime: morningStart,
-            endTime: morningEnd,
             status: morningStatus,
-            maxSlots: 4
+            maxSlots: 4,
+            workingHours: workingHours
           },
           {
             doctorUserId: doctor._id,
             date: searchDate,
             shift: 'Afternoon',
-            startTime: afternoonStart,
-            endTime: afternoonEnd,
             status: afternoonStatus,
-            maxSlots: 4
+            maxSlots: 4,
+            workingHours: workingHours
           }
         );
       }
@@ -189,33 +225,54 @@ class AvailableSlotService {
       doctorUserId,
       date: searchDate,
       status: 'Available'
-    }).sort({ startTime: 1 });
+    }).sort({ shift: 1 });
 
     // ⭐ THÊM: Nếu chưa có schedule cho ngày này → Tự động tạo mặc định
     if (schedules.length === 0) {
       console.log(`⚠️  Không tìm thấy DoctorSchedule cho ngày ${searchDate.toISOString().split('T')[0]}, tự động tạo...`);
       
       try {
-        // Tạo 2 schedule mặc định (Morning 8:00-12:00, Afternoon 14:00-18:00 Việt Nam)
-        // ⭐ Chuyển đổi từ giờ Việt Nam sang UTC: trừ 7 tiếng
+        // Sử dụng workingHours mặc định
+        const workingHours = {
+          morningStart: '08:00',
+          morningEnd: '12:00',
+          afternoonStart: '14:00',
+          afternoonEnd: '18:00'
+        };
+
+        // Tạo schedule dựa trên workingHours
+        const morningStart = new Date(searchDate);
+        const [morningStartHour, morningStartMinute] = workingHours.morningStart.split(':').map(Number);
+        morningStart.setUTCHours(morningStartHour - 7, morningStartMinute, 0, 0);
+
+        const morningEnd = new Date(searchDate);
+        const [morningEndHour, morningEndMinute] = workingHours.morningEnd.split(':').map(Number);
+        morningEnd.setUTCHours(morningEndHour - 7, morningEndMinute, 0, 0);
+
+        const afternoonStart = new Date(searchDate);
+        const [afternoonStartHour, afternoonStartMinute] = workingHours.afternoonStart.split(':').map(Number);
+        afternoonStart.setUTCHours(afternoonStartHour - 7, afternoonStartMinute, 0, 0);
+
+        const afternoonEnd = new Date(searchDate);
+        const [afternoonEndHour, afternoonEndMinute] = workingHours.afternoonEnd.split(':').map(Number);
+        afternoonEnd.setUTCHours(afternoonEndHour - 7, afternoonEndMinute, 0, 0);
+
         const defaultSchedules = [
           {
             doctorUserId,
             date: searchDate,
             shift: 'Morning',
-            startTime: new Date(searchDate).setHours(1, 0, 0),  // 1h UTC = 8h Vietnam time
-            endTime: new Date(searchDate).setHours(5, 0, 0),    // 5h UTC = 12h Vietnam time
             status: 'Available',
-            maxSlots: 4
+            maxSlots: 4,
+            workingHours: workingHours
           },
           {
             doctorUserId,
             date: searchDate,
             shift: 'Afternoon',
-            startTime: new Date(searchDate).setHours(7, 0, 0),  // 7h UTC = 14h Vietnam time
-            endTime: new Date(searchDate).setHours(11, 0, 0),   // 11h UTC = 18h Vietnam time
             status: 'Available',
-            maxSlots: 4
+            maxSlots: 4,
+            workingHours: workingHours
           }
         ];
         
@@ -368,8 +425,34 @@ class AvailableSlotService {
     const allAvailableSlots = [];
 
     for (const schedule of schedules) {
-      const scheduleStart = new Date(schedule.startTime);
-      const scheduleEnd = new Date(schedule.endTime);
+      // Sử dụng workingHours từ DoctorSchedule thay vì startTime/endTime
+      const workingHours = schedule.workingHours || {
+        morningStart: '08:00',
+        morningEnd: '12:00',
+        afternoonStart: '14:00',
+        afternoonEnd: '18:00'
+      };
+
+      // Tạo scheduleStart và scheduleEnd dựa trên workingHours
+      let scheduleStart, scheduleEnd;
+      
+      if (schedule.shift === 'Morning') {
+        scheduleStart = new Date(searchDate);
+        const [startHour, startMinute] = workingHours.morningStart.split(':').map(Number);
+        scheduleStart.setUTCHours(startHour - 7, startMinute, 0, 0);
+        
+        scheduleEnd = new Date(searchDate);
+        const [endHour, endMinute] = workingHours.morningEnd.split(':').map(Number);
+        scheduleEnd.setUTCHours(endHour - 7, endMinute, 0, 0);
+      } else { // Afternoon
+        scheduleStart = new Date(searchDate);
+        const [startHour, startMinute] = workingHours.afternoonStart.split(':').map(Number);
+        scheduleStart.setUTCHours(startHour - 7, startMinute, 0, 0);
+        
+        scheduleEnd = new Date(searchDate);
+        const [endHour, endMinute] = workingHours.afternoonEnd.split(':').map(Number);
+        scheduleEnd.setUTCHours(endHour - 7, endMinute, 0, 0);
+      }
 
       console.log(`\n   🕐 Schedule ${schedule.shift}: ${ScheduleHelper.formatTimeSlot(scheduleStart, scheduleEnd)}`);
 
@@ -713,24 +796,47 @@ class AvailableSlotService {
           console.log(`⚠️  Bác sĩ ${doctor._id} không có schedule cho ngày ${searchDate.toISOString().split('T')[0]}, tự động tạo...`);
           
           try {
+            // Sử dụng workingHours mặc định
+            const workingHours = {
+              morningStart: '08:00',
+              morningEnd: '12:00',
+              afternoonStart: '14:00',
+              afternoonEnd: '18:00'
+            };
+
+            // Tạo schedule dựa trên workingHours
+            const morningStart = new Date(searchDate);
+            const [morningStartHour, morningStartMinute] = workingHours.morningStart.split(':').map(Number);
+            morningStart.setUTCHours(morningStartHour - 7, morningStartMinute, 0, 0);
+
+            const morningEnd = new Date(searchDate);
+            const [morningEndHour, morningEndMinute] = workingHours.morningEnd.split(':').map(Number);
+            morningEnd.setUTCHours(morningEndHour - 7, morningEndMinute, 0, 0);
+
+            const afternoonStart = new Date(searchDate);
+            const [afternoonStartHour, afternoonStartMinute] = workingHours.afternoonStart.split(':').map(Number);
+            afternoonStart.setUTCHours(afternoonStartHour - 7, afternoonStartMinute, 0, 0);
+
+            const afternoonEnd = new Date(searchDate);
+            const [afternoonEndHour, afternoonEndMinute] = workingHours.afternoonEnd.split(':').map(Number);
+            afternoonEnd.setUTCHours(afternoonEndHour - 7, afternoonEndMinute, 0, 0);
+
             const defaultSchedules = [
               {
                 doctorUserId: doctor._id,
                 date: searchDate,
                 shift: 'Morning',
-                startTime: new Date(searchDate).setHours(1, 0, 0),  // 1h UTC = 8h Vietnam time
-                endTime: new Date(searchDate).setHours(5, 0, 0),    // 5h UTC = 12h Vietnam time
                 status: 'Available',
-                maxSlots: 4
+                maxSlots: 4,
+                workingHours: workingHours
               },
               {
                 doctorUserId: doctor._id,
                 date: searchDate,
                 shift: 'Afternoon',
-                startTime: new Date(searchDate).setHours(7, 0, 0),  // 7h UTC = 14h Vietnam time
-                endTime: new Date(searchDate).setHours(11, 0, 0),   // 11h UTC = 18h Vietnam time
                 status: 'Available',
-                maxSlots: 4
+                maxSlots: 4,
+                workingHours: workingHours
               }
             ];
             
@@ -745,9 +851,34 @@ class AvailableSlotService {
           }
         }
 
-        // Kiểm tra khung giờ có nằm trong schedule không
-        const scheduleStart = new Date(schedule.startTime);
-        const scheduleEnd = new Date(schedule.endTime);
+        // Sử dụng workingHours từ DoctorSchedule thay vì startTime/endTime
+        const workingHours = schedule.workingHours || {
+          morningStart: '08:00',
+          morningEnd: '12:00',
+          afternoonStart: '14:00',
+          afternoonEnd: '18:00'
+        };
+
+        // Tạo scheduleStart và scheduleEnd dựa trên workingHours
+        let scheduleStart, scheduleEnd;
+        
+        if (schedule.shift === 'Morning') {
+          scheduleStart = new Date(searchDate);
+          const [startHour, startMinute] = workingHours.morningStart.split(':').map(Number);
+          scheduleStart.setUTCHours(startHour - 7, startMinute, 0, 0);
+          
+          scheduleEnd = new Date(searchDate);
+          const [endHour, endMinute] = workingHours.morningEnd.split(':').map(Number);
+          scheduleEnd.setUTCHours(endHour - 7, endMinute, 0, 0);
+        } else { // Afternoon
+          scheduleStart = new Date(searchDate);
+          const [startHour, startMinute] = workingHours.afternoonStart.split(':').map(Number);
+          scheduleStart.setUTCHours(startHour - 7, startMinute, 0, 0);
+          
+          scheduleEnd = new Date(searchDate);
+          const [endHour, endMinute] = workingHours.afternoonEnd.split(':').map(Number);
+          scheduleEnd.setUTCHours(endHour - 7, endMinute, 0, 0);
+        }
 
         console.log(`   Schedule: ${scheduleStart.toISOString()} - ${scheduleEnd.toISOString()}`);
         console.log(`   Slot: ${slotStartTime.toISOString()} - ${slotEndTime.toISOString()}`);
@@ -818,10 +949,6 @@ class AvailableSlotService {
 
   /**
    * ⭐ NEW: Generate danh sách khung giờ trống cho một ngày (không cần chọn bác sĩ)
-   * FE dùng để hiển thị các slot khả dụng sau khi chọn dịch vụ + ngày
-   * @param {string} patientUserId - ID của user đang đặt lịch (để exclude slots đã đặt)
-   * @param {string} customerFullName - Tên người khác (để validate conflict)
-   * @param {string} customerEmail - Email người khác (để validate conflict)
    */
   async generateAvailableSlotsByDate({ 
     serviceId, 
@@ -992,6 +1119,42 @@ class AvailableSlotService {
       }
     }
 
+    // ⭐ THÊM: Lấy tất cả timeslots đã reserved hoặc booked (không chỉ từ appointments)
+    const Timeslot = require('../models/timeslot.model');
+    const allTimeslots = await Timeslot.find({
+      doctorUserId: { $in: doctors.map(d => d._id) },
+      startTime: { 
+        $gte: new Date(searchDate.getTime()),
+        $lt: new Date(searchDate.getTime() + 24 * 60 * 60 * 1000)
+      },
+      status: { $in: ['Reserved', 'Booked'] }
+    });
+
+    console.log(`🔍 Found ${allTimeslots.length} timeslots (Reserved/Booked) for this date`);
+
+    // Thêm timeslots vào bookedSlotsByDoctor
+    for (const timeslot of allTimeslots) {
+      const docId = timeslot.doctorUserId.toString();
+      if (!bookedSlotsByDoctor[docId]) {
+        bookedSlotsByDoctor[docId] = [];
+      }
+      bookedSlotsByDoctor[docId].push({
+        start: new Date(timeslot.startTime),
+        end: new Date(timeslot.endTime)
+      });
+    }
+
+    // Debug: Log booked slots for each doctor
+    for (const doctorId in bookedSlotsByDoctor) {
+      const doctor = doctors.find(d => d._id.toString() === doctorId);
+      console.log(`🔍 Doctor ${doctor?.fullName}: ${bookedSlotsByDoctor[doctorId].length} booked slots`);
+      bookedSlotsByDoctor[doctorId].forEach((slot, idx) => {
+        const vnStart = new Date(slot.start.getTime() + 7 * 60 * 60 * 1000);
+        const vnEnd = new Date(slot.end.getTime() + 7 * 60 * 60 * 1000);
+        console.log(`   - Slot ${idx + 1}: ${vnStart.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${vnEnd.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}`);
+      });
+    }
+
     // 8. Generate slots cho từng bác sĩ
     const allSlots = [];
     const now = new Date();
@@ -1002,8 +1165,34 @@ class AvailableSlotService {
 
       if (!doctor) continue;
 
-      const scheduleStart = new Date(schedule.startTime);
-      const scheduleEnd = new Date(schedule.endTime);
+      // Sử dụng workingHours từ DoctorSchedule thay vì startTime/endTime
+      const workingHours = schedule.workingHours || {
+        morningStart: '08:00',
+        morningEnd: '12:00',
+        afternoonStart: '14:00',
+        afternoonEnd: '18:00'
+      };
+
+      // Tạo scheduleStart và scheduleEnd dựa trên workingHours
+      let scheduleStart, scheduleEnd;
+      
+      if (schedule.shift === 'Morning') {
+        scheduleStart = new Date(searchDate);
+        const [startHour, startMinute] = workingHours.morningStart.split(':').map(Number);
+        scheduleStart.setUTCHours(startHour - 7, startMinute, 0, 0);
+        
+        scheduleEnd = new Date(searchDate);
+        const [endHour, endMinute] = workingHours.morningEnd.split(':').map(Number);
+        scheduleEnd.setUTCHours(endHour - 7, endMinute, 0, 0);
+      } else { // Afternoon
+        scheduleStart = new Date(searchDate);
+        const [startHour, startMinute] = workingHours.afternoonStart.split(':').map(Number);
+        scheduleStart.setUTCHours(startHour - 7, startMinute, 0, 0);
+        
+        scheduleEnd = new Date(searchDate);
+        const [endHour, endMinute] = workingHours.afternoonEnd.split(':').map(Number);
+        scheduleEnd.setUTCHours(endHour - 7, endMinute, 0, 0);
+      }
       
       // ⭐ Query đã filter status='Available' rồi, nên schedules ở đây đều còn hiệu lực
       
@@ -1020,16 +1209,19 @@ class AvailableSlotService {
         const slotStart = new Date(slot.startTime);
         const slotEnd = new Date(slot.endTime);
         
-        // Kiểm tra xem slot có bị trung với booked slot nào không
+        // ⭐ THÊM: Tính buffer time cho slot mới
+        const slotEndWithBuffer = new Date(slotEnd.getTime() + breakAfterMinutes * 60000);
+        
+        // Kiểm tra xem slot có bị trung với booked slot nào không (bao gồm buffer time)
         return !bookedSlots.some(booked => {
-          return (slotStart < booked.end && slotEnd > booked.start);
+          // Conflict nếu: slotStart < booked.end && slotEndWithBuffer > booked.start
+          return (slotStart < booked.end && slotEndWithBuffer > booked.start);
         });
       });
 
-      // ⭐ Exclude slots mà user hiện tại đã đặt (CHỈ khi appointmentFor === 'self')
-      // Khi appointmentFor === 'other', patientUserId sẽ là null → skip bước này
+      // ⭐ Exclude slots mà user hiện tại đã đặt với bác sĩ này
       if (patientUserId && patientBookedSlots.length > 0) {
-        console.log(`\n🔴 [Doctor ${doctor.fullName}] EXCLUDING USER BOOKED SLOTS (appointmentFor=self):`);
+        console.log(`\n🔴 [Doctor ${doctor.fullName}] EXCLUDING USER BOOKED SLOTS (appointmentFor=${appointmentFor}, only this doctor):`);
         console.log(`   - patientUserId: ${patientUserId}`);
         console.log(`   - patientBookedSlots count: ${patientBookedSlots.length}`);
         patientBookedSlots.forEach((booked, idx) => {
@@ -1046,14 +1238,16 @@ class AvailableSlotService {
           const slotStart = new Date(slot.startTime);
           const slotEnd = new Date(slot.endTime);
           
-          // Kiểm tra xem slot có trùng với slots user đã đặt không
+          // ⭐ THÊM: Tính buffer time cho slot mới
+          const slotEndWithBuffer = new Date(slotEnd.getTime() + breakAfterMinutes * 60000);
+          
+          // Kiểm tra xem slot có trùng với slots user đã đặt không (bao gồm buffer time)
           const isBooked = patientBookedSlots.some(booked => {
-            return (slotStart.getTime() === booked.start.getTime() && 
-                    slotEnd.getTime() === booked.end.getTime());
+            return (slotStart < booked.end && slotEndWithBuffer > booked.start);
           });
           
           if (isBooked) {
-            console.log(`     ❌ EXCLUDED: ${slot.startTime} - ${slot.endTime}`);
+            console.log(`     ❌ EXCLUDED: ${slot.startTime} - ${slot.endTime} (conflicts with user booked slot)`);
           }
           
           return !isBooked;
@@ -1061,9 +1255,9 @@ class AvailableSlotService {
         
         console.log(`   - availableSlots AFTER exclude: ${availableSlots.length} (removed ${slotsBeforeFilter - availableSlots.length})`);
       } else if (patientUserId && patientBookedSlots.length === 0) {
-        console.log(`\n✅ [Doctor ${doctor.fullName}] NO USER BOOKED SLOTS TO EXCLUDE (appointmentFor=self, user has no appointments)`);
+        console.log(`\n✅ [Doctor ${doctor.fullName}] NO USER BOOKED SLOTS TO EXCLUDE (user has no appointments with this doctor)`);
       } else if (!patientUserId) {
-        console.log(`\n🟢 [Doctor ${doctor.fullName}] NOT EXCLUDING USER SLOTS (appointmentFor=other, patientUserId=null)`);
+        console.log(`\n🟢 [Doctor ${doctor.fullName}] NOT EXCLUDING USER SLOTS (no patientUserId)`);
       }
       
       // ⭐ Exclude slots của customer (nếu đặt cho người khác và customer đã có appointment)
@@ -1085,13 +1279,15 @@ class AvailableSlotService {
           const slotStart = new Date(slot.startTime);
           const slotEnd = new Date(slot.endTime);
           
+          // ⭐ THÊM: Tính buffer time cho slot mới
+          const slotEndWithBuffer = new Date(slotEnd.getTime() + breakAfterMinutes * 60000);
+          
           const isBooked = customerBookedSlots.some(booked => {
-            return (slotStart.getTime() === booked.start.getTime() && 
-                    slotEnd.getTime() === booked.end.getTime());
+            return (slotStart < booked.end && slotEndWithBuffer > booked.start);
           });
           
           if (isBooked) {
-            console.log(`❌ EXCLUDED: ${slot.startTime} - ${slot.endTime}`);
+            console.log(`❌ EXCLUDED: ${slot.startTime} - ${slot.endTime} (conflicts with customer booked slot)`);
           }
           
           return !isBooked;
@@ -1171,7 +1367,7 @@ class AvailableSlotService {
   /**
    * ⭐ NEW: Lấy khoảng thời gian khả dụng của một bác sĩ cụ thể vào 1 ngày
    */
-  async getDoctorScheduleRange({ doctorUserId, serviceId, date }) {
+  async getDoctorScheduleRange({ doctorUserId, serviceId, date, patientUserId = null, appointmentFor = 'self' }) {
     // 1. Validate doctor
     const doctor = await User.findById(doctorUserId);
     if (!doctor) {
@@ -1201,7 +1397,7 @@ class AvailableSlotService {
       doctorUserId,
       date: searchDate,
       status: 'Available'
-    }).sort({ startTime: 1 });
+    }).sort({ shift: 1 });
 
     if (schedules.length === 0) {
       return {
@@ -1223,8 +1419,21 @@ class AvailableSlotService {
       select: 'startTime endTime breakAfterMinutes'
     });
 
+    // ⭐ THÊM: Lấy tất cả timeslots đã reserved hoặc booked (không chỉ từ appointments)
+    const Timeslot = require('../models/timeslot.model');
+    const allTimeslots = await Timeslot.find({
+      doctorUserId,
+      startTime: { 
+        $gte: new Date(searchDate.getTime()),
+        $lt: new Date(searchDate.getTime() + 24 * 60 * 60 * 1000)
+      },
+      status: { $in: ['Reserved', 'Booked'] }
+    });
+
+    console.log(`🔍 [getDoctorScheduleRange] Found ${allTimeslots.length} timeslots (Reserved/Booked) for doctor ${doctorUserId} on ${searchDate.toISOString().split('T')[0]}`);
+
     // Filter appointments vào ngày đang xét
-    const bookedSlots = bookedAppointments
+    const bookedSlotsFromAppointments = bookedAppointments
       .filter(apt => {
         if (!apt.timeslotId) return false;
         const slotDate = new Date(apt.timeslotId.startTime);
@@ -1234,8 +1443,88 @@ class AvailableSlotService {
         start: new Date(apt.timeslotId.startTime),
         end: new Date(apt.timeslotId.endTime),
         breakAfter: apt.timeslotId.breakAfterMinutes || 10
-      }))
-      .sort((a, b) => a.start - b.start);
+      }));
+
+    // Thêm timeslots từ bảng Timeslot
+    const bookedSlotsFromTimeslots = allTimeslots.map(timeslot => ({
+      start: new Date(timeslot.startTime),
+      end: new Date(timeslot.endTime),
+      breakAfter: 10 // Default buffer time
+    }));
+
+    // Gộp tất cả booked slots và loại bỏ trùng lặp
+    const allBookedSlots = [...bookedSlotsFromAppointments, ...bookedSlotsFromTimeslots];
+    const uniqueBookedSlots = [];
+    
+    for (const slot of allBookedSlots) {
+      const isDuplicate = uniqueBookedSlots.some(existing => 
+        existing.start.getTime() === slot.start.getTime() && 
+        existing.end.getTime() === slot.end.getTime()
+      );
+      if (!isDuplicate) {
+        uniqueBookedSlots.push(slot);
+      }
+    }
+
+    // ⭐ THÊM: Lấy appointments của user trong cùng ngày
+    let userBookedSlots = [];
+    if (patientUserId) {
+      const userAppointments = await Appointment.find({
+        patientUserId,
+        status: { $in: ['PendingPayment', 'Pending', 'Approved', 'CheckedIn'] },
+        timeslotId: { $exists: true }
+      })
+      .populate({
+        path: 'timeslotId',
+        select: 'startTime endTime doctorUserId'
+      });
+
+      // Filter appointments vào ngày đang xét
+      const userAppointmentsOnDate = userAppointments.filter(apt => {
+        if (!apt.timeslotId) return false;
+        const slotDate = new Date(apt.timeslotId.startTime);
+        return slotDate.toISOString().split('T')[0] === searchDate.toISOString().split('T')[0];
+      });
+
+      // Cả 'self' và 'other' đều chỉ exclude slots của bác sĩ hiện tại
+      // Cho phép đặt trùng giờ cùng ngày với bác sĩ khác
+      userBookedSlots = userAppointmentsOnDate
+        .filter(apt => apt.timeslotId.doctorUserId && apt.timeslotId.doctorUserId.toString() === doctorUserId)
+        .map(apt => ({
+          start: new Date(apt.timeslotId.startTime),
+          end: new Date(apt.timeslotId.endTime),
+          breakAfter: 10 // Default buffer time
+        }));
+      
+      if (appointmentFor === 'self') {
+        console.log(`🔍 [getDoctorScheduleRange] User ${patientUserId} has ${userBookedSlots.length} appointments with doctor ${doctorUserId} on this date (appointmentFor=self) - EXCLUDING ONLY THIS DOCTOR`);
+      } else if (appointmentFor === 'other') {
+        console.log(`🔍 [getDoctorScheduleRange] User ${patientUserId} has ${userBookedSlots.length} appointments with doctor ${doctorUserId} on this date (appointmentFor=other) - EXCLUDING ONLY THIS DOCTOR`);
+      }
+    }
+
+    // Gộp tất cả booked slots (doctor + user)
+    const allBookedSlotsFinal = [...uniqueBookedSlots, ...userBookedSlots];
+    const finalUniqueBookedSlots = [];
+    
+    for (const slot of allBookedSlotsFinal) {
+      const isDuplicate = finalUniqueBookedSlots.some(existing => 
+        existing.start.getTime() === slot.start.getTime() && 
+        existing.end.getTime() === slot.end.getTime()
+      );
+      if (!isDuplicate) {
+        finalUniqueBookedSlots.push(slot);
+      }
+    }
+
+    const bookedSlots = finalUniqueBookedSlots.sort((a, b) => a.start - b.start);
+
+    console.log(`🔍 [getDoctorScheduleRange] Total unique booked slots (doctor + user): ${bookedSlots.length}`);
+    bookedSlots.forEach((slot, idx) => {
+      const vnStart = new Date(slot.start.getTime() + 7 * 60 * 60 * 1000);
+      const vnEnd = new Date(slot.end.getTime() + 7 * 60 * 60 * 1000);
+      console.log(`   - Slot ${idx + 1}: ${vnStart.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${vnEnd.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}`);
+    });
 
     // Helper function - Convert UTC sang giờ VN (UTC+7)
     const formatTime = (date) => {
@@ -1247,14 +1536,18 @@ class AvailableSlotService {
       return `${hours}:${minutes}`;
     };
 
-    // Function tính available gaps cho một shift
+    // Function tính available gaps cho một shift (bao gồm buffer time)
     const calculateAvailableGaps = (shiftStart, shiftEnd, bookedSlots) => {
       const gaps = [];
       let currentStart = new Date(shiftStart);
 
       for (const slot of bookedSlots) {
+        // ⭐ THÊM: Tính buffer time cho slot đã booked
+        const bufferTime = 10; // 10 phút buffer
+        const slotEndWithBuffer = new Date(slot.end.getTime() + bufferTime * 60000);
+
         // Nếu slot nằm ngoài shift này, skip
-        if (slot.end <= shiftStart || slot.start >= shiftEnd) continue;
+        if (slotEndWithBuffer <= shiftStart || slot.start >= shiftEnd) continue;
 
         // Nếu có khoảng trống trước slot này
         if (currentStart < slot.start) {
@@ -1264,9 +1557,8 @@ class AvailableSlotService {
           });
         }
 
-        // Di chuyển currentStart đến sau slot này + break time
-        const slotEndWithBreak = new Date(slot.end.getTime() + slot.breakAfter * 60000);
-        currentStart = slotEndWithBreak > currentStart ? slotEndWithBreak : new Date(slot.end);
+        // Di chuyển currentStart đến sau slot này + buffer time
+        currentStart = slotEndWithBuffer > currentStart ? slotEndWithBuffer : new Date(slotEndWithBuffer);
       }
 
       // Nếu còn khoảng trống sau slot cuối cùng
@@ -1290,8 +1582,11 @@ class AvailableSlotService {
     const searchDateStr = searchDate.toISOString().split('T')[0]; // yyyy-mm-dd
     const isToday = todayDateStr === searchDateStr;
     
-    // Helper function: Filter và adjust gaps theo thời gian thực + service duration
+    // Helper function: Filter và adjust gaps theo thời gian thực + service duration + buffer time
     const filterRealTimeGaps = (gaps) => {
+      const bufferTime = 10; // 10 phút buffer
+      const totalTimeNeeded = serviceDurationMs + (bufferTime * 60 * 1000); // Service + buffer
+      
       return gaps
         .map(gap => {
           const gapStart = new Date(gap.start);
@@ -1313,10 +1608,10 @@ class AvailableSlotService {
             }
           }
           
-          // ⭐ Kiểm tra gap có đủ thời gian cho service không (áp dụng cho mọi ngày)
+          // ⭐ Kiểm tra gap có đủ thời gian cho service + buffer không (áp dụng cho mọi ngày)
           const gapDuration = new Date(gap.end).getTime() - new Date(gap.start).getTime();
-          if (gapDuration < serviceDurationMs) {
-            return null; // Gap không đủ thời gian
+          if (gapDuration < totalTimeNeeded) {
+            return null; // Gap không đủ thời gian (service + buffer)
           }
           
           return gap;
@@ -1331,8 +1626,21 @@ class AvailableSlotService {
     const scheduleRanges = [];
     
     if (morningSchedules.length > 0) {
-      const morningStart = new Date(Math.min(...morningSchedules.map(s => new Date(s.startTime).getTime())));
-      const morningEnd = new Date(Math.max(...morningSchedules.map(s => new Date(s.endTime).getTime())));
+      // Sử dụng workingHours từ DoctorSchedule thay vì startTime/endTime
+      const workingHours = morningSchedules[0].workingHours || {
+        morningStart: '08:00',
+        morningEnd: '12:00',
+        afternoonStart: '14:00',
+        afternoonEnd: '18:00'
+      };
+
+      const morningStart = new Date(searchDate);
+      const [startHour, startMinute] = workingHours.morningStart.split(':').map(Number);
+      morningStart.setUTCHours(startHour - 7, startMinute, 0, 0);
+      
+      const morningEnd = new Date(searchDate);
+      const [endHour, endMinute] = workingHours.morningEnd.split(':').map(Number);
+      morningEnd.setUTCHours(endHour - 7, endMinute, 0, 0);
       
       const rawGaps = calculateAvailableGaps(morningStart, morningEnd, bookedSlots);
       const availableGaps = filterRealTimeGaps(rawGaps); // ⭐ Filter theo thời gian thực
@@ -1352,8 +1660,21 @@ class AvailableSlotService {
     }
     
     if (afternoonSchedules.length > 0) {
-      const afternoonStart = new Date(Math.min(...afternoonSchedules.map(s => new Date(s.startTime).getTime())));
-      const afternoonEnd = new Date(Math.max(...afternoonSchedules.map(s => new Date(s.endTime).getTime())));
+      // Sử dụng workingHours từ DoctorSchedule thay vì startTime/endTime
+      const workingHours = afternoonSchedules[0].workingHours || {
+        morningStart: '08:00',
+        morningEnd: '12:00',
+        afternoonStart: '14:00',
+        afternoonEnd: '18:00'
+      };
+
+      const afternoonStart = new Date(searchDate);
+      const [startHour, startMinute] = workingHours.afternoonStart.split(':').map(Number);
+      afternoonStart.setUTCHours(startHour - 7, startMinute, 0, 0);
+      
+      const afternoonEnd = new Date(searchDate);
+      const [endHour, endMinute] = workingHours.afternoonEnd.split(':').map(Number);
+      afternoonEnd.setUTCHours(endHour - 7, endMinute, 0, 0);
       
       const rawGaps = calculateAvailableGaps(afternoonStart, afternoonEnd, bookedSlots);
       const availableGaps = filterRealTimeGaps(rawGaps); // ⭐ Filter theo thời gian thực

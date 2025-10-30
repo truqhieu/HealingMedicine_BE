@@ -825,5 +825,162 @@ module.exports = {
   getResetPasswordEmailTemplate,
   getAppointmentConfirmationEmailTemplate,
   getAppointmentApprovedEmailTemplate,
-  getAppointmentCancelledEmailTemplate
+  getAppointmentCancelledEmailTemplate,
+  getRequestApprovedEmailTemplate,
+  getRequestRejectedEmailTemplate
 };
+
+// ⭐ Template: Yêu cầu đã được duyệt (Đổi lịch/Đổi bác sĩ)
+function getRequestApprovedEmailTemplate(data) {
+  const subject = `Yêu cầu ${data?.requestType || 'Đổi lịch hẹn'} đã được duyệt`;
+  const text = `
+Xin chào ${data?.patientName || ''},
+
+Yêu cầu ${data?.requestType || ''} của bạn đã được duyệt thành công!
+
+Thông tin chi tiết:
+- Loại yêu cầu: ${data?.requestType || ''}
+- Thời gian duyệt: ${data?.approvedAt || ''}
+- Người duyệt: ${data?.staffName || ''}
+${data?.appointmentDateVN ? `- Ngày khám mới: ${data.appointmentDateVN}` : ''}
+${data?.appointmentStartVN ? `- Giờ khám: ${data.appointmentStartVN} - ${data.appointmentEndVN}` : ''}
+
+Lịch hẹn của bạn đã được cập nhật theo yêu cầu. Vui lòng kiểm tra lại thông tin trong tài khoản của bạn.
+
+Trân trọng,
+Đội ngũ Hải Anh Teeth
+  `.trim();
+
+  const dateLine = data?.appointmentDateVN ? `<li><strong>Ngày khám mới:</strong> ${data.appointmentDateVN}</li>` : '';
+  const timeLine = data?.appointmentStartVN ? `<li><strong>Giờ khám:</strong> ${data.appointmentStartVN} - ${data.appointmentEndVN}</li>` : '';
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; line-height: 1.6; color: #1f2937; background: #f3f4f6; }
+    .container { max-width: 620px; margin: 24px auto; padding: 0 12px; }
+    .card { overflow: hidden; background: #ffffff; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+    .header { background: linear-gradient(90deg, #22c55e, #16a34a); color: white; padding: 24px; text-align: center; }
+    .content { padding: 24px; }
+    .success-icon { font-size: 48px; margin-bottom: 8px; }
+    .title { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: 0.2px; }
+    .info-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin: 16px 0; }
+    .info-card h3 { margin: 0 0 8px; font-size: 16px; color: #111827; }
+    .info-card ul { padding-left: 18px; margin: 0; }
+    .info-card li { margin: 6px 0; }
+    .footer { color: #6b7280; margin-top: 18px; }
+  </style>
+  </head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="header">
+        <div class="success-icon">✅</div>
+        <h1 class="title">Yêu cầu đã được duyệt</h1>
+      </div>
+      <div class="content">
+        <p>Xin chào <strong>${data?.patientName || ''}</strong>,</p>
+        <p>Yêu cầu <strong>${data?.requestType || ''}</strong> của bạn đã được duyệt thành công!</p>
+        <div class="info-card">
+          <h3>Thông tin chi tiết</h3>
+          <ul>
+            <li><strong>Loại yêu cầu:</strong> ${data?.requestType || ''}</li>
+            <li><strong>Thời gian duyệt:</strong> ${data?.approvedAt || ''}</li>
+            <li><strong>Người duyệt:</strong> ${data?.staffName || ''}</li>
+            ${dateLine}
+            ${timeLine}
+          </ul>
+        </div>
+        <p class="footer">Lịch hẹn của bạn đã được cập nhật theo yêu cầu. Vui lòng kiểm tra lại thông tin trong tài khoản của bạn.</p>
+        <p class="footer">Trân trọng,<br><strong>Đội ngũ Hải Anh Teeth</strong></p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  return { subject, text, html };
+}
+
+// ⭐ Template: Yêu cầu bị từ chối
+function getRequestRejectedEmailTemplate(data) {
+  const subject = `Yêu cầu ${data?.requestType || 'Đổi lịch hẹn'} đã bị từ chối`;
+  const time = data?.requestedDateVN ? `- Thời gian yêu cầu: ${data.requestedDateVN}${data?.requestedStartVN ? ` - ${data.requestedStartVN} đến ${data.requestedEndVN}` : ''}` : '';
+  const text = `
+Xin chào ${data?.patientName || ''},
+
+Rất tiếc, yêu cầu ${data?.requestType || ''} của bạn đã bị từ chối.
+
+Thông tin chi tiết:
+- Loại yêu cầu: ${data?.requestType || ''}
+- Thời gian từ chối: ${data?.rejectedAt || ''}
+- Người xử lý: ${data?.staffName || ''}
+${time}
+
+Lý do từ chối:
+${data?.reason || ''}
+
+Vui lòng liên hệ với chúng tôi nếu bạn có thắc mắc hoặc muốn đặt lịch mới.
+
+Trân trọng,
+Đội ngũ Hải Anh Teeth
+  `.trim();
+
+  const reqTime = data?.requestedDateVN ? `<li><strong>Thời gian yêu cầu:</strong> ${data.requestedDateVN}${data?.requestedStartVN ? ` - ${data.requestedStartVN} đến ${data.requestedEndVN}` : ''}</li>` : '';
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; line-height: 1.6; color: #1f2937; background: #f3f4f6; }
+    .container { max-width: 620px; margin: 24px auto; padding: 0 12px; }
+    .card { overflow: hidden; background: #ffffff; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+    .header { background: linear-gradient(90deg, #ef4444, #dc2626); color: white; padding: 24px; text-align: center; }
+    .content { padding: 24px; }
+    .error-icon { font-size: 48px; margin-bottom: 8px; }
+    .title { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: 0.2px; }
+    .info-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin: 16px 0; }
+    .info-card h3 { margin: 0 0 8px; font-size: 16px; color: #111827; }
+    .info-card ul { padding-left: 18px; margin: 0; }
+    .info-card li { margin: 6px 0; }
+    .reason-box { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 14px; }
+    .footer { color: #6b7280; margin-top: 18px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="header">
+        <div class="error-icon">❌</div>
+        <h1 class="title">Yêu cầu bị từ chối</h1>
+      </div>
+      <div class="content">
+        <p>Xin chào <strong>${data?.patientName || ''}</strong>,</p>
+        <p>Rất tiếc, yêu cầu <strong>${data?.requestType || ''}</strong> của bạn đã bị từ chối.</p>
+        <div class="info-card">
+          <h3>Thông tin chi tiết</h3>
+          <ul>
+            <li><strong>Loại yêu cầu:</strong> ${data?.requestType || ''}</li>
+            <li><strong>Thời gian từ chối:</strong> ${data?.rejectedAt || ''}</li>
+            <li><strong>Người xử lý:</strong> ${data?.staffName || ''}</li>
+            ${reqTime}
+          </ul>
+        </div>
+        <div class="reason-box">
+          <h3>Lý do từ chối</h3>
+          <p style="margin:6px 0 0;">${data?.reason || ''}</p>
+        </div>
+        <p class="footer">Vui lòng liên hệ với chúng tôi nếu bạn có thắc mắc hoặc muốn đặt lịch mới.</p>
+        <p class="footer">Trân trọng,<br><strong>Đội ngũ Hải Anh Teeth</strong></p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  return { subject, text, html };
+}

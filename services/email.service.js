@@ -1,4 +1,13 @@
-const { createTransporter, getVerificationEmailTemplate, getResetPasswordEmailTemplate, getAppointmentConfirmationEmailTemplate, getAppointmentApprovedEmailTemplate, getAppointmentCancelledEmailTemplate } = require('../config/emailConfig');
+const { 
+  createTransporter, 
+  getVerificationEmailTemplate, 
+  getResetPasswordEmailTemplate, 
+  getAppointmentConfirmationEmailTemplate, 
+  getAppointmentApprovedEmailTemplate, 
+  getAppointmentCancelledEmailTemplate,
+  getRequestApprovedEmailTemplate,
+  getRequestRejectedEmailTemplate
+} = require('../config/emailConfig');
 
 // Import SendGrid
 const sgMail = require('@sendgrid/mail');
@@ -160,6 +169,55 @@ class EmailService {
     } catch (error) {
       console.error('❌ Lỗi SendGrid:', error.message);
       throw error;
+    }
+  }
+
+  // Generic method để gửi email với template (format tách ở emailConfig)
+  async sendEmail(emailData) {
+    const { to, subject, template, data } = emailData;
+    
+    if (!to || !subject) {
+      throw new Error('Email và subject là bắt buộc');
+    }
+
+    let html, text, resolvedSubject = subject;
+    if (template === 'requestApproved') {
+      const t = getRequestApprovedEmailTemplate(data);
+      resolvedSubject = subject || t.subject;
+      html = t.html; text = t.text;
+    } else if (template === 'requestRejected') {
+      const t = getRequestRejectedEmailTemplate(data);
+      resolvedSubject = subject || t.subject;
+      html = t.html; text = t.text;
+    } else {
+      html = `<p>${(data && data.message) || 'Thông báo từ hệ thống'}</p>`;
+      text = (data && data.message) || 'Thông báo từ hệ thống';
+    }
+
+    if (this.useSendGrid) {
+      return this._sendViaSendGrid(to, resolvedSubject, text, html);
+    } else {
+      try {
+        const transporter = createTransporter();
+        await transporter.sendMail({
+          from: process.env.EMAIL_USER || 'noreply@haianteeth.com',
+          to: to,
+          subject: resolvedSubject,
+          text: text,
+          html: html
+        });
+        console.log(`✅ Email gửi qua Nodemailer thành công đến: ${to}`);
+        return true;
+      } catch (error) {
+        console.error('❌ Lỗi gửi email qua Nodemailer:', error.message);
+        // Fallback: chỉ log ra console nếu không gửi được email
+        console.log('📧 EMAIL CONTENT (Fallback):');
+        console.log('To:', to);
+        console.log('Subject:', resolvedSubject);
+        console.log('Text:', text);
+        console.log('HTML:', html);
+        return false;
+      }
     }
   }
 }

@@ -14,10 +14,17 @@ const appointmentRoutes = require('./appointment.route');
 const availableSlotRoutes = require('./availableSlot.route');
 const paymentRoutes = require('./payment.route');
 const policyRoutes = require('./policy.route');
+<<<<<<< HEAD
 const complaintRoutes = require('./complaint.route');
 const leaveRequestRoutes = require('./leaveRequest.route');
 const deviceRoutes = require('./device.route');
 const blogRoutes = require('./blog.route');
+=======
+const complaintRoutes = require('./complaint.route')
+const leaveRequestRoutes = require('./leaveRequest.route')
+const patientRequestRoutes = require('./patientRequest.route')
+
+>>>>>>> 36de1cbeaca38aea260f569145373b420b5a269a
 
 // --- ROUTES ---
 router.use('/auth', userRoutes);
@@ -39,6 +46,7 @@ router.use('/payments', paymentRoutes);
 router.use('/policies', policyRoutes);
 router.use('/complaints', complaintRoutes)
 router.use('/leave-requests', leaveRequestRoutes)
+router.use('/patient-requests', patientRequestRoutes)
 
 // --- API INFO ENDPOINT ---
 router.get('/', (req, res) => {

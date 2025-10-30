@@ -103,6 +103,11 @@ const appointmentSchema = new mongoose.Schema({
       type: String,
       default: null
     }
+  },
+  appointmentFor: {
+    type: String,
+    enum: ['self', 'other'],
+    default: 'self'
   }
 }, {
   timestamps: true 

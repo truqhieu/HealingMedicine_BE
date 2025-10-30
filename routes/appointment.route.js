@@ -10,7 +10,11 @@ const {
   cancelAppointment,
   confirmCancelAppointment,
   getAppointmentDetails,
-  markAsRefunded
+  markAsRefunded,
+  requestReschedule,
+  requestChangeDoctor,
+  getRescheduleAvailableSlots,
+  getAvailableDoctorsForTimeSlot
 } = require('../controllers/appointment.controller');
 const { verifyToken, verifyRole } = require('../middleware/auth.middleware');
 
@@ -48,5 +52,17 @@ router.get('/:appointmentId/details', verifyToken, verifyRole(['Staff', 'Manager
 
 // ⭐ Đánh dấu đã hoàn tiền - Chỉ Staff/Manager được phép
 router.put('/:appointmentId/mark-refunded', verifyToken, verifyRole(['Staff', 'Manager']), markAsRefunded);
+
+// ⭐ Lấy khung giờ rảnh để đổi lịch (theo appointmentId)
+router.get('/:appointmentId/reschedule/slots', verifyToken, getRescheduleAvailableSlots);
+
+// ⭐ Bệnh nhân gửi yêu cầu đổi lịch hẹn (chỉ đổi ngày/giờ)
+router.post('/:appointmentId/request-reschedule', verifyToken, requestReschedule);
+
+// ⭐ Bệnh nhân gửi yêu cầu đổi bác sĩ (chỉ đổi bác sĩ)
+router.post('/:appointmentId/request-change-doctor', verifyToken, requestChangeDoctor);
+
+// ⭐ Lấy danh sách bác sĩ khả dụng cho thời gian cụ thể
+router.get('/:appointmentId/available-doctors', verifyToken, getAvailableDoctorsForTimeSlot);
 
 module.exports = router;

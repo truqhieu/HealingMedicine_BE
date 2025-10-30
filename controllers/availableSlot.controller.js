@@ -307,7 +307,8 @@ const getAvailableDoctorsForTimeSlot = async (req, res) => {
  */
 const getDoctorScheduleRange = async (req, res) => {
   try {
-    const { doctorUserId, serviceId, date } = req.query;
+    const { doctorUserId, serviceId, date, appointmentFor = 'self' } = req.query;
+    const patientUserId = req.user?.userId; // Lấy từ token
 
     // Validation
     if (!doctorUserId || !serviceId || !date) {
@@ -328,7 +329,9 @@ const getDoctorScheduleRange = async (req, res) => {
     const result = await availableSlotService.getDoctorScheduleRange({
       doctorUserId,
       serviceId,
-      date: searchDate
+      date: searchDate,
+      patientUserId, // ⭐ THÊM: Truyền patientUserId để lọc appointments của user
+      appointmentFor // ⭐ THÊM: Truyền appointmentFor để biết đặt cho self hay other
     });
 
     res.status(200).json({
