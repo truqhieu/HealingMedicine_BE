@@ -41,7 +41,7 @@ const getDoctorAppointmentsSchedule = async (req, res) => {
     const allAppointments = await Appointment.find({
       doctorUserId: doctorUserId,
       // ⭐ Chỉ hiển thị ca khám đã được Staff duyệt
-      status: { $in: ['Approved', 'CheckedIn', 'Completed', 'Finalized'] }
+      status: { $in: ['Approved', 'CheckedIn', 'InProgress', 'Completed', 'Finalized'] }
     })
       .populate({
         path: 'patientUserId',
