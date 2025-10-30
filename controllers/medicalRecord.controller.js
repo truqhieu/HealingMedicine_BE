@@ -1,5 +1,6 @@
 const MedicalRecord = require('../models/medicalRecord.model');
 const Appointment = require('../models/appointment.model');
+const Service = require('../models/service.model');
 const User = require('../models/user.model');
 const Customer = require('../models/customer.model');
 
@@ -125,4 +126,45 @@ exports.updateNurseNote = async (req, res) => {
   }
 };
 
+
+// GET /api/doctor/services - list active services for doctor to pick as additional
+exports.getActiveServicesForDoctor = async (_req, res) => {
+  try {
+    const services = await Service.find({ status: 'Active' })
+      .select('_id serviceName price category isPrepaid durationMinutes')
+      .sort({ serviceName: 1 });
+
+    return res.status(200).json({ success: true, data: services });
+  } catch (error) {
+    console.error('❌ getActiveServicesForDoctor error:', error);
+    return res.status(500).json({ success: false, message: 'Lỗi máy chủ', error: error.message });
+  }
+};
+
+// PATCH /api/doctor/medical-records/:appointmentId/additional-services
+// Body: { serviceIds: string[] }
+exports.updateAdditionalServicesForDoctor = async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const { serviceIds } = req.body || {};
+
+    if (!appointmentId) {
+      return res.status(400).json({ success: false, message: 'Thiếu appointmentId' });
+    }
+    if (!Array.isArray(serviceIds)) {
+      return res.status(400).json({ success: false, message: 'serviceIds phải là mảng' });
+    }
+
+    const record = await MedicalRecord.findOneAndUpdate(
+      { appointmentId },
+      { $set: { additionalServiceIds: serviceIds } },
+      { new: true, upsert: true }
+    ).populate({ path: 'additionalServiceIds', select: 'serviceName price' });
+
+    return res.status(200).json({ success: true, message: 'Đã cập nhật dịch vụ bổ sung', data: record });
+  } catch (error) {
+    console.error('❌ updateAdditionalServicesForDoctor error:', error);
+    return res.status(500).json({ success: false, message: 'Lỗi máy chủ', error: error.message });
+  }
+};
 

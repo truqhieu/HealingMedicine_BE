@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getDoctorAppointmentsSchedule, getAppointmentDetail, getPatientDetail, getPatientAppointmentsForDoctor } = require('../controllers/doctor.controller');
+const { getOrCreateMedicalRecord, getActiveServicesForDoctor, updateAdditionalServicesForDoctor } = require('../controllers/medicalRecord.controller');
 const { verifyToken, verifyRole } = require('../middleware/auth.middleware');
 
 // ⭐ Doctor xem danh sách lịch hẹn trong tuần hiện tại + tuần tiếp theo (2 tuần)
@@ -14,5 +15,14 @@ router.get('/patients/:patientId', verifyToken, verifyRole('Doctor'), getPatient
 
 // ⭐ Doctor lấy danh sách lịch hẹn của một bệnh nhân (chỉ của bác sĩ hiện tại)
 router.get('/patients/:patientId/appointments', verifyToken, verifyRole('Doctor'), getPatientAppointmentsForDoctor);
+
+// ⭐ Doctor - Medical Record
+router.get('/medical-records/:appointmentId', verifyToken, verifyRole('Doctor'), getOrCreateMedicalRecord);
+
+// ⭐ Doctor - list active services for dropdown
+router.get('/services', verifyToken, verifyRole('Doctor'), getActiveServicesForDoctor);
+
+// ⭐ Doctor - update additional services in medical record
+router.patch('/medical-records/:appointmentId/additional-services', verifyToken, verifyRole('Doctor'), updateAdditionalServicesForDoctor);
 
 module.exports = router;
