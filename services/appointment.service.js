@@ -159,6 +159,12 @@ class AppointmentService {
     const timeslotBufferTime = 10; // 10 phút buffer
     const slotEndTimeWithBuffer = new Date(slotEndTime.getTime() + timeslotBufferTime * 60000);
     
+    // ⭐ Không cho đặt thời gian ở quá khứ
+    const nowUtc = new Date();
+    if (slotStartTime.getTime() < nowUtc.getTime()) {
+      throw new Error('Không thể đặt thời gian ở quá khứ');
+    }
+    
     // Kiểm tra conflict với timeslots đã có (bao gồm buffer time)
     const conflictingTimeslots = await Timeslot.find({
       doctorUserId: doctorUserId,
