@@ -159,6 +159,12 @@ class AppointmentService {
     const timeslotBufferTime = 10; // 10 phút buffer
     const slotEndTimeWithBuffer = new Date(slotEndTime.getTime() + timeslotBufferTime * 60000);
     
+    // ⭐ Không cho đặt thời gian ở quá khứ
+    const nowUtc = new Date();
+    if (slotStartTime.getTime() < nowUtc.getTime()) {
+      throw new Error('Không thể đặt thời gian ở quá khứ');
+    }
+    
     // Kiểm tra conflict với timeslots đã có (bao gồm buffer time)
     const conflictingTimeslots = await Timeslot.find({
       doctorUserId: doctorUserId,
@@ -460,7 +466,31 @@ class AppointmentService {
     console.log('✅ Appointment đã tạo với mode:', populatedAppointment.mode);
     console.log('✅ Status:', populatedAppointment.status);
 
-    return populatedAppointment;
+    // Chuẩn hóa response cho FE: trả requirePayment và thông tin QR nếu cần
+    const responsePayload = {
+      appointmentId: String(populatedAppointment._id),
+      service: populatedAppointment.serviceId?.serviceName,
+      doctor: populatedAppointment.doctorUserId?.fullName,
+      startTime: populatedAppointment.timeslotId?.startTime,
+      endTime: populatedAppointment.timeslotId?.endTime,
+      status: populatedAppointment.status,
+      type: populatedAppointment.type,
+      mode: populatedAppointment.mode,
+      requirePayment: !!service.isPrepaid
+    };
+
+    if (service.isPrepaid && paymentRecord) {
+      responsePayload.payment = {
+        paymentId: String(paymentRecord._id),
+        amount: service.price,
+        method: paymentRecord.method,
+        status: paymentRecord.status,
+        expiresAt: paymentRecord.holdExpiresAt,
+        QRurl: paymentRecord.QRurl || (qrData ? qrData.qrUrl : null)
+      };
+    }
+
+    return responsePayload;
   }
 
   async reviewAppointment(appointmentId, staffUserId, action, cancelReason = null) {
@@ -907,8 +937,10 @@ class AppointmentService {
       const currentStatus = appointment.status;
 
       // ✅ Allowed transitions:
-      // Approved → CheckedIn (Staff check-in bệnh nhân đã đến)
-      // Approved/CheckedIn → Cancelled (hủy)
+      // Approved → CheckedIn (Staff/Nurse check-in bệnh nhân đã đến)
+      // CheckedIn → InProgress (Nurse bắt đầu ca khám)
+      // InProgress → Completed (kết thúc ca)
+      // Approved/CheckedIn/InProgress → Cancelled (hủy)
 
       if (newStatus === 'CheckedIn') {
         if (currentStatus !== 'Approved') {
@@ -919,16 +951,24 @@ class AppointmentService {
         appointment.checkInByUserId = userId;
       }
 
-      if (newStatus === 'Completed') {
+      if (newStatus === 'InProgress') {
         if (currentStatus !== 'CheckedIn') {
-          throw new Error(`Không thể hoàn thành. Ca khám phải ở trạng thái "CheckedIn" (hiện tại: ${currentStatus})`);
+          throw new Error(`Không thể chuyển sang đang trong ca. Ca phải ở trạng thái "CheckedIn" (hiện tại: ${currentStatus})`);
+        }
+        appointment.inProgressAt = new Date();
+        appointment.inProgressByUserId = userId;
+      }
+
+      if (newStatus === 'Completed') {
+        if (!['CheckedIn', 'InProgress'].includes(currentStatus)) {
+          throw new Error(`Không thể hoàn thành. Ca khám phải ở trạng thái "CheckedIn" hoặc "InProgress" (hiện tại: ${currentStatus})`);
         }
       }
 
       if (newStatus === 'Cancelled') {
-        const allowedStatuses = ['Approved', 'CheckedIn'];
+        const allowedStatuses = ['Approved', 'CheckedIn', 'InProgress'];
         if (!allowedStatuses.includes(currentStatus)) {
-          throw new Error(`Không thể hủy. Ca khám chỉ có thể hủy khi ở trạng thái Approved hoặc CheckedIn (hiện tại: ${currentStatus})`);
+          throw new Error(`Không thể hủy. Ca khám chỉ có thể hủy khi ở trạng thái Approved, CheckedIn hoặc InProgress (hiện tại: ${currentStatus})`);
         }
       }
 
@@ -942,6 +982,19 @@ class AppointmentService {
       }
 
       await appointment.save();
+
+      // Nếu hủy thì mở lại timeslot để có thể đặt lại
+      if (newStatus === 'Cancelled' && appointment.timeslotId) {
+        try {
+          await Timeslot.findByIdAndUpdate(appointment.timeslotId, {
+            status: 'Available',
+            appointmentId: null
+          });
+          console.log('🔓 Timeslot released due to status update → Cancelled');
+        } catch (e) {
+          console.error('⚠️ Không thể release timeslot khi cập nhật trạng thái:', e);
+        }
+      }
 
       console.log(`✅ Cập nhật trạng thái thành công: ${currentStatus} → ${newStatus}`);
 
@@ -958,26 +1011,6 @@ class AppointmentService {
 
     } catch (error) {
       console.error('❌ Lỗi cập nhật trạng thái ca khám:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Lấy thông tin appointment theo ID
-   */
-  async getAppointmentById(appointmentId) {
-    try {
-      const appointment = await Appointment.findById(appointmentId)
-        .populate('patientUserId', 'fullName email phoneNumber')
-        .populate('customerId', 'fullName email phoneNumber')
-        .populate('doctorUserId', 'fullName email phoneNumber')
-        .populate('serviceId', 'serviceName category isPrepaid')
-        .populate('timeslotId', 'startTime endTime')
-        .populate('paymentId', 'status amount method');
-
-      return appointment;
-    } catch (error) {
-      console.error('❌ Lỗi lấy thông tin appointment:', error);
       throw error;
     }
   }
@@ -1018,6 +1051,21 @@ class AppointmentService {
         }
 
       await appointment.save();
+
+      // ⭐ Release the reserved/booked timeslot so others can book it again
+      if (appointment.timeslotId) {
+        try {
+          const timeslot = await Timeslot.findById(appointment.timeslotId);
+          if (timeslot) {
+            timeslot.status = 'Available';
+            timeslot.appointmentId = null;
+            await timeslot.save();
+            console.log(`🔓 Timeslot ${timeslot._id} released back to Available`);
+          }
+        } catch (e) {
+          console.error('⚠️ Không thể cập nhật trạng thái timeslot khi hủy lịch:', e);
+        }
+      }
 
       console.log(`✅ Hủy appointment thành công: ${appointmentId}`);
 
@@ -1097,6 +1145,88 @@ class AppointmentService {
       };
     } catch (error) {
       console.error('❌ Lỗi lấy appointment by ID:', error);
+      throw error;
+    }
+  }
+
+  // Lấy chi tiết lịch hẹn
+  async getAppointmentDetails(appointmentId) {
+    try {
+      console.log(`🔍 Lấy chi tiết lịch hẹn: ${appointmentId}`);
+      
+      const appointment = await Appointment.findById(appointmentId)
+        .populate('patientUserId', 'fullName email phone')
+        .populate('customerId', 'fullName email phoneNumber')
+        .populate('doctorUserId', 'fullName email phone')
+        .populate('serviceId', 'serviceName price durationMinutes category')
+        .populate('timeslotId', 'startTime endTime')
+        .populate('paymentId', 'amount method status expiresAt QRurl')
+        .populate('bankInfo', 'accountHolderName accountNumber bankName')
+        .lean();
+
+      if (!appointment) {
+        throw new Error('Không tìm thấy lịch hẹn');
+      }
+
+      // Format dữ liệu trả về
+      const formattedAppointment = {
+        _id: appointment._id,
+        status: appointment.status,
+        type: appointment.type,
+        mode: appointment.mode,
+        startTime: appointment.startTime,
+        endTime: appointment.endTime,
+        notes: appointment.notes,
+        createdAt: appointment.createdAt,
+        updatedAt: appointment.updatedAt,
+        checkedInAt: appointment.checkedInAt,
+        completedAt: appointment.completedAt,
+        cancelledAt: appointment.cancelledAt,
+        cancelReason: appointment.cancelReason,
+        patient: appointment.patientUserId ? {
+          fullName: appointment.patientUserId.fullName,
+          email: appointment.patientUserId.email,
+          phone: appointment.patientUserId.phone
+        } : null,
+        customer: appointment.customerId ? {
+          fullName: appointment.customerId.fullName,
+          email: appointment.customerId.email,
+          phone: appointment.customerId.phoneNumber
+        } : null,
+        doctor: appointment.doctorUserId ? {
+          fullName: appointment.doctorUserId.fullName,
+          email: appointment.doctorUserId.email,
+          phone: appointment.doctorUserId.phone
+        } : null,
+        service: appointment.serviceId ? {
+          serviceName: appointment.serviceId.serviceName,
+          price: appointment.serviceId.price,
+          durationMinutes: appointment.serviceId.durationMinutes,
+          category: appointment.serviceId.category
+        } : null,
+        timeslot: appointment.timeslotId ? {
+          startTime: appointment.timeslotId.startTime,
+          endTime: appointment.timeslotId.endTime
+        } : null,
+        payment: appointment.paymentId ? {
+          amount: appointment.paymentId.amount,
+          method: appointment.paymentId.method,
+          status: appointment.paymentId.status,
+          expiresAt: appointment.paymentId.expiresAt,
+          QRurl: appointment.paymentId.QRurl
+        } : null,
+        bankInfo: appointment.bankInfo ? {
+          accountHolderName: appointment.bankInfo.accountHolderName,
+          accountNumber: appointment.bankInfo.accountNumber,
+          bankName: appointment.bankInfo.bankName
+        } : null
+      };
+
+      console.log(`✅ Lấy chi tiết lịch hẹn thành công: ${appointmentId}`);
+      return formattedAppointment;
+
+    } catch (error) {
+      console.error(`❌ Lỗi lấy chi tiết lịch hẹn ${appointmentId}:`, error);
       throw error;
     }
   }

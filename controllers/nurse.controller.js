@@ -32,13 +32,13 @@ const getNurseSchedule = async (req, res) => {
     const endOfTwoWeeks = new Date(startOfWeek);
     endOfTwoWeeks.setDate(endOfTwoWeeks.getDate() + 14);
 
-    // Lấy tất cả appointments trong 2 tuần - Nurse xem được tất cả ca khám (Approved, CheckedIn, Completed, Finalized)
+    // Lấy tất cả appointments trong 2 tuần - Nurse xem được các ca khám hoạt động (Approved, CheckedIn, InProgress) và hoàn tất (Completed, Finalized)
     const appointments = await Appointment.find({
       createdAt: {
         $gte: startOfWeek,
         $lt: endOfTwoWeeks
       },
-      status: { $in: ['Approved', 'CheckedIn', 'Completed', 'Finalized'] }
+      status: { $in: ['Approved', 'CheckedIn', 'InProgress', 'Completed', 'Finalized'] }
     })
       .populate({
         path: 'doctorUserId',

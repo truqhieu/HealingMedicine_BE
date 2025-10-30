@@ -1751,6 +1751,12 @@ class AvailableSlotService {
     const startTimeObj = new Date(startTime);
     const endTimeObj = new Date(startTimeObj.getTime() + serviceDuration * 60000);
 
+    // 3.1. Không cho đặt thời gian ở quá khứ
+    const nowUtc = new Date();
+    if (startTimeObj.getTime() < nowUtc.getTime()) {
+      throw new Error('Không thể đặt thời gian ở quá khứ');
+    }
+
     // ⭐ 3.5. Check conflict cho bệnh nhân
     // Logic phụ thuộc vào appointmentFor và thông tin customer
     if (patientUserId) {
