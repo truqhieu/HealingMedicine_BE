@@ -1,4 +1,41 @@
 const Appointment = require('../models/appointment.model');
+// Doctor: Get appointments of a specific patient with this doctor
+const getPatientAppointmentsForDoctor = async (req, res) => {
+  try {
+    const doctorUserId = req.user.userId;
+    const { patientId } = req.params;
+
+    if (!patientId) {
+      return res.status(400).json({ success: false, message: 'Thiếu patientId' });
+    }
+
+    const appointments = await Appointment.find({
+      doctorUserId,
+      $or: [
+        { patientUserId: patientId },
+        { customerId: patientId },
+      ],
+      status: { $in: ['CheckedIn', 'InProgress', 'Completed'] }
+    })
+      .populate({ path: 'serviceId', select: 'serviceName' })
+      .populate({ path: 'timeslotId', select: 'startTime endTime' })
+      .sort({ 'timeslotId.startTime': -1 })
+      .lean();
+
+    const data = appointments.map(a => ({
+      appointmentId: a._id,
+      serviceName: a.serviceId?.serviceName || 'N/A',
+      status: a.status,
+      startTime: a.timeslotId?.startTime || null,
+      endTime: a.timeslotId?.endTime || null,
+    }));
+
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    console.error('❌ getPatientAppointmentsForDoctor error:', error);
+    return res.status(500).json({ success: false, message: 'Lỗi máy chủ', error: error.message });
+  }
+};
 const Timeslot = require('../models/timeslot.model');
 const User = require('../models/user.model');
 const Patient = require('../models/patient.model');
@@ -269,5 +306,6 @@ const getPatientDetail = async (req, res) => {
 module.exports = {
   getDoctorAppointmentsSchedule,
   getAppointmentDetail,
-  getPatientDetail
+  getPatientDetail,
+  getPatientAppointmentsForDoctor,
 };
