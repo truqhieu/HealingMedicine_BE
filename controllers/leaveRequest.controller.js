@@ -1,87 +1,98 @@
 const User = require('../models/user.model')
 const LeaveRequest = require('../models/leaveRequest.model');
 
-const createLeaveRequest = async(req,res) =>{
-    try {
-        const {startDate, endDate, reason} = req.body;
-        
-        if(!startDate || !endDate || !reason){
-            return res.status(400).json({
-                success : false,
-                message : 'Vui lòng nhập đầy đủ thông tin'
-            });
-        }
+const createLeaveRequest = async (req, res) => {
+  try {
+    const { startDate, endDate, reason } = req.body;
 
-        const now = new Date();
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-
-        if(isNaN(start.getTime())){
-            return res.status(400).json({
-                success : false,
-                message : 'Ngày bắt đầu không hợp lệ.'
-            });
-        }
-        if(start < now) {
-            return res.status(400).json({
-                success : false,
-                message : 'Ngày bắt đầu phải tính từ hiện tại.'
-            });           
-        }
-        if(end <= start){
-            return res.status(400).json({
-                success : false,
-                message : 'Ngày kết thúc phải lớn hơn ngày bắt đầu.'
-            });  
-        }
-
-        if (reason) {
-            if (typeof reason !== 'string' || reason.trim().length === 0) {
-              return res.status(400).json({
-                success: false,
-                message: 'Lí do nghỉ không được để trống'
-              });
-            }
-            
-            const cleanReason = reason.trim();
-            
-            if (!/^[a-zA-ZÀ-ỹ\s]+$/.test(cleanReason)) {
-              return res.status(400).json({
-                success: false,
-                message: 'Lí do nghỉ không được chứa số hoặc ký tự đặc biệt'
-              });
-            }
-            
-            // Kiểm tra độ dài tối thiểu (ít nhất 3 ký tự)
-            if (cleanReason.length < 3) {
-              return res.status(400).json({
-                success: false,
-                message: 'Lí do nghỉ phải có ít nhất 2 ký tự'
-              });
-            }
-        }
-        const newRequest = new LeaveRequest({
-            userId : req.user.userId,
-            startDate,
-            endDate,
-            reason
-        })
-
-        await newRequest.save();
-
-        res.status(201).json({
-            success : true,
-            message : 'Gửi khiếu nại thành công',
-            data : newRequest
-        })
-    } catch (error) {
-        console.log('Lỗi khi tạo yêu cầu xin nghỉ', error)
-        return res.status(500).json({
-            success : false,
-            message : 'Đã xảy ra lỗi khi gửi yêu cầu xin nghỉ'
-        })
+    if (!startDate || !endDate || !reason) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng nhập đầy đủ thông tin',
+      });
     }
-}
+
+    const now = new Date();
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (isNaN(start.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Ngày bắt đầu không hợp lệ.',
+      });
+    }
+
+    if (start < now) {
+      return res.status(400).json({
+        success: false,
+        message: 'Ngày bắt đầu phải tính từ hiện tại.',
+      });
+    }
+
+    if (end <= start) {
+      return res.status(400).json({
+        success: false,
+        message: 'Ngày kết thúc phải lớn hơn ngày bắt đầu.',
+      });
+    }
+
+    // ✅ Kiểm tra lý do
+    const cleanReason = reason.trim();
+    if (cleanReason.length < 3) {
+      return res.status(400).json({
+        success: false,
+        message: 'Lí do nghỉ phải có ít nhất 2 ký tự',
+      });
+    }
+    if (!/^[a-zA-ZÀ-ỹ0-9\s.,!?;:'"()_-]+$/.test(cleanReason)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Lí do nghỉ không hợp lệ. Vui lòng chỉ nhập chữ, số và các ký tự . , ! ? ; : ( ) _ -',
+      });
+    }
+
+    // ✅ Kiểm tra đơn nghỉ đã được duyệt có trùng thời gian không
+    const existingApprovedLeave = await LeaveRequest.findOne({
+      userId: req.user.userId,
+      status: 'approved',
+      $or: [
+        { startDate: { $lte: end }, endDate: { $gte: start } } // có phần giao thời gian
+      ]
+    });
+
+    if (existingApprovedLeave) {
+      return res.status(400).json({
+        success: false,
+        message: 'Bạn đã có đơn nghỉ được duyệt trong khoảng thời gian này.',
+      });
+    }
+
+    // ✅ Tạo đơn mới
+    const newRequest = new LeaveRequest({
+      userId: req.user.userId,
+      startDate,
+      endDate,
+      reason,
+      status: 'pending'
+    });
+
+    await newRequest.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Tạo yêu cầu nghỉ thành công.',
+      data: newRequest,
+    });
+  } catch (error) {
+    console.error('Lỗi khi tạo yêu cầu xin nghỉ:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Đã xảy ra lỗi khi gửi yêu cầu xin nghỉ.',
+    });
+  }
+};
+
 const STATUS = LeaveRequest.schema.path('status').enumValues;
 const getAllLeaveRequest = async(req,res) =>{
     try {
@@ -97,9 +108,9 @@ const getAllLeaveRequest = async(req,res) =>{
         const skip = (pageNum - 1 ) * limitNum;
 
         const filter = {};
-        if(req.user && req.user.role === 'Doctor') filter.patientUserId = req.user.userId
-        if(req.user && req.user.role === 'Nurse') filter.patientUserId = req.user.userId
-        if(req.user && req.user.role === 'Staff') filter.patientUserId = req.user.userId
+        if(req.user && req.user.role === 'Doctor') filter.userId = req.user.userId
+        if(req.user && req.user.role === 'Nurse') filter.userId = req.user.userId
+        if(req.user && req.user.role === 'Staff') filter.userId = req.user.userId
         if(status && STATUS.includes(status)) filter.status = status
 
         if(search && String(search).trim().length > 0){
