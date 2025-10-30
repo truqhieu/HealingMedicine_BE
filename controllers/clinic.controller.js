@@ -41,7 +41,7 @@ const getAllClinicRooms = async(req,res) =>{
             const safe = serachKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const regax = new RegExp(safe, 'i');
             filter.$or = [
-                {name : {$regax : regax}},
+                {name : {$regex : regax}},
             ]
         }
 

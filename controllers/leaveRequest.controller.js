@@ -100,11 +100,11 @@ const getAllLeaveRequest = async(req,res) =>{
         if(status && STATUS.includes(status)) filter.status = status
 
         if(search && String(search).trim().length > 0){
-            const searchKey = String(search).strim();
+            const searchKey = String(search).trim();
             const safe = searchKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const regax = new RegExp(safe, 'i');
             filter.$or = [
-                {reason : {$regax : regax}}
+                {reason : {$regex : regax}}
             ]
         }
 

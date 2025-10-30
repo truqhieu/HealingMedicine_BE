@@ -99,8 +99,8 @@ const getAllComplaints = async(req,res) =>{
       const safe = searchKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const regax = new RegExp(safe, 'i');
       filter.$or = [
-        {title : {$regax : regax}},
-        {description : {$regax : regax}},
+        {title : {$regex : regax}},
+        {description : {$regex : regax}},
       ]   
     } 
 
