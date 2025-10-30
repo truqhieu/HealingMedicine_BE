@@ -35,7 +35,8 @@ exports.getOrCreateMedicalRecord = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Không tìm thấy lịch hẹn' });
     }
 
-    let record = await MedicalRecord.findOne({ appointmentId });
+    let record = await MedicalRecord.findOne({ appointmentId })
+      .populate({ path: 'additionalServiceIds', select: 'serviceName price' });
 
     // Prefill basic info from user/customer if creating first time
     if (!record) {
@@ -53,6 +54,9 @@ exports.getOrCreateMedicalRecord = async (req, res) => {
         address,
         status: 'Draft'
       });
+      // Re-fetch with populate to include services info
+      record = await MedicalRecord.findById(record._id)
+        .populate({ path: 'additionalServiceIds', select: 'serviceName price' });
     }
 
     const patient = appointment.patientUserId || appointment.customerId || null;
@@ -68,7 +72,14 @@ exports.getOrCreateMedicalRecord = async (req, res) => {
           patientName,
           patientAge,
           address,
-          doctorName: appointment.doctorUserId?.fullName || 'N/A'
+          doctorName: appointment.doctorUserId?.fullName || 'N/A',
+          additionalServices: Array.isArray(record?.additionalServiceIds)
+            ? record.additionalServiceIds.map((s) => ({
+                _id: s._id,
+                serviceName: s.serviceName,
+                price: s.price,
+              }))
+            : []
         }
       }
     });
