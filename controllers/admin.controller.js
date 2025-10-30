@@ -11,7 +11,7 @@ const STATUS = User.schema.path('status').enumValues;
 
 const createAccount = async(req, res) =>{
     try {
-        const {fullName, email, password, role, phone, specialization, yearsOfExperience} = req.body
+        const {fullName, email, password, dob ,role, phone, specialization, yearsOfExperience} = req.body
         if (fullName) {
             if (typeof fullName !== 'string' || fullName.trim().length === 0) {
               return res.status(400).json({
@@ -53,6 +53,32 @@ const createAccount = async(req, res) =>{
               return res.status(400).json({
                 success: false,
                 message: 'Email không đúng định dạng'
+              });
+            }
+        }
+
+        if (password) {
+            if (typeof password !== 'string' || password.trim().length === 0) {
+              return res.status(400).json({
+                success: false,
+                message: 'Mật khẩu không được để trống'
+              });
+            }
+            
+            const cleanPassword = password.trim();
+            
+            if (!/^(?=.*[A-Z])(?=(?:.*\d){2,})(?=.*[!@#$%^&*()_+{}\[\]:;"'<>,.?/~`-]).+$/.test(cleanPassword)) {
+              return res.status(400).json({
+                success: false,
+                message: 'Mật khẩu phải chứa ít nhất 1 chữ hoa, 2 số ,1 kí tự đặc biệt'
+              });
+            }
+            
+            // Kiểm tra độ dài tối thiểu (ít nhất 2 ký tự)
+            if (cleanPassword.length < 4) {
+              return res.status(400).json({
+                success: false,
+                message: 'Mật khẩu phải có ít nhất 4 ký tự'
               });
             }
         }
