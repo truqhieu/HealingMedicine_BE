@@ -68,6 +68,7 @@ exports.getOrCreateMedicalRecord = async (req, res) => {
     const patientName = patient?.fullName || 'N/A';
     const patientAge = record.patientAge ?? calcAge(patient?.dob);
     const address = record.address || patient?.address || '';
+    const patientDob = patient?.dob || null;
 
     return res.status(200).json({
       success: true,
@@ -76,6 +77,7 @@ exports.getOrCreateMedicalRecord = async (req, res) => {
         display: {
           patientName,
           patientAge,
+          patientDob,
           address,
           doctorName: appointment.doctorUserId?.fullName || 'N/A',
           additionalServices: Array.isArray(record?.additionalServiceIds)
