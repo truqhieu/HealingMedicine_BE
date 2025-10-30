@@ -39,10 +39,10 @@ const createComplaint = async(req,res) =>{
             
             const cleanDescription = description.trim();
             
-            if (!/^[a-zA-ZÀ-ỹ\s]+$/.test(cleanDescription)) {
+            if (!/^[a-zA-ZÀ-ỹ0-9\s.,!?;:'"()_-]+$/.test(cleanDescription)) {
               return res.status(400).json({
                 success: false,
-                message: 'Mô tả phản ánh không được chứa số hoặc ký tự đặc biệt'
+                message: 'Mô tả phản ánh không hợp lệ'
               });
             }
             
@@ -145,7 +145,7 @@ const viewDetailComplaint = async(req,res) =>{
   try {
     const detailComplaint = await Complaint.findById(req.params.id)
     .populate('appointmentId', 'doctorId')
-    .populate('managerResponses.managerId', 'fullName')
+    .populate('resolvedByManagerId', 'fullName')
     .populate('patientUserId', 'fullName phone')
     
     if(!detailComplaint){
@@ -157,11 +157,12 @@ const viewDetailComplaint = async(req,res) =>{
 
     return res.status(200).json({
       success : true,
-      message : 'Chi tiết đơn khiếu nại'
+      message : 'Chi tiết đơn khiếu nại',
+      data : detailComplaint,
     })
   } catch (error) {
-        console.log('Lỗi khi xử lý đơn khiếu nại', error);
-        return res.status(500).json({success : false, message: 'Đã xảy ra lỗi khi xử lý đơn khiếu nại'})    
+        console.log('Lỗi khi xem chi tiết đơn khiếu nại', error);
+        return res.status(500).json({success : false, message: 'Đã xảy ra lỗi xem chi tiết đơn khiếu nại'})    
   }
 }
 
@@ -182,6 +183,31 @@ const handleComplaint = async(req,res) =>{
       })
     }
     findComplaint.status = status
+        if (responseText) {
+            if (typeof responseText !== 'string' || responseText.trim().length === 0) {
+              return res.status(400).json({
+                success: false,
+                message: 'Lý do xử lý đơn khiếu nại không được để trống'
+              });
+            }
+            
+            const cleanResponseText = responseText.trim();
+            
+            if (!/^[a-zA-ZÀ-ỹ0-9\s.,!?;:'"()_-]+$/.test(cleanResponseText)) {
+              return res.status(400).json({
+                success: false,
+                message: 'Phản hồi đối với đơn phản ảnh khách hàng không hợp lệ'
+              });
+            }
+            
+            // Kiểm tra độ dài tối thiểu (ít nhất 2 ký tự)
+            if (cleanResponseText.length < 5) {
+              return res.status(400).json({
+                success: false,
+                message: 'Phản hồi phải có ít nhất 5 ký tự'
+              });
+            }
+        }
     findComplaint.managerResponses.push({
       managerUserId : req.user.userId,
       responseText ,

@@ -4,7 +4,7 @@ const { createLeaveRequest, getAllLeaveRequest, handleLeaveRequest } = require('
 const router = express.Router();
 
 router.post('/', verifyToken, verifyRole('Doctor','Nurse','Staff'), createLeaveRequest);
-router.get('/', verifyToken, verifyRole('Manager'),getAllLeaveRequest);
+router.get('/', verifyToken, verifyRole('Manager','Doctor','Nurse','Staff'),getAllLeaveRequest);
 router.patch('/:id',verifyToken, verifyRole('Manager'),handleLeaveRequest);
 
 module.exports = router;

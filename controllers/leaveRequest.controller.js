@@ -97,6 +97,9 @@ const getAllLeaveRequest = async(req,res) =>{
         const skip = (pageNum - 1 ) * limitNum;
 
         const filter = {};
+        if(req.user && req.user.role === 'Doctor') filter.patientUserId = req.user.userId
+        if(req.user && req.user.role === 'Nurse') filter.patientUserId = req.user.userId
+        if(req.user && req.user.role === 'Staff') filter.patientUserId = req.user.userId
         if(status && STATUS.includes(status)) filter.status = status
 
         if(search && String(search).trim().length > 0){
@@ -111,6 +114,10 @@ const getAllLeaveRequest = async(req,res) =>{
         const [total, leaveRequests] = await Promise.all([
             LeaveRequest.countDocuments(filter),
             LeaveRequest.find(filter)
+            .populate({
+                path : 'userId',
+                select : 'fullName role'
+            })
             .skip(skip)
             .limit(limitNum)
             .lean()
