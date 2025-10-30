@@ -466,7 +466,31 @@ class AppointmentService {
     console.log('✅ Appointment đã tạo với mode:', populatedAppointment.mode);
     console.log('✅ Status:', populatedAppointment.status);
 
-    return populatedAppointment;
+    // Chuẩn hóa response cho FE: trả requirePayment và thông tin QR nếu cần
+    const responsePayload = {
+      appointmentId: String(populatedAppointment._id),
+      service: populatedAppointment.serviceId?.serviceName,
+      doctor: populatedAppointment.doctorUserId?.fullName,
+      startTime: populatedAppointment.timeslotId?.startTime,
+      endTime: populatedAppointment.timeslotId?.endTime,
+      status: populatedAppointment.status,
+      type: populatedAppointment.type,
+      mode: populatedAppointment.mode,
+      requirePayment: !!service.isPrepaid
+    };
+
+    if (service.isPrepaid && paymentRecord) {
+      responsePayload.payment = {
+        paymentId: String(paymentRecord._id),
+        amount: service.price,
+        method: paymentRecord.method,
+        status: paymentRecord.status,
+        expiresAt: paymentRecord.holdExpiresAt,
+        QRurl: paymentRecord.QRurl || (qrData ? qrData.qrUrl : null)
+      };
+    }
+
+    return responsePayload;
   }
 
   async reviewAppointment(appointmentId, staffUserId, action, cancelReason = null) {
