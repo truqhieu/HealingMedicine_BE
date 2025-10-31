@@ -26,7 +26,7 @@ const blogSchema = new mongoose.Schema({
     },
     thumbnailUrl : {
         type : String,
-        required : [true, 'Vui lòng điền ảnh của blog blog'],
+        required : [true, 'Vui lòng điền ảnh của blog'],
         trim : true,
     },
     authorUserId : {

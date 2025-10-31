@@ -19,30 +19,35 @@ const createLeaveRequest = async (req, res) => {
     if (isNaN(start.getTime())) {
       return res.status(400).json({
         success: false,
-        message: 'Ngày bắt đầu không hợp lệ.',
+        message: 'Ngày bắt đầu không hợp lệ',
       });
     }
 
     if (start < now) {
       return res.status(400).json({
         success: false,
-        message: 'Ngày bắt đầu phải tính từ hiện tại.',
+        message: 'Ngày bắt đầu phải tính từ hiện tại',
       });
     }
 
     if (end <= start) {
       return res.status(400).json({
         success: false,
-        message: 'Ngày kết thúc phải lớn hơn ngày bắt đầu.',
+        message: 'Ngày kết thúc phải lớn hơn ngày bắt đầu',
       });
     }
 
-    // ✅ Kiểm tra lý do
     const cleanReason = reason.trim();
+    if(cleanReason.length === 0){
+      return res.status(400).json({
+        success : false,
+        message : "Lý do nghỉ không thể để trống"
+      })
+    }
     if (cleanReason.length < 3) {
       return res.status(400).json({
         success: false,
-        message: 'Lí do nghỉ phải có ít nhất 2 ký tự',
+        message: 'Độ dài lý do nghỉ phép không hợp lệ (tối thiểu 3 ký tự)',
       });
     }
     if (!/^[a-zA-ZÀ-ỹ0-9\s.,!?;:'"()_-]+$/.test(cleanReason)) {
@@ -64,7 +69,7 @@ const createLeaveRequest = async (req, res) => {
     if (existingApprovedLeave) {
       return res.status(400).json({
         success: false,
-        message: 'Bạn đã có đơn nghỉ được duyệt trong khoảng thời gian này.',
+        message: 'Bạn đã có đơn nghỉ được duyệt trong khoảng thời gian này',
       });
     }
 
@@ -80,14 +85,14 @@ const createLeaveRequest = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Tạo yêu cầu nghỉ thành công.',
+      message: 'Gửi yêu cầu nghỉ thành công',
       data: newRequest,
     });
   } catch (error) {
-    console.error('Lỗi khi tạo yêu cầu xin nghỉ:', error);
+    console.error('Lỗi khi gửi yêu cầu xin nghỉ', error);
     return res.status(500).json({
       success: false,
-      message: 'Đã xảy ra lỗi khi gửi yêu cầu xin nghỉ.',
+      message: 'Đã xảy ra lỗi khi gửi yêu cầu xin nghỉ',
     });
   }
 };
@@ -100,6 +105,9 @@ const getAllLeaveRequest = async(req,res) =>{
             limit = 10,
             status,
             search,
+            startDate,
+            endDate,
+            sort = 'desc',
         } = req.query
 
         const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -107,9 +115,7 @@ const getAllLeaveRequest = async(req,res) =>{
         const skip = (pageNum - 1 ) * limitNum;
 
         const filter = {};
-        if(req.user && req.user.role === 'Doctor') filter.userId = req.user.userId
-        if(req.user && req.user.role === 'Nurse') filter.userId = req.user.userId
-        if(req.user && req.user.role === 'Staff') filter.userId = req.user.userId
+        if(req.user && ['Doctor','Nurse','Staff'].includes(req.user.role)) filter.userId = req.user.userId
         if(status && STATUS.includes(status)) filter.status = status
 
         if(search && String(search).trim().length > 0){
@@ -121,13 +127,34 @@ const getAllLeaveRequest = async(req,res) =>{
             ]
         }
 
+      if (startDate || endDate) {
+        if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        filter.startDate = { ...(filter.startDate || {}), $gte: start };
+      }
+        if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        filter.startDate = { ...(filter.startDate || {}), $lte: end };
+      }
+    }
+
+        const sortOrder = sort === 'asc' ? 1 : -1;
+
         const [total, leaveRequests] = await Promise.all([
             LeaveRequest.countDocuments(filter),
             LeaveRequest.find(filter)
             .populate({
-                path : 'userId',
-                select : 'fullName role'
+              path : 'userId',
+              select : 'fullName role'
             })
+            .populate({
+              path : 'approvedByManager',
+              select : 'fullName'
+            })
+            .select('-__v')
+            .sort({startDate : sortOrder})
             .skip(skip)
             .limit(limitNum)
             .lean()
@@ -137,7 +164,7 @@ const getAllLeaveRequest = async(req,res) =>{
         const totalPages = Math.max(1, Math.ceil(total/ limitNum));
 
         return res.status(200).json({
-            status : true,
+            success : true,
             total,
             totalPages,
             page : pageNum,
@@ -169,14 +196,14 @@ const handleLeaveRequest = async(req,res) =>{
             Rejected : 'từ chối'
         }
         res.status(200).json({
-            status : true,
+            success : true,
             message : `Đã ${map[status]} đơn nghỉ phép`,
             data : handleRequest
         })
     } catch (error) {
         console.log('Lỗi khi xử lý yêu cầu xin nghỉ', error)
         return res.status(500).json({
-            status : false,
+            success : false,
             message : 'Đã xảy ra lỗi khi xử lý yêu càu xin nghỉ'
         })       
     }

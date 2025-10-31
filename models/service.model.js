@@ -19,7 +19,7 @@ const serviceSchema = new mongoose.Schema({
   },
   durationMinutes: {
     type: Number,
-    min: 1
+    min: 0
   },
   status: {
     type: String,

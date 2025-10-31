@@ -424,226 +424,141 @@ const verifyResetPasswordToken = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const userId = req.user.userId;
-    
-    const allowedFields = [
-      'fullName',
-      'phoneNumber', 
-      'address',
-      'dob',
-      'gender',
-      'emergencyContact'  // ⭐ Thêm emergencyContact
-    ];
-    
+
+    // Các trường sẽ validate giống updateAccount
+    const allowedFields = ['fullName', 'phoneNumber', 'address', 'dob', 'gender', 'emergencyContact'];
     const updates = {};
-    let emergencyContactUpdate = null;  // ⭐ Lưu emergencyContact riêng
-    
-    Object.keys(req.body).forEach(key => {
-      if (allowedFields.includes(key)) {
-        // Format date nếu là trường dob
-        if (key === 'dob' && req.body[key]) {
-          const dateValue = new Date(req.body[key]);
-          // Kiểm tra date có hợp lệ không
-          if (isNaN(dateValue.getTime())) {
-            return res.status(400).json({
-              success: false,
-              message: 'Ngày sinh không đúng định dạng'
-            });
-          }
-          // Kiểm tra date không được trong tương lai
-          if (dateValue > new Date()) {
-            return res.status(400).json({
-              success: false,
-              message: 'Ngày sinh không thể là ngày trong tương lai'
-            });
-          }
-          updates[key] = dateValue;
-        } 
-        else if (key === 'fullName') {
-          const fullName = req.body[key];
-          
-          if (fullName) {
-            // Kiểm tra không để trống
-            if (typeof fullName !== 'string' || fullName.trim().length === 0) {
-              return res.status(400).json({
-                success: false,
-                message: 'Họ tên không được để trống'
-              });
-            }
-            
-            const cleanName = fullName.trim();
-            
-            if (!/^[a-zA-ZÀ-ỹ\s]+$/.test(cleanName)) {
-              return res.status(400).json({
-                success: false,
-                message: 'Họ tên không được chứa số hoặc ký tự đặc biệt'
-              });
-            }
-            
-            // Kiểm tra độ dài tối thiểu (ít nhất 2 ký tự)
-            if (cleanName.length < 2) {
-              return res.status(400).json({
-                success: false,
-                message: 'Họ tên phải có ít nhất 2 ký tự'
-              });
-            }
-            
-            updates[key] = cleanName;
-          }
-        }
+    let emergencyContactUpdate = null;
 
-        else if (key === 'phoneNumber') {
-          const phone = req.body[key];
-          
-          if (phone) {
-            // Kiểm tra không để trống
-            if (typeof phone !== 'string' || phone.trim().length === 0) {
-              return res.status(400).json({
-                success: false,
-                message: 'Số điện thoại không được để trống'
-              });
-            }
-            
-            // Loại bỏ khoảng trắng
-            const cleanPhone = phone.trim();
-            
-            // Kiểm tra chỉ chứa số (không có ký tự đặc biệt hay chữ)
-            if (!/^[0-9]+$/.test(cleanPhone)) {
-              return res.status(400).json({
-                success: false,
-                message: 'Số điện thoại chỉ được chứa chữ số'
-              });
-            }
-            
-            // Kiểm tra bắt đầu bằng số 0
-            if (!cleanPhone.startsWith('0')) {
-              return res.status(400).json({
-                success: false,
-                message: 'Số điện thoại phải bắt đầu bằng số 0'
-              });
-            }
-            
-            // Kiểm tra có đúng 10 số
-            if (cleanPhone.length !== 10) {
-              return res.status(400).json({
-                success: false,
-                message: 'Số điện thoại phải có đúng 10 số'
-              });
-            }
-            
-            updates[key] = cleanPhone;
-          }
-        }
+    for (const key of Object.keys(req.body)) {
+      if (!allowedFields.includes(key)) continue;
 
-        // ⭐ Xử lý emergencyContact với validation
-        else if (key === 'emergencyContact') {
-          const ec = req.body[key];
-          
-          // Validate emergencyContact fields
-          if (ec) {
-            // Kiểm tra name
-            if (!ec.name || typeof ec.name !== 'string' || ec.name.trim().length === 0) {
-              return res.status(400).json({
-                success: false,
-                message: 'emergencyContact.name không được để trống'
-              });
-            }
-            
-            // Kiểm tra phone
-            if (!ec.phone || typeof ec.phone !== 'string' || ec.phone.trim().length === 0) {
-              return res.status(400).json({
-                success: false,
-                message: 'emergencyContact.phone không được để trống'
-              });
-            }
-            
-            // Kiểm tra phone format (10-11 số)
-            const phoneRegex = /^[0-9]{10,11}$/;
-            if (!phoneRegex.test(ec.phone.replace(/\D/g, ''))) {
-              return res.status(400).json({
-                success: false,
-                message: 'emergencyContact.phone phải là 10-11 số'
-              });
-            }
-            
-            // Kiểm tra relationship
-            const validRelationships = ['Father', 'Mother', 'Brother', 'Sister', 'Spouse', 'Friend', 'Other'];
-            if (!ec.relationship || !validRelationships.includes(ec.relationship)) {
-              return res.status(400).json({
-                success: false,
-                message: `emergencyContact.relationship phải là một trong: ${validRelationships.join(', ')}`
-              });
-            }
-            
-            emergencyContactUpdate = {
-              name: ec.name.trim(),
-              phone: ec.phone.trim(),
-              relationship: ec.relationship
-            };
-          }
+      const value = req.body[key];
+
+      // --- Validate fullName ---
+      if (key === 'fullName') {
+        const cleanName = value?.trim() || '';
+        if (cleanName.length === 0) {
+          return res.status(400).json({ success: false, message: 'Họ tên không được để trống' });
         }
-        else {
-          updates[key] = req.body[key];
+        if (!/^[a-zA-ZÀ-Ỹà-ỹĐđ\s]+$/.test(cleanName)) {
+          return res.status(400).json({ success: false, message: 'Họ tên không được chứa số hoặc ký tự đặc biệt' });
+        }
+        if (cleanName.length < 2) {
+          return res.status(400).json({ success: false, message: 'Độ dài họ và tên không hợp lệ (tối thiểu 2 ký tự)' });
+        }
+        updates[key] = cleanName;
+      }
+
+      // --- Validate phoneNumber ---
+      if (key === 'phoneNumber') {
+        const cleanPhone = value?.trim() || '';
+        updates[key] = cleanPhone.length === 0 ? null : cleanPhone;
+        if (cleanPhone.length > 0 && (!/^[0-9]{10}$/.test(cleanPhone) || !cleanPhone.startsWith('0'))) {
+          return res.status(400).json({ success: false, message: 'Số điện thoại phải bắt đầu bằng 0 và có đúng 10 chữ số' });
         }
       }
-    });
-    
-    if (Object.keys(updates).length === 0 && !emergencyContactUpdate) {
-      return res.status(400).json({
-        success: false,
-        message: 'Không có trường hợp lệ để cập nhật'
-      });
+
+      // --- Validate address ---
+      if (key === 'address') {
+        const cleanAddress = value?.trim() || '';
+        updates[key] = cleanAddress.length === 0 ? null : cleanAddress;
+        if (cleanAddress.length > 0) {
+          if (!/^[a-zA-ZÀ-Ỹà-ỹĐđ0-9\s,.\-\/]+$/.test(cleanAddress)) {
+            return res.status(400).json({ success: false, message: 'Địa chỉ không hợp lệ' });
+          }
+          if (cleanAddress.length < 2) {
+            return res.status(400).json({ success: false, message: 'Độ dài địa chỉ không hợp lệ (tối thiểu 2 ký tự)' });
+          }
+        }
+      }
+
+      // --- Validate dob ---
+      else if (key === 'dob') {
+        const birthDate = new Date(value);
+        if (isNaN(birthDate.getTime())) {
+          return res.status(400).json({ success: false, message: 'Ngày sinh không hợp lệ' });
+        }
+        const now = new Date();
+        let age = now.getFullYear() - birthDate.getFullYear();
+        const m = now.getMonth() - birthDate.getMonth();
+        if (m < 0 || (m === 0 && now.getDate() < birthDate.getDate())) age--;
+        if (age < 18) {
+          return res.status(400).json({ success: false, message: 'Người dùng phải đủ 18 tuổi trở lên' });
+        }
+        updates[key] = value;
+      }
+
+      // --- Gender & Status ---
+      else if (key === 'gender') {
+        updates[key] = value;
+      }
+
+      // --- emergencyContact giữ nguyên logic cũ ---
+      else if (key === 'emergencyContact') {
+        const ec = value;
+        if (ec) {
+          if (!ec.name || typeof ec.name !== 'string' || ec.name.trim().length === 0) {
+            return res.status(400).json({ success: false, message: 'emergencyContact.name không được để trống' });
+          }
+          if (!ec.phone || typeof ec.phone !== 'string' || ec.phone.trim().length === 0) {
+            return res.status(400).json({ success: false, message: 'emergencyContact.phone không được để trống' });
+          }
+          const phoneRegex = /^[0-9]{10,11}$/;
+          if (!phoneRegex.test(ec.phone.replace(/\D/g, ''))) {
+            return res.status(400).json({ success: false, message: 'emergencyContact.phone phải là 10-11 số' });
+          }
+          const validRelationships = ['Father', 'Mother', 'Brother', 'Sister', 'Spouse', 'Friend', 'Other'];
+          if (!ec.relationship || !validRelationships.includes(ec.relationship)) {
+            return res.status(400).json({ success: false, message: `emergencyContact.relationship phải là một trong: ${validRelationships.join(', ')}` });
+          }
+          emergencyContactUpdate = {
+            name: ec.name.trim(),
+            phone: ec.phone.trim(),
+            relationship: ec.relationship
+          };
+        }
+      }
     }
-    
+
+    if (Object.keys(updates).length === 0 && !emergencyContactUpdate) {
+      return res.status(400).json({ success: false, message: 'Không có trường hợp lệ để cập nhật' });
+    }
+
+    // Cập nhật User
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       { $set: updates },
       { new: true, runValidators: true }
     ).select('-passwordHash -__v');
-    
+
     if (!updatedUser) {
-      return res.status(404).json({
-        success: false,
-        message: 'Không tìm thấy thông tin người dùng'
-      });
+      return res.status(404).json({ success: false, message: 'Không tìm thấy thông tin người dùng' });
     }
-    
-    // ⭐ Nếu có emergencyContact và là Patient, update trong bảng Patient
+
+    // Cập nhật emergencyContact trong Patient nếu có
     if (emergencyContactUpdate && updatedUser.role === 'Patient') {
       const Patient = require('../models/patient.model');
-      console.log('🔍 [UPDATE PROFILE] Saving emergencyContact to Patient:', JSON.stringify(emergencyContactUpdate));
-      
-      // ⭐ Kiểm tra xem Patient record có tồn tại không
       let patient = await Patient.findOne({ patientUserId: userId });
-      
       if (!patient) {
-        // ⭐ Nếu không tồn tại, tự động tạo mới
-        console.log('🔍 [UPDATE PROFILE] Patient record not found, creating new one');
-        patient = new Patient({
-          patientUserId: userId,
-          emergencyContact: emergencyContactUpdate
-        });
+        patient = new Patient({ patientUserId: userId, emergencyContact: emergencyContactUpdate });
         await patient.save();
-        console.log('🔍 [UPDATE PROFILE] Created new Patient record');
       } else {
-        // ⭐ Nếu đã tồn tại, update emergencyContact
         patient.emergencyContact = emergencyContactUpdate;
         await patient.save();
-        console.log('🔍 [UPDATE PROFILE] Updated existing Patient record');
       }
     }
-    
-    // ⭐ Luôn lấy emergencyContact mới nhất từ Patient collection khi response
+
+    // Lấy emergencyContact mới nhất
     let emergencyContactResponse = null;
     if (updatedUser.role === 'Patient') {
       const Patient = require('../models/patient.model');
       const patient = await Patient.findOne({ patientUserId: userId });
-      console.log('🔍 [UPDATE PROFILE] Patient record found:', patient ? 'Yes' : 'No');
       if (patient) {
-        console.log('🔍 [UPDATE PROFILE] EmergencyContact in DB:', JSON.stringify(patient.emergencyContact));
         emergencyContactResponse = patient.emergencyContact || null;
       }
     }
-    
+
     res.status(200).json({
       success: true,
       message: 'Cập nhật thông tin cá nhân thành công',
@@ -665,27 +580,13 @@ const updateProfile = async (req, res) => {
         }
       }
     });
-    
+
   } catch (error) {
     console.error('Lỗi cập nhật profile:', error);
-    
-    // Xử lý lỗi validation
-    if (error.name === 'ValidationError') {
-      const errors = Object.values(error.errors).map(err => err.message);
-      return res.status(400).json({
-        success: false,
-        message: 'Dữ liệu không hợp lệ',
-        errors: errors
-      });
-    }
-    
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi server. Vui lòng thử lại sau',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    res.status(500).json({ success: false, message: 'Lỗi server. Vui lòng thử lại sau' });
   }
 };
+
 
 // Middleware xác thực JWT
 const authenticateToken = async (req, res, next) => {

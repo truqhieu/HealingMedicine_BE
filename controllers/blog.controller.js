@@ -1,7 +1,6 @@
 const Blog = require('../models/blog.model');
 const {cloudinary, deleteOldImage} = require('../config/cloudinary');
 const fs = require('fs');
-const mongoose= require('mongoose');
 
 const createBlog = async(req,res) =>{
     try {
@@ -108,6 +107,9 @@ const getAllBlogs = async(req,res) =>{
       category,
       status,
       search,
+      startDate,
+      endDate,
+      sort = 'desc'
     } = req.query
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -131,9 +133,26 @@ const getAllBlogs = async(req,res) =>{
       ]   
     } 
 
+        if(startDate || endDate){
+          filter.createdAt = {};
+          if(startDate){
+            const start = new Date(startDate);
+            start.setHours(0, 0, 0, 0);
+            filter.createdAt.$gte = start;
+          }
+          if(endDate){
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 9999);
+            filter.createdAt.$lte = end;
+          }
+        }
+
+        const sortOrder = sort === 'asc' ? 1 : -1;    
+
     const [total, blogs] = await Promise.all([
       Blog.countDocuments(filter),
       Blog.find(filter)
+      .sort({createdAt : sortOrder})
       .skip(skip)
       .limit(limitNum)
       .lean()
@@ -162,7 +181,7 @@ const viewDetailBlogs = async(req,res) =>{
         const blog = await Blog.findById(req.params.id);
         if(!blog){
             return res.status(404).json({
-                status : false,
+                success : false,
                 message : 'Không tìm thấy blog'
             });
         }
@@ -181,136 +200,118 @@ const viewDetailBlogs = async(req,res) =>{
     }
 }
 
-const updateBlog = async(req,res) =>{
+const updateBlog = async (req, res) => {
     try {
-        const updateFileds = [
-            'title',
-            'summary',
-            'category',
-            'status'
-        ]
-
+        const { id } = req.params;
         const updates = {};
-        Object.keys(req.body).forEach(key =>{
-            if(updateFileds.includes(key)){
-                updates[key] = req.body[key];
+        const allowedFields = ['title', 'summary', 'category', 'status'];
+
+        // === 1. XỬ LÝ CÁC TRƯỜNG TEXT ===
+        for (const field of allowedFields) {
+            const value = req.body[field];
+
+            // Nếu không gửi field → bỏ qua (không bắt buộc cập nhật)
+            if (value === undefined) continue;
+
+            // Nếu gửi nhưng để trống → lỗi
+            if (typeof value !== 'string' || value.trim().length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: `${field === 'title' ? 'Tiêu đề' : 
+                                 field === 'summary' ? 'Mô tả' : 
+                                 field === 'category' ? 'Danh mục' : 'Trạng thái'} không được để trống`
+                });
             }
 
-      else if(key === 'title'){
-        const title = req.body[key];
-          if (title) {
-            // Kiểm tra không để trống
-            if (typeof title !== 'string' || title.trim().length === 0) {
-              return res.status(400).json({
-                success: false,
-                message: 'Tên blog không được để trống'
-              });
-            }
-            
-            const cleanTitle = title.trim();
-            
-            if (!/^[a-zA-ZÀ-ỹ0-9\s]+$/.test(cleanTitle)) {
-              return res.status(400).json({
-                success: false,
-                message: 'Tên blog không được chứa tự đặc biệt'
-              });
-            }
-            
-            // Kiểm tra độ dài tối thiểu (ít nhất 2 ký tự)
-            if (cleanTitle.length < 2) {
-              return res.status(400).json({
-                success: false,
-                message: 'Tên blog phải có ít nhất 2 ký tự'
-              });
-            }
-            
-            updates[key] = cleanTitle;
-          }
-      }
-      else if(key === 'summary'){
-        const summary = req.body[key];
-          if (summary) {
-            // Kiểm tra không để trống
-            if (typeof summary !== 'string' || summary.trim().length === 0) {
-              return res.status(400).json({
-                success: false,
-                message: 'Mô tả blog không được để trống'
-              });
-            }
-            
-            const cleanSummary = tisummarytle.trim();
-            
-            if (!/^[a-zA-ZÀ-ỹ0-9\s]+$/.test(cleanSummary)) {
-              return res.status(400).json({
-                success: false,
-                message: 'Mô tả blog không được chứa tự đặc biệt'
-              });
-            }
-            
-            // Kiểm tra độ dài tối thiểu (ít nhất 2 ký tự)
-            if (cleanSummary.length < 5) {
-              return res.status(400).json({
-                success: false,
-                message: 'Mô tả blog phải có ít nhất 5 ký tự'
-              });
-            }
-            
-            updates[key] = cleanSummary;
-          }
-      }
-      });
+            const cleanValue = value.trim();
 
-      if(req.file){
-        const result = await cloudinary.uploader.upload(req.file.path, {
-            folder : "blogs",
-            resource_type : "image",
-            transformation : [
-                { width: 300, height: 300, crop: "fill", gravity: "face" },
-                { quality: "auto" },
-            ],                
+            // Regex: chỉ chữ cái, số, tiếng Việt, khoảng trắng
+            if (!/^[a-zA-ZÀ-ỹ0-9\s]+$/.test(cleanValue)) {
+                return res.status(400).json({
+                    success: false,
+                    message: `${field === 'title' ? 'Tiêu đề' : 
+                                 field === 'summary' ? 'Mô tả' : 
+                                 field === 'category' ? 'Danh mục' : 'Trạng thái'} không được chứa ký tự đặc biệt`
+                });
+            }
+
+            // Độ dài tối thiểu
+            const minLength = field === 'title' ? 3 :
+                             field === 'summary' ? 10 :
+                             field === 'category' ? 2 : 3;
+
+            if (cleanValue.length < minLength) {
+                return res.status(400).json({
+                    success: false,
+                    message: `${field === 'title' ? 'Tiêu đề' : 
+                                 field === 'summary' ? 'Mô tả' : 
+                                 field === 'category' ? 'Danh mục' : 'Trạng thái'} phải có ít nhất ${minLength} ký tự`
+                });
+            }
+
+            updates[field] = cleanValue;
+        }
+
+        // === 2. XỬ LÝ ẢNH (nếu có) ===
+        if (req.file) {
+            const result = await cloudinary.uploader.upload(req.file.path, {
+                folder: "blogs",
+                resource_type: "image",
+                transformation: [
+                    { width: 300, height: 300, crop: "fill", gravity: "face" },
+                    { quality: "auto" },
+                ],
+            });
+
+            const blog = await Blog.findById(id);
+            if (blog && blog.thumbnailId) {
+                await deleteOldImage(blog.thumbnailId); // Hàm xóa ảnh cũ
+            }
+
+            updates.thumbnailUrl = result.secure_url;
+            updates.thumbnailId = result.public_id; // Lưu ID để xóa sau
+
+            // Xóa file tạm
+            fs.unlinkSync(req.file.path);
+        }
+
+        // === 3. KIỂM TRA CÓ GÌ ĐỂ CẬP NHẬT KHÔNG ===
+        if (Object.keys(updates).length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Không có trường hợp lệ để cập nhật'
+            });
+        }
+
+        // === 4. CẬP NHẬT DB ===
+        const blog = await Blog.findByIdAndUpdate(
+            id,
+            { $set: updates },
+            { new: true, runValidators: true }
+        );
+
+        if (!blog) {
+            return res.status(404).json({
+                success: false,
+                message: 'Không tìm thấy blog'
+            });
+        }
+
+        // === 5. TRẢ KẾT QUẢ ===
+        res.status(200).json({
+            success: true,
+            message: 'Cập nhật blog thành công',
+            data: blog
         });
 
-        const blog = await Blog.findById(req.params.id);
-
-        if(blog.imageId){
-            await deleteOldImage(blog.imageId)
-        }
-        updates.thumbnailUrl = result.secure_url;
-        fs.unlinkSync(req.file.path);
-      }
-    if(Object.keys(updates).length === 0){
-      return res.status(400).json({
-        success : false,
-        message : 'Không có trường hợp lệ để cập nhật'
-      })
-    }
-
-    const blog = await Blog.findByIdAndUpdate(
-      req.params.id,
-      {$set : updates},
-      {new : true, runValidators : true}
-    );
-    if(!blog){
-      return res.status(400).json({
-        success : false,
-        message : 'Không tìm thấy blog'
-      });
-    }
-
-    res.status(200).json({
-      success : true,
-      message : 'Cập nhật thông tin blog thành công',
-      data : blog
-    })
-
     } catch (error) {
-        console.log('Lỗi khi cập nhật blog', error);
+        console.error('Lỗi khi cập nhật blog:', error);
         return res.status(500).json({
-            success : false,
-            message : 'Đã xảy ra lỗi khi cập nhật blog'
-        })              
+            success: false,
+            message: 'Đã xảy ra lỗi khi cập nhật blog'
+        });
     }
-}
+};
 
 const deleteBlog = async (req, res) => {
   try {
