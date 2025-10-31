@@ -47,6 +47,11 @@ app.use((req, res, next) => {
 
 connectMongo();
 
+// ⭐ THÊM: Import cron job cập nhật khuyến mãi hết hạn
+require('./config/cron');
+console.log('🔔 Khởi động Promotion Expiry Job (chạy hàng ngày lúc 0h00)');
+
+
 // ⭐ THÊM: Khởi động PaymentMonitor (auto-expire payment sau 15 phút)
 console.log('\n🔔 Khởi động Payment Monitor...');
 paymentMonitor.startMonitoring(1); // Check mỗi 1 phút

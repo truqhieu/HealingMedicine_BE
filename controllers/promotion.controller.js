@@ -155,8 +155,6 @@ const createPromotion = async (req, res) => {
     }
 };
 
-
-
 const getAllPromotions = async (req, res) => {
     try {
         const {
@@ -188,11 +186,6 @@ const getAllPromotions = async (req, res) => {
       ]   
     }     
 
-        const now = new Date();
-        await Promotion.updateMany(
-          { endDate: { $lt: now }, status: { $ne: 'Expired' } },
-          { $set: { status: 'Expired' } }
-        );
         if (startDate || endDate) {
           filter.startDate = {};
           if (startDate) {

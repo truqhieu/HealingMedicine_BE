@@ -360,8 +360,8 @@ const getDiscountedServices = async (req, res) => {
         durationMinutes: item.durationMinutes,
         isPrepaid: item.isPrepaid,
         category: item.category,
-        bestPrice: best.finalPrice,
-        saved: item.originalPrice - best.finalPrice,
+        finalPrice: best.finalPrice,
+        discountPrice: item.originalPrice - best.finalPrice,
         bestPromotion: {
           id: best.promotionId,
           title: best.title, 

@@ -7,8 +7,8 @@ const { verifyToken, verifyRole } = require('../middleware/auth.middleware');
 router.post('/services', verifyToken, verifyRole('Manager'), createService)
 router.get('/services', getAllServices) 
 router.get('/services/discounted', getDiscountedServices) 
-router.get('/services/:id', viewDetailService) 
 router.get('/services/discounted/:id', getDiscountedServiceDetail) 
+router.get('/services/:id', viewDetailService) 
 router.patch('/services/:id', verifyToken, verifyRole('Manager'), updateService)
 router.delete('/services/:id', verifyToken, verifyRole('Manager'), deleteService)
 
