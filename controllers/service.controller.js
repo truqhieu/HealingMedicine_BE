@@ -1,4 +1,6 @@
 const Service = require('../models/service.model');
+const Promotion = require('../models/promotion.model')
+const PromotionService = require('../models/promotionService.model')
 
 const REPAID = Service.schema.path('isPrepaid').enumValues;
 const STATUS = Service.schema.path('status').enumValues;
@@ -139,7 +141,6 @@ const createService = async (req, res) => {
 };
 
 
-
 const getAllServices = async (req, res) => {
   try {
     const {
@@ -218,6 +219,246 @@ if (sortOption.length === 0) {
   }
 };
 
+const getDiscountedServices = async (req, res) => {
+  try {
+    const { 
+      status,
+      page = 1, 
+      limit = 15,
+      search,
+      category,
+      isPrepaid
+    } = req.query;
+
+    const pageNum = Math.max(1, parseInt(page, 10));
+    const limitNum = Math.min(100, parseInt(limit, 10));
+    const now = new Date();
+
+    // === 1. Lấy tất cả promotion (có thể filter status) ===
+    const promoFilter = {};
+    if (status) promoFilter.status = status;
+
+    const promotions = await Promotion.find(promoFilter).lean();
+    if (promotions.length === 0) {
+      return res.status(200).json({
+        success: true,
+        total: 0,
+        page: pageNum,
+        limit: limitNum,
+        data: []
+      });
+    }
+
+    const promoIds = promotions.map(p => p._id);
+
+    // === 2. Lấy liên kết PromotionService ===
+    const links = await PromotionService.find({
+      promotionId: { $in: promoIds }
+    }).lean();
+
+    if (links.length === 0) {
+      return res.status(200).json({
+        success: true,
+        total: 0,
+        page: pageNum,
+        limit: limitNum,
+        data: []
+      });
+    }
+
+    const serviceIds = [...new Set(links.map(l => l.serviceId))];
+
+    // === 3. XÂY DỰNG FILTER CHO SERVICE ===
+    const serviceFilter = { _id: { $in: serviceIds } };
+
+    if (isPrepaid !== undefined) {
+      serviceFilter.isPrepaid = isPrepaid === 'true';
+    }
+
+    if (category) {
+      serviceFilter.category = category;
+    }
+
+    if (search && String(search).trim().length > 0) {
+      const searchKey = String(search).trim();
+      const safe = searchKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(safe, 'i');
+      serviceFilter.serviceName = { $regex: regex };
+    }
+
+    // === 4. Lấy thông tin dịch vụ (có filter) ===
+    const services = await Service.find(serviceFilter)
+      .select('serviceName price durationMinutes isPrepaid category')
+      .lean();
+
+    if (services.length === 0) {
+      return res.status(200).json({
+        success: true,
+        total: 0,
+        page: pageNum,
+        limit: limitNum,
+        data: []
+      });
+    }
+
+    const serviceMap = Object.fromEntries(
+      services.map(s => [s._id.toString(), s])
+    );
+
+    // === 5. Gộp theo service + tính giá tốt nhất ===
+    const serviceDiscountMap = {};
+
+    for (const link of links) {
+      const service = serviceMap[link.serviceId.toString()];
+      if (!service) continue; // Đã bị loại bởi filter
+
+      const promo = promotions.find(p => p._id.toString() === link.promotionId.toString());
+      if (!promo) continue;
+
+      const key = service._id.toString();
+      if (!serviceDiscountMap[key]) {
+        serviceDiscountMap[key] = {
+          serviceId: service._id,
+          serviceName: service.serviceName,
+          originalPrice: service.price,
+          durationMinutes: service.durationMinutes,
+          isPrepaid: service.isPrepaid,
+          category: service.category,
+          promotions: []
+        };
+      }
+
+      let finalPrice = service.price;
+      if (promo.discountType === 'Percent') {
+        finalPrice = service.price * (1 - promo.discountValue / 100);
+      } else if (promo.discountType === 'Fix') {
+        finalPrice = Math.max(0, service.price - promo.discountValue);
+      }
+
+      serviceDiscountMap[key].promotions.push({
+        promotionId: promo._id,
+        title: promo.title,
+        discountType: promo.discountType,
+        discountValue: promo.discountValue,
+        finalPrice: Math.round(finalPrice),
+        status: promo.status,
+        startDate: promo.startDate,
+        endDate: promo.endDate
+      });
+    }
+
+    // === 6. Tính giá tốt nhất cho mỗi service ===
+    const result = Object.values(serviceDiscountMap).map(item => {
+      const best = item.promotions.reduce((best, curr) => 
+        curr.finalPrice < best.finalPrice ? curr : best
+      );
+
+      return {
+        serviceId: item.serviceId,
+        serviceName: item.serviceName,
+        originalPrice: item.originalPrice,
+        durationMinutes: item.durationMinutes,
+        isPrepaid: item.isPrepaid,
+        category: item.category,
+        bestPrice: best.finalPrice,
+        saved: item.originalPrice - best.finalPrice,
+        bestPromotion: {
+          id: best.promotionId,
+          title: best.title, 
+        },
+        // totalPromotions: item.promotions.length
+      };
+    });
+
+    // === 7. Sắp xếp & phân trang ===
+    result.sort((a, b) => b.saved - a.saved); // Giảm nhiều nhất trước
+
+    const total = result.length;
+    const start = (pageNum - 1) * limitNum;
+    const paginated = result.slice(start, start + limitNum);
+
+    res.status(200).json({
+      success: true,
+      total,
+      page: pageNum,
+      limit: limitNum,
+      data: paginated
+    });
+
+  } catch (error) {
+    console.error('Lỗi lấy danh sách dịch vụ giảm giá', error);
+    res.status(500).json({
+      success: false,
+      message: 'Đã xảy ra lỗi khi lấy danh sách dịch vụ giảm giá'
+    });
+  }
+};
+
+const getDiscountedServiceDetail = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const now = new Date();
+
+    // 1. Lấy service
+    const service = await Service.findById(id)
+      .select('serviceName price durationMinutes')
+      .lean();
+    if (!service) return res.status(404).json({ success: false, message: 'Không tìm thấy' });
+
+    // 2. Lấy tất cả liên kết
+    const links = await PromotionService.find({ serviceId: id }).lean();
+    if (links.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: { ...service, allPromotions: [] }
+      });
+    }
+
+    // 3. Lấy promotion
+    const promotions = await Promotion.find({
+      _id: { $in: links.map(l => l.promotionId) }
+    }).lean();
+
+    // 4. Tính giá cho từng promotion
+    const allPromotions = promotions.map(promo => {
+      let finalPrice = service.price;
+      if (promo.discountType === 'Percent') {
+        finalPrice = service.price * (1 - promo.discountValue / 100);
+      } else if (promo.discountType === 'Fix') {
+        finalPrice = Math.max(0, service.price - promo.discountValue);
+      }
+
+      return {
+        promotionId: promo._id,
+        title: promo.title,
+        discountType: promo.discountType,
+        discountValue: promo.discountValue,
+        finalPrice: Math.round(finalPrice),
+        status: promo.status,
+        startDate: promo.startDate,
+        endDate: promo.endDate
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        serviceId: service._id,
+        serviceName: service.serviceName,
+        originalPrice: service.price,
+        durationMinutes: service.durationMinutes,
+        allPromotions
+      }
+    });
+
+  } catch (error) {
+    console.log('Lỗi khi xem chi tiết dịch vụ được giảm giá', error);
+    return res.status(500).json({
+      success : false,
+      message : 'Đã xảy ra lỗi khi xem chi tiết dịch vụ được giảm giá'
+    })
+  }
+};
 
 const viewDetailService = async(req,res) =>{
     try {
@@ -431,6 +672,8 @@ module.exports = {
 createService,
 getAllServices,
 viewDetailService,
+getDiscountedServiceDetail,
+getDiscountedServices,
 updateService,
 deleteService
 }

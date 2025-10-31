@@ -70,12 +70,12 @@ const createDevice = async(req,res) =>{
                 message : 'Ngày mua thiết bị không hợp lệ.'
             });
         }
-        if(start < now) {
-            return res.status(400).json({
-                success : false,
-                message : 'Ngày mua thiết bị phải tính từ hiện tại.'
-            });           
-        }
+        // if(start < now) {
+        //     return res.status(400).json({
+        //         success : false,
+        //         message : 'Ngày mua thiết bị phải tính từ hiện tại.'
+        //     });           
+        // }
         if(end <= start){
             return res.status(400).json({
                 success : false,

@@ -19,6 +19,7 @@ const leaveRequestRoutes = require('./leaveRequest.route');
 const deviceRoutes = require('./device.route');
 const blogRoutes = require('./blog.route');
 const patientRequestRoutes = require('./patientRequest.route');
+const promotionRoutes = require('./promotion.route');
 
 
 // --- ROUTES ---
@@ -29,6 +30,7 @@ router.use('/manager', clinicRoutes);
 router.use('/manager', scheduleRoute);
 router.use('/manager', deviceRoutes);
 router.use('/manager', blogRoutes);
+router.use('/manager', promotionRoutes);
 
 router.use('/doctor', doctorRoutes);
 router.use('/nurse', nurseRoutes);

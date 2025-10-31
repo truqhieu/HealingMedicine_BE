@@ -37,11 +37,48 @@ const promotionSchema = new mongoose.Schema({
     },
     status : {
         type : String,
-        enum : ["Active","Expired"],
-        default : "Active",
+        enum : ["Upcoming","Active","Expired"],
+        default : "Upcoming",
     }
 },{
   timestamps: true
 });
+
+
+promotionSchema.virtual('currentStatus').get(function () {
+    const now = new Date();
+    if (now < this.startDate) return 'Upcoming';
+    if (now >= this.startDate && now <= this.endDate) return 'Active';
+    return 'Expired';
+});
+
+// 2. Method: Cập nhật status vào DB (khi cần)
+promotionSchema.methods.syncStatus = async function () {
+    const realStatus = this.currentStatus;
+    if (this.status !== realStatus) {
+        this.status = realStatus;
+        await this.save();
+    }
+};
+
+// 3. Static: Cập nhật tất cả (dùng cho cron)
+promotionSchema.statics.syncAllStatuses = async function () {
+    const now = new Date();
+
+    await this.updateMany(
+        { startDate: { $gt: now } },
+        { status: 'Upcoming' }
+    );
+
+    await this.updateMany(
+        { startDate: { $lte: now }, endDate: { $gte: now } },
+        { status: 'Active' }
+    );
+
+    await this.updateMany(
+        { endDate: { $lt: now } },
+        { status: 'Expired' }
+    );
+};
 
 module.exports = mongoose.model('Promotion', promotionSchema,'promotions');

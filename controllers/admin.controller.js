@@ -26,7 +26,7 @@ const createAccount = async(req, res) =>{
               })
             }
             
-        if (!/^[a-zA-ZÀ-ỹĐđ\s]+$/.test(cleanFullName)) {
+        if (!/^[\p{L}\s]+$/u.test(cleanFullName)) {
               return res.status(400).json({
                 success: false,
                 message: 'Họ tên không được chứa số hoặc ký tự đặc biệt'
