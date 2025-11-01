@@ -14,7 +14,8 @@ const {
   requestReschedule,
   requestChangeDoctor,
   getRescheduleAvailableSlots,
-  getAvailableDoctorsForTimeSlot
+  getAvailableDoctorsForTimeSlot,
+  getAllDoctors
 } = require('../controllers/appointment.controller');
 const { getMedicalRecordForPatient, getPatientMedicalRecordsList } = require('../controllers/medicalRecord.controller');
 const { verifyToken, verifyRole } = require('../middleware/auth.middleware');
@@ -65,6 +66,9 @@ router.post('/:appointmentId/request-reschedule', verifyToken, requestReschedule
 
 // ⭐ Bệnh nhân gửi yêu cầu đổi bác sĩ (chỉ đổi bác sĩ)
 router.post('/:appointmentId/request-change-doctor', verifyToken, requestChangeDoctor);
+
+// ⭐ Lấy danh sách tất cả bác sĩ (cho filter - Staff/Manager) - PHẢI đặt trước các route có :appointmentId
+router.get('/doctors', verifyToken, verifyRole(['Staff', 'Manager']), getAllDoctors);
 
 // ⭐ Lấy danh sách bác sĩ khả dụng cho thời gian cụ thể
 router.get('/:appointmentId/available-doctors', verifyToken, getAvailableDoctorsForTimeSlot);

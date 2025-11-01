@@ -63,8 +63,28 @@ const getPatientDetail = async (req, res) => {
   }
 };
 
+const getAllDoctors = async (req, res) => {
+  try {
+    const data = await nurseService.getAllDoctors();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Lấy danh sách bác sĩ thành công',
+      data
+    });
+  } catch (error) {
+    console.error('Error in getAllDoctors:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Lỗi server khi lấy danh sách bác sĩ',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getNurseSchedule,
   getAppointmentDetail,
-  getPatientDetail
+  getPatientDetail,
+  getAllDoctors
 };

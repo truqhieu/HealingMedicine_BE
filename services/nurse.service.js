@@ -27,12 +27,21 @@ class NurseService {
     const endOfTwoWeeks = new Date(startOfWeek);
     endOfTwoWeeks.setDate(endOfTwoWeeks.getDate() + 14);
 
-    // Lấy tất cả appointments trong 2 tuần
-    const appointments = await Appointment.find({
-      createdAt: {
+    // Lấy tất cả appointments trong 2 tuần - dựa trên ngày khám (timeslot.startTime), không phải createdAt
+    // Tìm tất cả timeslots trong khoảng thời gian này trước
+    const Timeslot = require('../models/timeslot.model');
+    const timeslotsInRange = await Timeslot.find({
+      startTime: {
         $gte: startOfWeek,
         $lt: endOfTwoWeeks
-      },
+      }
+    }).select('_id').lean();
+
+    const timeslotIds = timeslotsInRange.map(ts => ts._id);
+
+    // Lấy appointments có timeslotId trong danh sách trên
+    const appointments = await Appointment.find({
+      timeslotId: { $in: timeslotIds },
       status: { $in: ['Approved', 'CheckedIn', 'InProgress', 'Completed', 'Finalized'] }
     })
       .populate({
@@ -172,6 +181,21 @@ class NurseService {
       emergencyContact: patientRecord?.emergencyContact || 'N/A',
       lastVisitDate: patientRecord?.lastVisitDate ? new Date(patientRecord.lastVisitDate).toISOString().split('T')[0] : 'N/A'
     };
+  }
+
+  /**
+   * Lấy danh sách tất cả các bác sĩ (để hiển thị trong filter)
+   */
+  async getAllDoctors() {
+    const doctors = await User.find({ role: 'Doctor' })
+      .select('_id fullName')
+      .sort({ fullName: 1 })
+      .lean();
+
+    return doctors.map(doctor => ({
+      _id: doctor._id,
+      fullName: doctor.fullName
+    }));
   }
 }
 
