@@ -26,7 +26,6 @@ const policySchema = new mongoose.Schema({
 });
 
 policySchema.index({ active: 1, status: 1 });
-policySchema.index({ createdAt: -1 });
 
 policySchema.pre('save', function(next) {
   if (this.status === 'Active' && !this.active) {
