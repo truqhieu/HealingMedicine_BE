@@ -71,6 +71,16 @@ const medicalRecordSchema = new mongoose.Schema(
       type: String,
       enum: ['Draft', 'InProgress', 'Finalized'],
       default: 'Draft'
+    },
+    
+    // Doctor approval
+    doctorApproved: {
+      type: Boolean,
+      default: false
+    },
+    doctorApprovedAt: {
+      type: Date,
+      default: null
     }
   },
   {

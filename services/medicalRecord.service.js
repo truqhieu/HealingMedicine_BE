@@ -201,19 +201,27 @@ class MedicalRecordService {
 
   /**
    * Update medical record for doctor (diagnosis, conclusion, prescription, nurseNote)
+   * @param {string} appointmentId 
+   * @param {object} updateData - { diagnosis, conclusion, prescription, nurseNote, approve }
    */
   async updateMedicalRecordForDoctor(appointmentId, updateData) {
     if (!appointmentId) {
       throw new Error('Thiếu appointmentId');
     }
 
-    const { diagnosis, conclusion, prescription, nurseNote } = updateData;
+    const { diagnosis, conclusion, prescription, nurseNote, approve } = updateData;
 
     const updateFields = {};
     if (diagnosis !== undefined) updateFields.diagnosis = diagnosis;
     if (conclusion !== undefined) updateFields.conclusion = conclusion;
     if (prescription !== undefined) updateFields.prescription = prescription;
     if (nurseNote !== undefined) updateFields.nurseNote = nurseNote;
+
+    // Nếu approve = true, set doctorApproved = true và doctorApprovedAt = now
+    if (approve === true) {
+      updateFields.doctorApproved = true;
+      updateFields.doctorApprovedAt = new Date();
+    }
 
     if (Object.keys(updateFields).length === 0) {
       throw new Error('Không có trường nào để cập nhật');
@@ -230,6 +238,32 @@ class MedicalRecordService {
       { $set: updateFields },
       { new: true, upsert: true }
     ).populate({ path: 'additionalServiceIds', select: 'serviceName price' });
+
+    return record;
+  }
+
+  /**
+   * Approve medical record by doctor
+   */
+  async approveMedicalRecordByDoctor(appointmentId) {
+    if (!appointmentId) {
+      throw new Error('Thiếu appointmentId');
+    }
+
+    const record = await MedicalRecord.findOneAndUpdate(
+      { appointmentId },
+      { 
+        $set: { 
+          doctorApproved: true,
+          doctorApprovedAt: new Date()
+        }
+      },
+      { new: true }
+    ).populate({ path: 'additionalServiceIds', select: 'serviceName price' });
+
+    if (!record) {
+      throw new Error('Không tìm thấy hồ sơ khám bệnh');
+    }
 
     return record;
   }
@@ -270,6 +304,15 @@ class MedicalRecordService {
 
     if (!record) {
       throw new Error('Hồ sơ khám bệnh chưa được tạo');
+    }
+
+    // Kiểm tra appointment đã Completed và record đã được doctor duyệt
+    if (appointment.status !== 'Completed') {
+      throw new Error('Hồ sơ khám bệnh chỉ có thể xem sau khi ca khám đã hoàn thành');
+    }
+
+    if (!record.doctorApproved) {
+      throw new Error('Hồ sơ khám bệnh chưa được bác sĩ duyệt');
     }
 
     const patient = appointment.patientUserId || appointment.customerId || null;
@@ -322,6 +365,78 @@ class MedicalRecordService {
         gender
       }
     };
+  }
+
+  /**
+   * Get all medical records for a patient
+   * Trả về danh sách các hồ sơ khám bệnh đã hoàn thành của patient
+   */
+  async getPatientMedicalRecordsList(patientUserId) {
+    if (!patientUserId) {
+      throw new Error('Thiếu patientUserId');
+    }
+
+    // Tìm tất cả medical records của patient
+    const records = await MedicalRecord.find({
+      $or: [
+        { patientUserId: patientUserId },
+        { customerId: patientUserId }
+      ]
+    })
+      .populate({
+        path: 'appointmentId',
+        select: 'status timeslotId serviceId doctorUserId',
+        populate: [
+          {
+            path: 'timeslotId',
+            select: 'startTime endTime'
+          },
+          {
+            path: 'serviceId',
+            select: 'serviceName price'
+          },
+          {
+            path: 'doctorUserId',
+            select: 'fullName'
+          }
+        ]
+      })
+      .populate('doctorUserId', 'fullName')
+      .populate({ path: 'additionalServiceIds', select: 'serviceName price' })
+      .sort({ createdAt: -1 }) // Mới nhất trước
+      .lean();
+
+    // Lọc chỉ lấy các records từ appointments đã hoàn thành VÀ đã được doctor duyệt
+    const completedRecords = records.filter(record => {
+      if (!record.appointmentId) return false;
+      return record.appointmentId.status === 'Completed' && record.doctorApproved === true;
+    });
+
+    // Format dữ liệu để trả về
+    const formattedRecords = completedRecords.map(record => {
+      const appointment = record.appointmentId;
+      const service = appointment?.serviceId;
+      const timeslot = appointment?.timeslotId;
+      const doctor = appointment?.doctorUserId || record.doctorUserId;
+
+      return {
+        _id: record._id,
+        appointmentId: record.appointmentId?._id ? record.appointmentId._id.toString() : null,
+        doctorName: doctor?.fullName || 'N/A',
+        serviceName: service?.serviceName || 'N/A',
+        date: timeslot?.startTime || record.createdAt,
+        hasDiagnosis: !!record.diagnosis,
+        hasPrescription: !!(record.prescription && (record.prescription.medicine || record.prescription.dosage || record.prescription.duration)),
+        prescription: record.prescription || null,
+        diagnosis: record.diagnosis || null,
+        conclusion: record.conclusion || null,
+        status: record.status,
+        createdAt: record.createdAt,
+        updatedAt: record.updatedAt
+      };
+    });
+
+    return formattedRecords;
   }
 }
 

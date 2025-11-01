@@ -16,7 +16,7 @@ const {
   getRescheduleAvailableSlots,
   getAvailableDoctorsForTimeSlot
 } = require('../controllers/appointment.controller');
-const { getMedicalRecordForPatient } = require('../controllers/medicalRecord.controller');
+const { getMedicalRecordForPatient, getPatientMedicalRecordsList } = require('../controllers/medicalRecord.controller');
 const { verifyToken, verifyRole } = require('../middleware/auth.middleware');
 
 // ⭐ Patient đặt lịch tư vấn/khám - Cần đăng nhập
@@ -37,6 +37,9 @@ router.get('/all', verifyToken, getAllAppointments);
 
 // ⭐ Lấy danh sách ca khám của người dùng hiện tại - Cần đăng nhập
 router.get('/my-appointments', verifyToken, getMyAppointments);
+
+// ⭐ Patient lấy danh sách tất cả hồ sơ khám bệnh đã hoàn thành
+router.get('/medical-records', verifyToken, verifyRole('Patient'), getPatientMedicalRecordsList);
 
 // ⭐ Cập nhật trạng thái ca khám (Staff check-in, Nurse hoàn thành)
 // Staff: Approved → CheckedIn

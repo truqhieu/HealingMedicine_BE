@@ -1,6 +1,7 @@
 const Appointment = require('../models/appointment.model');
 const User = require('../models/user.model');
 const Patient = require('../models/patient.model');
+const MedicalRecord = require('../models/medicalRecord.model');
 
 class NurseService {
 
@@ -57,6 +58,18 @@ class NurseService {
       .sort({ 'timeslotId.startTime': 1 })
       .lean();
 
+    // Lấy thông tin doctorApproved từ MedicalRecord cho mỗi appointment
+    const appointmentIds = appointments.map(apt => apt._id);
+    const medicalRecords = await MedicalRecord.find({
+      appointmentId: { $in: appointmentIds }
+    }).select('appointmentId doctorApproved').lean();
+
+    // Tạo map để tra cứu nhanh
+    const doctorApprovedMap = {};
+    medicalRecords.forEach(record => {
+      doctorApprovedMap[record.appointmentId.toString()] = record.doctorApproved || false;
+    });
+
     // Format response thành array dạng bảng
     return appointments.map(appointment => {
       const timeslot = appointment.timeslotId;
@@ -73,7 +86,8 @@ class NurseService {
         endTime: timeslot?.endTime ? new Date(timeslot.endTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' }) : 'N/A',
         type: appointment.type,
         status: appointment.status,
-        mode: appointment.mode
+        mode: appointment.mode,
+        doctorApproved: doctorApprovedMap[appointment._id.toString()] || false
       };
     });
   }
