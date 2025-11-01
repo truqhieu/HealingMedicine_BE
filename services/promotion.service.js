@@ -1,5 +1,5 @@
 const Promotion = require('../models/promotion.model');
-const PromotionService = require('../models/promotionService.model');
+const PromotionServiceModel = require('../models/promotionService.model');
 const Service = require('../models/service.model');
 
 class PromotionService {
@@ -89,7 +89,7 @@ class PromotionService {
     }
 
     // Check conflict promotion for services
-    const conflictingPromotions = await PromotionService.aggregate([
+    const conflictingPromotions = await PromotionServiceModel.aggregate([
       { $match: { serviceId: { $in: finalServiceIds } } },
       { $lookup: { from: 'promotions', localField: 'promotionId', foreignField: '_id', as: 'promotion' } },
       { $unwind: '$promotion' },
@@ -129,7 +129,7 @@ class PromotionService {
     // Tạo liên kết dịch vụ trong PromotionService
     if (finalServiceIds.length > 0) {
       const links = finalServiceIds.map(id => ({ promotionId: promotion._id, serviceId: id }));
-      await PromotionService.insertMany(links);
+      await PromotionServiceModel.insertMany(links);
     }
 
     // Lấy tên dịch vụ
@@ -365,13 +365,13 @@ class PromotionService {
 
     // Cập nhật liên kết dịch vụ
     if (!isApplyToAll && serviceIds !== undefined) {
-      await PromotionService.deleteMany({ promotionId: promotion._id });
+      await PromotionServiceModel.deleteMany({ promotionId: promotion._id });
       if (serviceIds.length > 0) {
         const links = serviceIds.map(id => ({
           promotionId: promotion._id,
           serviceId: id
         }));
-        await PromotionService.insertMany(links);
+        await PromotionServiceModel.insertMany(links);
       }
     }
 
@@ -391,7 +391,7 @@ class PromotionService {
     }
 
     // Xóa các liên kết trong PromotionService
-    await PromotionService.deleteMany({ promotionId: id });
+    await PromotionServiceModel.deleteMany({ promotionId: id });
 
     return true;
   }
