@@ -1,10 +1,9 @@
-const Policy = require('../models/policy.model');
-
+const policyService = require('../services/policy.service');
 
 const getActivePolicies = async (req, res) => {
   try {
-    const policies = await Policy.getActivePolicies();
-    
+    const policies = await policyService.getActivePolicies();
+
     res.status(200).json({
       success: true,
       message: `Tìm thấy ${policies.length} chính sách`,
@@ -14,17 +13,16 @@ const getActivePolicies = async (req, res) => {
     console.error('Lỗi lấy danh sách chính sách:', error);
     res.status(500).json({
       success: false,
-      message: 'Lỗi server. Vui lòng thử lại sau',
+      message: error.message || 'Lỗi server. Vui lòng thử lại sau',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
 
-
 const getAllPolicies = async (req, res) => {
   try {
-    const policies = await Policy.find().sort({ createdAt: -1 });
-    
+    const policies = await policyService.getAllPolicies();
+
     res.status(200).json({
       success: true,
       message: `Tìm thấy ${policies.length} chính sách`,
@@ -34,33 +32,22 @@ const getAllPolicies = async (req, res) => {
     console.error('Lỗi lấy tất cả chính sách:', error);
     res.status(500).json({
       success: false,
-      message: 'Lỗi server. Vui lòng thử lại sau',
+      message: error.message || 'Lỗi server. Vui lòng thử lại sau',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
 
-
 const createPolicy = async (req, res) => {
   try {
     const { title, description, active = true, status = 'Active' } = req.body;
 
-    // Validation
-    if (!title || !description) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng nhập đầy đủ tiêu đề và mô tả'
-      });
-    }
-
-    const policy = new Policy({
+    const policy = await policyService.createPolicy({
       title,
       description,
       active,
       status
     });
-
-    await policy.save();
 
     res.status(201).json({
       success: true,
@@ -71,32 +58,23 @@ const createPolicy = async (req, res) => {
     console.error('Lỗi tạo chính sách:', error);
     res.status(500).json({
       success: false,
-      message: 'Lỗi server. Vui lòng thử lại sau',
+      message: error.message || 'Lỗi server. Vui lòng thử lại sau',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
-
 
 const updatePolicy = async (req, res) => {
   try {
     const { id } = req.params;
     const { title, description, active, status } = req.body;
 
-    const policy = await Policy.findById(id);
-    if (!policy) {
-      return res.status(404).json({
-        success: false,
-        message: 'Không tìm thấy chính sách'
-      });
-    }
-
-    if (title) policy.title = title;
-    if (description) policy.description = description;
-    if (typeof active === 'boolean') policy.active = active;
-    if (status) policy.status = status;
-
-    await policy.save();
+    const policy = await policyService.updatePolicy(id, {
+      title,
+      description,
+      active,
+      status
+    });
 
     res.status(200).json({
       success: true,
@@ -107,7 +85,7 @@ const updatePolicy = async (req, res) => {
     console.error('Lỗi cập nhật chính sách:', error);
     res.status(500).json({
       success: false,
-      message: 'Lỗi server. Vui lòng thử lại sau',
+      message: error.message || 'Lỗi server. Vui lòng thử lại sau',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
@@ -117,13 +95,7 @@ const deletePolicy = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const policy = await Policy.findByIdAndDelete(id);
-    if (!policy) {
-      return res.status(404).json({
-        success: false,
-        message: 'Không tìm thấy chính sách'
-      });
-    }
+    await policyService.deletePolicy(id);
 
     res.status(200).json({
       success: true,
@@ -133,7 +105,7 @@ const deletePolicy = async (req, res) => {
     console.error('Lỗi xóa chính sách:', error);
     res.status(500).json({
       success: false,
-      message: 'Lỗi server. Vui lòng thử lại sau',
+      message: error.message || 'Lỗi server. Vui lòng thử lại sau',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }

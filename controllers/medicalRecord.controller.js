@@ -1,170 +1,84 @@
-const MedicalRecord = require('../models/medicalRecord.model');
-const Appointment = require('../models/appointment.model');
-const Service = require('../models/service.model');
-const User = require('../models/user.model');
-const Customer = require('../models/customer.model');
+const medicalRecordService = require('../services/medicalRecord.service');
 
-function calcAge(dob) {
-  if (!dob) return null;
-  try {
-    const birth = new Date(dob);
-    const today = new Date();
-    // Tính theo UTC để tránh lệch múi giờ
-    let age = today.getUTCFullYear() - birth.getUTCFullYear();
-    const monthDiff = today.getUTCMonth() - birth.getUTCMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getUTCDate() < birth.getUTCDate())) {
-      age--;
-    }
-    return age < 0 ? 0 : age;
-  } catch (_) {
-    return null;
-  }
-}
-
-// GET /api/nurse/medical-records/:appointmentId
-// If record not exist, create a Draft prefilled with patient info so FE can display
 exports.getOrCreateMedicalRecord = async (req, res) => {
   try {
     const { appointmentId } = req.params;
     const nurseUserId = req.user?.userId;
 
-    if (!appointmentId) {
-      return res.status(400).json({ success: false, message: 'Thiếu appointmentId' });
-    }
-
-    const appointment = await Appointment.findById(appointmentId)
-      .populate('doctorUserId', 'fullName')
-      .populate('patientUserId', 'fullName dob address email phoneNumber gender')
-      .populate('customerId', 'fullName address dob email phoneNumber gender');
-
-    if (!appointment) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy lịch hẹn' });
-    }
-
-    let record = await MedicalRecord.findOne({ appointmentId })
-      .populate({ path: 'additionalServiceIds', select: 'serviceName price' });
-
-    // Prefill basic info from user/customer if creating first time
-    if (!record) {
-      const patient = appointment.patientUserId || appointment.customerId || null;
-      const patientAge = calcAge(patient?.dob);
-      const address = patient?.address || '';
-
-      record = await MedicalRecord.create({
-        appointmentId: appointment._id,
-        doctorUserId: appointment.doctorUserId,
-        patientUserId: appointment.patientUserId || null,
-        customerId: appointment.customerId || null,
-        nurseId: nurseUserId,
-        patientAge,
-        address,
-        status: 'Draft'
-      });
-      // Re-fetch with populate to include services info
-      record = await MedicalRecord.findById(record._id)
-        .populate({ path: 'additionalServiceIds', select: 'serviceName price' });
-    }
-
-    const patient = appointment.patientUserId || appointment.customerId || null;
-    const patientName = patient?.fullName || 'N/A';
-    const patientAge = record.patientAge ?? calcAge(patient?.dob);
-    const address = record.address || patient?.address || '';
-    const patientDob = patient?.dob || null;
-    const email = patient?.email || '';
-    const phoneNumber = patient?.phoneNumber || '';
-    const gender = patient?.gender || '';
+    const result = await medicalRecordService.getOrCreateMedicalRecord(appointmentId, nurseUserId);
 
     return res.status(200).json({
       success: true,
-      data: {
-        record,
-        display: {
-          patientName,
-          patientAge,
-          patientDob,
-          address,
-          doctorName: appointment.doctorUserId?.fullName || 'N/A',
-          additionalServices: Array.isArray(record?.additionalServiceIds)
-            ? record.additionalServiceIds.map((s) => ({
-                _id: s._id,
-                serviceName: s.serviceName,
-                price: s.price,
-              }))
-            : [],
-          email,
-          phoneNumber,
-          gender
-        }
-      }
+      data: result
     });
   } catch (error) {
     console.error('❌ getOrCreateMedicalRecord error:', error);
-    return res.status(500).json({ success: false, message: 'Lỗi máy chủ', error: error.message });
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Lỗi máy chủ',
+      error: error.message
+    });
   }
 };
 
-// PATCH /api/nurse/medical-records/:appointmentId/nurse-note
 exports.updateNurseNote = async (req, res) => {
   try {
     const { appointmentId } = req.params;
     const { nurseNote } = req.body;
 
-    if (!appointmentId) {
-      return res.status(400).json({ success: false, message: 'Thiếu appointmentId' });
-    }
+    const record = await medicalRecordService.updateNurseNote(appointmentId, nurseNote);
 
-    const record = await MedicalRecord.findOneAndUpdate(
-      { appointmentId },
-      { $set: { nurseNote } },
-      { new: true, upsert: true }
-    );
-
-    return res.status(200).json({ success: true, message: 'Đã lưu ghi chú điều dưỡng', data: record });
+    return res.status(200).json({
+      success: true,
+      message: 'Đã lưu ghi chú điều dưỡng',
+      data: record
+    });
   } catch (error) {
     console.error('❌ updateNurseNote error:', error);
-    return res.status(500).json({ success: false, message: 'Lỗi máy chủ', error: error.message });
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Lỗi máy chủ',
+      error: error.message
+    });
   }
 };
 
-
-// GET /api/doctor/services - list active services for doctor to pick as additional
 exports.getActiveServicesForDoctor = async (_req, res) => {
   try {
-    const services = await Service.find({ status: 'Active' })
-      .select('_id serviceName price category isPrepaid durationMinutes')
-      .sort({ serviceName: 1 });
+    const services = await medicalRecordService.getActiveServicesForDoctor();
 
-    return res.status(200).json({ success: true, data: services });
+    return res.status(200).json({
+      success: true,
+      data: services
+    });
   } catch (error) {
     console.error('❌ getActiveServicesForDoctor error:', error);
-    return res.status(500).json({ success: false, message: 'Lỗi máy chủ', error: error.message });
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Lỗi máy chủ',
+      error: error.message
+    });
   }
 };
 
-// PATCH /api/doctor/medical-records/:appointmentId/additional-services
-// Body: { serviceIds: string[] }
 exports.updateAdditionalServicesForDoctor = async (req, res) => {
   try {
     const { appointmentId } = req.params;
     const { serviceIds } = req.body || {};
 
-    if (!appointmentId) {
-      return res.status(400).json({ success: false, message: 'Thiếu appointmentId' });
-    }
-    if (!Array.isArray(serviceIds)) {
-      return res.status(400).json({ success: false, message: 'serviceIds phải là mảng' });
-    }
+    const record = await medicalRecordService.updateAdditionalServicesForDoctor(appointmentId, serviceIds);
 
-    const record = await MedicalRecord.findOneAndUpdate(
-      { appointmentId },
-      { $set: { additionalServiceIds: serviceIds } },
-      { new: true, upsert: true }
-    ).populate({ path: 'additionalServiceIds', select: 'serviceName price' });
-
-    return res.status(200).json({ success: true, message: 'Đã cập nhật dịch vụ bổ sung', data: record });
+    return res.status(200).json({
+      success: true,
+      message: 'Đã cập nhật dịch vụ bổ sung',
+      data: record
+    });
   } catch (error) {
     console.error('❌ updateAdditionalServicesForDoctor error:', error);
-    return res.status(500).json({ success: false, message: 'Lỗi máy chủ', error: error.message });
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Lỗi máy chủ',
+      error: error.message
+    });
   }
 };
-
