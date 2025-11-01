@@ -143,6 +143,41 @@ class MedicalRecordService {
 
     return record;
   }
+
+  /**
+   * Update medical record for doctor (diagnosis, conclusion, prescription, nurseNote)
+   */
+  async updateMedicalRecordForDoctor(appointmentId, updateData) {
+    if (!appointmentId) {
+      throw new Error('Thiếu appointmentId');
+    }
+
+    const { diagnosis, conclusion, prescription, nurseNote } = updateData;
+
+    const updateFields = {};
+    if (diagnosis !== undefined) updateFields.diagnosis = diagnosis;
+    if (conclusion !== undefined) updateFields.conclusion = conclusion;
+    if (prescription !== undefined) updateFields.prescription = prescription;
+    if (nurseNote !== undefined) updateFields.nurseNote = nurseNote;
+
+    if (Object.keys(updateFields).length === 0) {
+      throw new Error('Không có trường nào để cập nhật');
+    }
+
+    // Cập nhật status thành InProgress nếu đang là Draft
+    const existingRecord = await MedicalRecord.findOne({ appointmentId });
+    if (existingRecord && existingRecord.status === 'Draft') {
+      updateFields.status = 'InProgress';
+    }
+
+    const record = await MedicalRecord.findOneAndUpdate(
+      { appointmentId },
+      { $set: updateFields },
+      { new: true, upsert: true }
+    ).populate({ path: 'additionalServiceIds', select: 'serviceName price' });
+
+    return record;
+  }
 }
 
 module.exports = new MedicalRecordService();

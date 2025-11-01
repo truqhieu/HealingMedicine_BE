@@ -82,3 +82,31 @@ exports.updateAdditionalServicesForDoctor = async (req, res) => {
     });
   }
 };
+
+exports.updateMedicalRecordForDoctor = async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const { diagnosis, conclusion, prescription, nurseNote } = req.body || {};
+
+    const updateData = {};
+    if (diagnosis !== undefined) updateData.diagnosis = diagnosis;
+    if (conclusion !== undefined) updateData.conclusion = conclusion;
+    if (prescription !== undefined) updateData.prescription = prescription;
+    if (nurseNote !== undefined) updateData.nurseNote = nurseNote;
+
+    const record = await medicalRecordService.updateMedicalRecordForDoctor(appointmentId, updateData);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Đã cập nhật hồ sơ khám bệnh',
+      data: record
+    });
+  } catch (error) {
+    console.error('❌ updateMedicalRecordForDoctor error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Lỗi máy chủ',
+      error: error.message
+    });
+  }
+};
