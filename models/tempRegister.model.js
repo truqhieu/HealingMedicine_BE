@@ -38,14 +38,10 @@ const tempRegisterSchema = new mongoose.Schema({
     // Token sẽ tự động hết hạn sau 24 giờ
     default: () => new Date(Date.now() + 24 * 60 * 60 * 1000)
   },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-    expires: 86400 
-  }
 }, {
   timestamps: true
 });
+// TTL index for auto-delete after 24 hours
 tempRegisterSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 });
 
 module.exports = mongoose.model('TempRegister', tempRegisterSchema,'tempregisters');
