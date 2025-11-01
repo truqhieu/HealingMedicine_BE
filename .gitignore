@@ -128,3 +128,4 @@ uploads/
 # Database dumps
 *.sql
 *.dump
+config/google-credentials.json
