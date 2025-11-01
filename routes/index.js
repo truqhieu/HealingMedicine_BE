@@ -91,12 +91,11 @@ router.get('/', (req, res) => {
         unssignDoctor: 'PATCH /api/manager/unssign-doctor/:id',
       },
       schedule: {
-        checkAvailableDoctors: 'GET /api/manager/schedules/doctor-available',
-        createScheduleDoctor: 'POST /api/manager/schedules',
-        getAllScheduleDoctors: 'GET /api/manager/schedules',
-        viewDetailScheduleDoctor : 'GET /api/manager/schedules/:id',
-        updateScheduleDoctor : 'PATCH /api/manager/schedules/:id',
-        deleteSchedule: 'DELETE /api/manager/schedules/:id',
+        getDoctorsWithWorkingHours: 'GET /api/manager/schedules/doctors-with-working-hours',
+        updateDoctorWorkingHours: 'PUT /api/manager/schedules/doctor/:doctorId/working-hours',
+        getWorkingHours: 'GET /api/manager/schedules/:scheduleId/working-hours',
+        updateWorkingHours: 'PUT /api/manager/schedules/:scheduleId/working-hours',
+        updateDoctorWorkingHoursForDate: 'PUT /api/manager/schedules/doctor/:doctorId/date/:date/working-hours',
       },
       doctor: {
         getAppointmentsSchedule: 'GET /api/doctor/appointments-schedule (requires Doctor token)',
