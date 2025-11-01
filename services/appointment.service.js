@@ -961,12 +961,15 @@ class AppointmentService {
       // Approved/CheckedIn/InProgress → Cancelled (hủy)
 
       if (newStatus === 'CheckedIn') {
-        if (currentStatus !== 'Approved') {
-          throw new Error(`Không thể check-in. Ca khám phải ở trạng thái "Approved" (hiện tại: ${currentStatus})`);
+        // Cho phép check-in từ Approved hoặc từ No-Show
+        if (!['Approved', 'No-Show'].includes(currentStatus)) {
+          throw new Error(`Không thể check-in. Ca khám phải ở trạng thái "Approved" hoặc "No-Show" (hiện tại: ${currentStatus})`);
         }
-        // Lưu thời gian check-in
-        appointment.checkedInAt = new Date();
-        appointment.checkInByUserId = userId;
+        // Lưu thời gian check-in (hoặc cập nhật nếu đang chuyển lại từ No-Show)
+        if (!appointment.checkedInAt) {
+          appointment.checkedInAt = new Date();
+          appointment.checkInByUserId = userId;
+        }
       }
 
       if (newStatus === 'InProgress') {
