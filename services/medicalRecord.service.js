@@ -74,6 +74,21 @@ class MedicalRecordService {
     const phoneNumber = patient?.phoneNumber || '';
     const gender = patient?.gender || '';
 
+    // Prepare additional services - filter out null/undefined and ensure we have valid data
+    let additionalServices = [];
+    if (record?.additionalServiceIds && Array.isArray(record.additionalServiceIds)) {
+      additionalServices = record.additionalServiceIds
+        .filter(s => s && s._id) // Filter out null/undefined/invalid entries
+        .map((s) => ({
+          _id: s._id.toString(),
+          serviceName: s.serviceName || '',
+          price: s.price || 0,
+        }));
+    }
+    
+    console.log('🔍 [getOrCreateMedicalRecord] Record additionalServiceIds:', record?.additionalServiceIds);
+    console.log('🔍 [getOrCreateMedicalRecord] Mapped additionalServices:', additionalServices);
+
     return {
       record,
       display: {
@@ -82,13 +97,7 @@ class MedicalRecordService {
         patientDob,
         address,
         doctorName: appointment.doctorUserId?.fullName || 'N/A',
-        additionalServices: Array.isArray(record?.additionalServiceIds)
-          ? record.additionalServiceIds.map((s) => ({
-            _id: s._id,
-            serviceName: s.serviceName,
-            price: s.price,
-          }))
-          : [],
+        additionalServices,
         email,
         phoneNumber,
         gender
