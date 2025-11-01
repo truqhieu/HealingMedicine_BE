@@ -105,11 +105,11 @@ class DoctorService {
 
     console.log(`✅ Lọc được ${appointments.length}/${allAppointments.length} lịch hẹn trong 2 tuần`);
 
-    // Sắp xếp theo startTime
+    // Sắp xếp theo startTime ascending (ngày cũ nhất lên đầu, ngày mới nhất xuống dưới)
     appointments.sort((a, b) => {
       const timeA = a.timeslotId?.startTime ? new Date(a.timeslotId.startTime).getTime() : 0;
       const timeB = b.timeslotId?.startTime ? new Date(b.timeslotId.startTime).getTime() : 0;
-      return timeA - timeB;
+      return timeA - timeB; // Ascending: ngày cũ nhất lên đầu
     });
 
     // Format response thành array dạng bảng
