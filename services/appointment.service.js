@@ -858,10 +858,10 @@ class AppointmentService {
         // NGOẠI TRỪ "PendingPayment" (đang chờ thanh toán cho tư vấn online)
         if (options.includePendingPayment) {
           // Lấy tất cả bao gồm cả PendingPayment
-          query.status = { $in: ['PendingPayment', 'Pending', 'Approved', 'CheckedIn', 'Completed', 'Cancelled'] };
+          query.status = { $in: ['PendingPayment', 'Pending', 'Approved', 'CheckedIn', 'Completed', 'Cancelled', 'Expired'] };
         } else {
           // Mặc định: Chỉ lấy các ca đã hoàn tất đặt lịch (đã thanh toán nếu cần)
-          query.status = { $in: ['Pending', 'Approved', 'CheckedIn', 'Completed', 'Cancelled'] };
+          query.status = { $in: ['Pending', 'Approved', 'CheckedIn', 'Completed', 'Cancelled', 'Expired'] };
         }
       }
 
@@ -873,7 +873,7 @@ class AppointmentService {
         .populate('serviceId', 'serviceName price category durationMinutes')
         .populate('timeslotId', 'startTime endTime')
         .populate('customerId', 'fullName email phoneNumber')
-        .populate('paymentId', 'status amount method')
+        .populate('paymentId') // ⭐ Populate tất cả fields của paymentId để có _id
         .sort({ createdAt: -1 }); // Sắp xếp theo thời gian tạo mới nhất
 
       console.log('✅ [getUserAppointments] Tìm thấy:', appointments.length, 'appointments');
@@ -920,6 +920,7 @@ class AppointmentService {
           phoneNumber: apt.customerId.phoneNumber
         } : null,
         paymentId: apt.paymentId ? {
+          _id: apt.paymentId._id?.toString() || apt.paymentId._id || null,
           status: apt.paymentId.status,
           amount: apt.paymentId.amount,
           method: apt.paymentId.method
