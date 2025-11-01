@@ -117,6 +117,23 @@ const appointmentSchema = new mongoose.Schema({
     type: String,
     enum: ['self', 'other'],
     default: 'self'
+  },
+  promotionId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Promotion',
+    default: null
+  },
+  originalPrice: {
+    type: Number,
+    default: null
+  },
+  finalPrice: {
+    type: Number,
+    default: null
+  },
+  discountAmount: {
+    type: Number,
+    default: 0
   }
 }, {
   timestamps: true 

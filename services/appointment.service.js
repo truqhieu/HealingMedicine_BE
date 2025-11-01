@@ -4,6 +4,7 @@ const Service = require('../models/service.model');
 const User = require('../models/user.model');
 const Customer = require('../models/customer.model');
 const DoctorSchedule = require('../models/doctorSchedule.model');
+const { calculateServicePrice } = require('../utils/promotionHelper');
 
 class AppointmentService {
 
@@ -46,12 +47,23 @@ class AppointmentService {
       throw new Error('Dịch vụ này hiện không khả dụng');
     }
 
+    // ⭐ Tính promotion cho service này
+    const promotionData = await calculateServicePrice(serviceId, service.price);
+    const finalPrice = promotionData.finalPrice;
+    const originalPrice = promotionData.originalPrice;
+    
+    console.log('💰 Thông tin giá dịch vụ:');
+    console.log('   - Giá gốc:', originalPrice, 'VND');
+    console.log('   - Giá sau giảm:', finalPrice, 'VND');
+    if (promotionData.hasPromotion) {
+      console.log('   - Có promotion:', promotionData.promotionInfo.title);
+      console.log('   - Giảm:', promotionData.discountAmount, 'VND');
+    }
+
     // Kiểm tra nếu service yêu cầu thanh toán trước (Consultation)
     if (service.isPrepaid && service.category === 'Consultation') {
-      // TODO: Sẽ implement logic thanh toán sau
-      // Hiện tại chỉ log để biết service này cần thanh toán trước
       console.log('⚠️ Service này yêu cầu thanh toán trước:', service.serviceName);
-      console.log('💰 Giá:', service.price, 'VND');
+      console.log('💰 Số tiền cần thanh toán:', finalPrice, 'VND');
     }
 
     // Xác định mode dựa vào category của service
@@ -398,7 +410,12 @@ class AppointmentService {
       notes: notes || null,
       bookedByUserId: patientUserId,
       paymentHoldExpiresAt: paymentHoldExpiresAt,
-      appointmentFor: appointmentFor || 'self' // ⭐ THÊM: Lưu appointmentFor
+      appointmentFor: appointmentFor || 'self', // ⭐ THÊM: Lưu appointmentFor
+      // ⭐ THÊM: Lưu promotion info
+      promotionId: promotionData.promotionInfo?.promotionId || null,
+      originalPrice: originalPrice,
+      finalPrice: finalPrice,
+      discountAmount: promotionData.discountAmount
     });
 
     console.log('✅ Appointment đã được tạo:', {
@@ -436,7 +453,7 @@ class AppointmentService {
       const paymentResult = await paymentService.createPayment({
         appointmentId: newAppointment._id,
         patientUserId: patientUserId,
-        amount: service.price,
+        amount: finalPrice, // ⭐ Sửa: Dùng finalPrice thay vì service.price
         holdExpiresAt: paymentHoldExpiresAt,
         customerName: customerName // Tên sẽ hiển thị trên QR
       });
@@ -450,7 +467,7 @@ class AppointmentService {
       });
 
       console.log('✅ Đã tạo Payment record:', paymentRecord._id);
-      console.log('💰 Số tiền cần thanh toán:', service.price, 'VND');
+      console.log('💰 Số tiền cần thanh toán:', finalPrice, 'VND');
       console.log('📱 QR Code:', qrData.qrUrl);
     }
 

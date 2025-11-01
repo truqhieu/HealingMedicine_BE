@@ -1,6 +1,7 @@
 const Service = require('../models/service.model');
 const Promotion = require('../models/promotion.model');
 const PromotionService = require('../models/promotionService.model');
+const { calculateServicesPrices } = require('../utils/promotionHelper');
 
 const REPAID = Service.schema.path('isPrepaid').enumValues;
 const STATUS = Service.schema.path('status').enumValues;
@@ -154,6 +155,9 @@ class ServiceService {
         .lean(),
     ]);
 
+    // ⭐ Tính promotion cho mỗi service
+    const servicesWithPromotion = await calculateServicesPrices(services);
+
     const totalPages = Math.max(1, Math.ceil(total / limitNum));
 
     return {
@@ -161,7 +165,7 @@ class ServiceService {
       totalPages,
       page: pageNum,
       limit: limitNum,
-      data: services,
+      data: servicesWithPromotion,
     };
   }
 
@@ -193,9 +197,15 @@ class ServiceService {
     const limitNum = Math.min(100, parseInt(limit, 10));
     const now = new Date();
 
-    // Lấy tất cả promotion
-    const promoFilter = {};
-    if (status) promoFilter.status = status;
+    // Lấy tất cả promotion (check theo thời gian thực + status)
+    const promoFilter = {
+      startDate: { $lte: now },  // Đã bắt đầu
+      endDate: { $gte: now },      // Chưa hết hạn
+      status: { $ne: 'Expired' }   // Không phải Expired
+    };
+    if (status && status !== 'Expired') {
+      promoFilter.status = status;
+    }
 
     const promotions = await Promotion.find(promoFilter).lean();
     if (promotions.length === 0) {
@@ -284,6 +294,10 @@ class ServiceService {
         };
       }
 
+      // Double check thời gian (đảm bảo chắc chắn)
+      const isActive = now >= promo.startDate && now <= promo.endDate;
+      if (!isActive || promo.status === 'Expired') continue;
+      
       let finalPrice = service.price;
       if (promo.discountType === 'Percent') {
         finalPrice = service.price * (1 - promo.discountValue / 100);
