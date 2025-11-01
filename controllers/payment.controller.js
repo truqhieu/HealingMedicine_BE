@@ -144,23 +144,32 @@ const checkPaymentStatus = async (req, res) => {
         ? 'Thanh toán đã bị hủy' 
         : 'Thanh toán đã hết hạn';
       
+      // ⭐ Lấy appointment với promotion info (ngay cả khi expired)
+      const appointment = await Appointment.findById(payment.appointmentId)
+        .select('status promotionId originalPrice finalPrice discountAmount')
+        .populate('promotionId', 'title discountType discountValue')
+        .lean();
+      
       return res.status(200).json({
         success: true,
         message: message,
         data: {
           payment,
+          appointment, // ⭐ Trả về appointment với promotion info
           confirmed: false,
           expired: true // ⭐ Flag để FE biết đã hết hạn hoặc bị hủy
         }
       });
     }
 
+    // ⭐ Lấy appointment với promotion info (cho cả pending và completed)
+    const appointment = await Appointment.findById(payment.appointmentId)
+      .select('status promotionId originalPrice finalPrice discountAmount')
+      .populate('promotionId', 'title discountType discountValue')
+      .lean();
+    
     // ✅ Nếu payment đã completed, return confirmed
     if (payment.status === 'Completed') {
-      const appointment = await Appointment.findById(payment.appointmentId)
-        .select('status')
-        .lean();
-      
       return res.status(200).json({
         success: true,
         message: 'Thanh toán thành công',
@@ -179,6 +188,7 @@ const checkPaymentStatus = async (req, res) => {
       message: 'Chưa nhận được thanh toán hoặc đang xử lý',
       data: {
         payment,
+        appointment, // ⭐ Trả về appointment với promotion info
         confirmed: false,
         expired: false
       }
