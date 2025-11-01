@@ -1,6 +1,7 @@
 const Appointment = require('../models/appointment.model');
 const User = require('../models/user.model');
 const Patient = require('../models/patient.model');
+const MedicalRecord = require('../models/medicalRecord.model');
 
 class DoctorService {
 
@@ -112,10 +113,23 @@ class DoctorService {
       return timeA - timeB; // Ascending: ngày cũ nhất lên đầu
     });
 
+    // Lấy thông tin medical record status cho mỗi appointment
+    const appointmentIds = appointments.map(apt => apt._id);
+    const medicalRecords = await MedicalRecord.find({
+      appointmentId: { $in: appointmentIds }
+    }).select('appointmentId status').lean();
+
+    // Tạo map để tra cứu nhanh
+    const medicalRecordStatusMap = {};
+    medicalRecords.forEach(record => {
+      medicalRecordStatusMap[record.appointmentId.toString()] = record.status || null;
+    });
+
     // Format response thành array dạng bảng
     return appointments.map(appointment => {
       const timeslot = appointment.timeslotId;
       const patient = appointment.patientUserId || appointment.customerId;
+      const medicalRecordStatus = medicalRecordStatusMap[appointment._id.toString()] || null;
 
       return {
         appointmentId: appointment._id,
@@ -134,7 +148,8 @@ class DoctorService {
         }) : 'N/A',
         type: appointment.type,
         status: appointment.status,
-        mode: appointment.mode
+        mode: appointment.mode,
+        medicalRecordStatus: medicalRecordStatus // 'Draft', 'Finalized', hoặc null (chưa có)
       };
     });
   }
