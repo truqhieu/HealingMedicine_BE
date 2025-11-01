@@ -233,6 +233,96 @@ class MedicalRecordService {
 
     return record;
   }
+
+  /**
+   * Get medical record for patient (read-only)
+   * Patient chỉ có thể xem medical record của chính mình
+   */
+  async getMedicalRecordForPatient(appointmentId, patientUserId) {
+    if (!appointmentId) {
+      throw new Error('Thiếu appointmentId');
+    }
+    if (!patientUserId) {
+      throw new Error('Thiếu patientUserId');
+    }
+
+    const appointment = await Appointment.findById(appointmentId)
+      .populate('doctorUserId', 'fullName')
+      .populate('patientUserId', 'fullName dob address email phoneNumber gender')
+      .populate('customerId', 'fullName address dob email phoneNumber gender')
+      .populate('serviceId', 'serviceName price');
+
+    if (!appointment) {
+      throw new Error('Không tìm thấy lịch hẹn');
+    }
+
+    // Kiểm tra quyền: Patient chỉ có thể xem medical record của chính mình
+    const isPatientOwner = appointment.patientUserId?._id?.toString() === patientUserId.toString();
+    const isCustomerOwner = appointment.customerId?._id?.toString() === patientUserId.toString();
+    
+    if (!isPatientOwner && !isCustomerOwner) {
+      throw new Error('Bạn không có quyền xem hồ sơ khám bệnh này');
+    }
+
+    // Chỉ lấy record nếu đã tồn tại (không tạo mới)
+    const record = await MedicalRecord.findOne({ appointmentId })
+      .populate({ path: 'additionalServiceIds', select: 'serviceName price' });
+
+    if (!record) {
+      throw new Error('Hồ sơ khám bệnh chưa được tạo');
+    }
+
+    const patient = appointment.patientUserId || appointment.customerId || null;
+    const patientName = patient?.fullName || 'N/A';
+    const patientAge = record.patientAge ?? this._calcAge(patient?.dob);
+    const address = record.address || patient?.address || '';
+    const patientDob = patient?.dob || null;
+    const email = patient?.email || '';
+    const phoneNumber = patient?.phoneNumber || '';
+    const gender = patient?.gender || '';
+
+    // Prepare additional services
+    let additionalServices = [];
+    if (record?.additionalServiceIds && Array.isArray(record.additionalServiceIds)) {
+      additionalServices = record.additionalServiceIds
+        .filter(s => s && s._id)
+        .map((s) => ({
+          _id: s._id.toString(),
+          serviceName: s.serviceName || '',
+          price: s.price || 0,
+        }));
+    }
+
+    return {
+      record: {
+        _id: record._id,
+        appointmentId: record.appointmentId,
+        doctorUserId: record.doctorUserId,
+        patientUserId: record.patientUserId,
+        customerId: record.customerId,
+        nurseId: record.nurseId,
+        diagnosis: record.diagnosis || '',
+        conclusion: record.conclusion || '',
+        prescription: record.prescription || {},
+        nurseNote: record.nurseNote || '',
+        additionalServiceIds: record.additionalServiceIds || [],
+        status: record.status,
+        createdAt: record.createdAt,
+        updatedAt: record.updatedAt,
+      },
+      display: {
+        patientName,
+        patientAge,
+        patientDob,
+        address,
+        doctorName: appointment.doctorUserId?.fullName || 'N/A',
+        additionalServices,
+        email,
+        phoneNumber,
+        gender
+      }
+    };
+  }
 }
 
 module.exports = new MedicalRecordService();

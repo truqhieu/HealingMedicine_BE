@@ -110,3 +110,33 @@ exports.updateMedicalRecordForDoctor = async (req, res) => {
     });
   }
 };
+
+exports.getMedicalRecordForPatient = async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const patientUserId = req.user?.userId;
+
+    if (!patientUserId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Chưa đăng nhập'
+      });
+    }
+
+    const result = await medicalRecordService.getMedicalRecordForPatient(appointmentId, patientUserId);
+
+    return res.status(200).json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('❌ getMedicalRecordForPatient error:', error);
+    const statusCode = error.message.includes('không có quyền') ? 403 : 
+                      error.message.includes('không tìm thấy') ? 404 : 500;
+    return res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Lỗi máy chủ',
+      error: error.message
+    });
+  }
+};

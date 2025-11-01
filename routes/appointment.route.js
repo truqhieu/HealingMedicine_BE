@@ -16,6 +16,7 @@ const {
   getRescheduleAvailableSlots,
   getAvailableDoctorsForTimeSlot
 } = require('../controllers/appointment.controller');
+const { getMedicalRecordForPatient } = require('../controllers/medicalRecord.controller');
 const { verifyToken, verifyRole } = require('../middleware/auth.middleware');
 
 // ⭐ Patient đặt lịch tư vấn/khám - Cần đăng nhập
@@ -64,5 +65,8 @@ router.post('/:appointmentId/request-change-doctor', verifyToken, requestChangeD
 
 // ⭐ Lấy danh sách bác sĩ khả dụng cho thời gian cụ thể
 router.get('/:appointmentId/available-doctors', verifyToken, getAvailableDoctorsForTimeSlot);
+
+// ⭐ Patient xem hồ sơ khám bệnh (read-only)
+router.get('/:appointmentId/medical-record', verifyToken, verifyRole('Patient'), getMedicalRecordForPatient);
 
 module.exports = router;
