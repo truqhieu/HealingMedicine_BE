@@ -1873,6 +1873,22 @@ class AvailableSlotService {
       throw new Error('Bác sĩ đã có lịch khám vào thời gian này. Vui lòng chọn bác sĩ khác hoặc thời gian khác.');
     }
 
+    // ⭐ 6. Check conflict với timeslots đã Reserved/Booked (đang chờ thanh toán hoặc đã đặt)
+    const Timeslot = require('../models/timeslot.model');
+    const timeslotBufferTime = 10; // 10 phút buffer
+    const endTimeWithBuffer = new Date(endTimeObj.getTime() + timeslotBufferTime * 60000);
+    
+    const conflictingTimeslots = await Timeslot.find({
+      doctorUserId: doctorUserId,
+      startTime: { $lt: endTimeWithBuffer },
+      endTime: { $gt: startTimeObj },
+      status: { $in: ['Reserved', 'Booked'] }
+    });
+
+    if (conflictingTimeslots.length > 0) {
+      throw new Error('Khung giờ này đã có người đặt hoặc đang chờ thanh toán. Vui lòng chọn thời gian khác.');
+    }
+
     return {
       doctorId: doctorUserId,
       doctorName: scheduleRangeResult.doctorName,
