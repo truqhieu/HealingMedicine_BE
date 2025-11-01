@@ -83,15 +83,11 @@ class MedicalRecordService {
     const gender = patient?.gender || '';
 
     // Prepare additional services - filter out null/undefined and ensure we have valid data
+    // ⭐ LƯU Ý: Không tự động thêm dịch vụ chính vào đây nữa vì bác sĩ có quyền xóa nó
+    // Dịch vụ chính chỉ được thêm khi tạo record mới (đã xử lý ở trên)
     let additionalServices = [];
-    let recordServiceIds = [];
     
     if (record?.additionalServiceIds && Array.isArray(record.additionalServiceIds)) {
-      // Get actual service IDs (handle both populated and non-populated cases)
-      recordServiceIds = record.additionalServiceIds
-        .filter(s => s)
-        .map(s => s._id ? s._id.toString() : s.toString());
-      
       additionalServices = record.additionalServiceIds
         .filter(s => s && s._id) // Filter out null/undefined/invalid entries
         .map((s) => ({
@@ -99,36 +95,6 @@ class MedicalRecordService {
           serviceName: s.serviceName || '',
           price: s.price || 0,
         }));
-    }
-    
-    // Nếu có dịch vụ chính của appointment nhưng chưa có trong additionalServiceIds, tự động thêm vào
-    if (appointment.serviceId && appointment.serviceId._id) {
-      const mainServiceId = appointment.serviceId._id.toString();
-      const hasMainService = recordServiceIds.includes(mainServiceId);
-      
-      if (!hasMainService) {
-        // Tự động thêm dịch vụ chính vào additionalServiceIds trong database
-        const updatedServiceIds = [...recordServiceIds, appointment.serviceId._id];
-        record.additionalServiceIds = updatedServiceIds;
-        await record.save();
-        
-        // Re-populate để có đầy đủ thông tin
-        record = await MedicalRecord.findById(record._id)
-          .populate({ path: 'additionalServiceIds', select: 'serviceName price' });
-        
-        // Rebuild additionalServices từ record đã được populate lại
-        if (record?.additionalServiceIds && Array.isArray(record.additionalServiceIds)) {
-          additionalServices = record.additionalServiceIds
-            .filter(s => s && s._id)
-            .map((s) => ({
-              _id: s._id.toString(),
-              serviceName: s.serviceName || '',
-              price: s.price || 0,
-            }));
-        }
-        
-        console.log('🔍 [getOrCreateMedicalRecord] Auto-added main appointment service to additionalServiceIds');
-      }
     }
     
     console.log('🔍 [getOrCreateMedicalRecord] Appointment serviceId:', appointment.serviceId);
