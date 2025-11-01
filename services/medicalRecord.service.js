@@ -400,12 +400,32 @@ class MedicalRecordService {
       const timeslot = appointment?.timeslotId;
       const doctor = appointment?.doctorUserId || record.doctorUserId;
 
+      // Format thời gian từ timeslot
+      let startTime = null;
+      let endTime = null;
+      if (timeslot?.startTime) {
+        startTime = new Date(timeslot.startTime).toLocaleTimeString('vi-VN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: 'Asia/Ho_Chi_Minh'
+        });
+      }
+      if (timeslot?.endTime) {
+        endTime = new Date(timeslot.endTime).toLocaleTimeString('vi-VN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: 'Asia/Ho_Chi_Minh'
+        });
+      }
+
       return {
         _id: record._id,
         appointmentId: record.appointmentId?._id ? record.appointmentId._id.toString() : null,
         doctorName: doctor?.fullName || 'N/A',
         serviceName: service?.serviceName || 'N/A',
         date: timeslot?.startTime || record.createdAt,
+        startTime: startTime,
+        endTime: endTime,
         hasDiagnosis: !!record.diagnosis,
         hasPrescription: !!(record.prescription && (record.prescription.medicine || record.prescription.dosage || record.prescription.duration)),
         prescription: record.prescription || null,
