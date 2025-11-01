@@ -39,8 +39,6 @@ const getDoctorAppointmentsSchedule = async (req, res) => {
     });
   }
 };
-<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>
-read_file
 
 const getAppointmentDetail = async (req, res) => {
   try {
