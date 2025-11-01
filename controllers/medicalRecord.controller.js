@@ -99,7 +99,7 @@ exports.updateMedicalRecordForDoctor = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: approve ? 'Đã lưu và duyệt hồ sơ khám bệnh' : 'Đã cập nhật hồ sơ khám bệnh',
+      message: approve ? 'Đã duyệt hồ sơ khám bệnh (status = Finalized)' : 'Đã lưu hồ sơ khám bệnh (status = Draft)',
       data: record
     });
   } catch (error) {
@@ -168,20 +168,25 @@ exports.getPatientMedicalRecordsList = async (req, res) => {
     const patientUserId = req.user?.userId;
 
     if (!patientUserId) {
+      console.log('❌ [getPatientMedicalRecordsList] Chưa đăng nhập');
       return res.status(401).json({
         success: false,
         message: 'Chưa đăng nhập'
       });
     }
 
+    console.log(`📋 [getPatientMedicalRecordsList] Controller - Patient ID: ${patientUserId}`);
+    
     const records = await medicalRecordService.getPatientMedicalRecordsList(patientUserId);
+
+    console.log(`✅ [getPatientMedicalRecordsList] Controller - Trả về ${records.length} records`);
 
     return res.status(200).json({
       success: true,
       data: records
     });
   } catch (error) {
-    console.error('❌ getPatientMedicalRecordsList error:', error);
+    console.error('❌ [getPatientMedicalRecordsList] Controller error:', error);
     return res.status(500).json({
       success: false,
       message: error.message || 'Lỗi máy chủ',

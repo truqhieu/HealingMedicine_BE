@@ -183,20 +183,14 @@ class MedicalRecordService {
     if (prescription !== undefined) updateFields.prescription = prescription;
     if (nurseNote !== undefined) updateFields.nurseNote = nurseNote;
 
-    // Nếu approve = true, set doctorApproved = true và doctorApprovedAt = now
+    // Set status dựa trên approve flag
+    // approve = false (hoặc không có) → status = "Draft" (Lưu)
+    // approve = true → status = "Finalized" (Duyệt hồ sơ)
     if (approve === true) {
-      updateFields.doctorApproved = true;
-      updateFields.doctorApprovedAt = new Date();
-    }
-
-    if (Object.keys(updateFields).length === 0) {
-      throw new Error('Không có trường nào để cập nhật');
-    }
-
-    // Cập nhật status thành InProgress nếu đang là Draft
-    const existingRecord = await MedicalRecord.findOne({ appointmentId });
-    if (existingRecord && existingRecord.status === 'Draft') {
-      updateFields.status = 'InProgress';
+      updateFields.status = 'Finalized';
+    } else {
+      // Mặc định là Draft khi chỉ lưu
+      updateFields.status = 'Draft';
     }
 
     const record = await MedicalRecord.findOneAndUpdate(
@@ -209,7 +203,7 @@ class MedicalRecordService {
   }
 
   /**
-   * Approve medical record by doctor
+   * Approve medical record by doctor - Set status = "Finalized"
    */
   async approveMedicalRecordByDoctor(appointmentId) {
     if (!appointmentId) {
@@ -220,8 +214,7 @@ class MedicalRecordService {
       { appointmentId },
       { 
         $set: { 
-          doctorApproved: true,
-          doctorApprovedAt: new Date()
+          status: 'Finalized'
         }
       },
       { new: true }
@@ -272,12 +265,13 @@ class MedicalRecordService {
       throw new Error('Hồ sơ khám bệnh chưa được tạo');
     }
 
-    // Kiểm tra appointment đã Completed và record đã được doctor duyệt
+    // Kiểm tra appointment status
     if (appointment.status !== 'Completed') {
-      throw new Error('Hồ sơ khám bệnh chỉ có thể xem sau khi ca khám đã hoàn thành');
+      throw new Error('Hồ sơ khám bệnh chỉ có thể xem khi ca khám đã hoàn thành');
     }
 
-    if (!record.doctorApproved) {
+    // Kiểm tra quyền: Patient chỉ có thể xem medical record đã được doctor duyệt (status = "Finalized")
+    if (record.status !== 'Finalized') {
       throw new Error('Hồ sơ khám bệnh chưa được bác sĩ duyệt');
     }
 
@@ -335,23 +329,29 @@ class MedicalRecordService {
 
   /**
    * Get all medical records for a patient
-   * Trả về danh sách các hồ sơ khám bệnh đã hoàn thành của patient
+   * Trả về danh sách các hồ sơ khám bệnh đã hoàn thành VÀ đã được doctor duyệt của patient
    */
   async getPatientMedicalRecordsList(patientUserId) {
     if (!patientUserId) {
       throw new Error('Thiếu patientUserId');
     }
 
-    // Tìm tất cả medical records của patient
+    console.log(`📋 [getPatientMedicalRecordsList] Lấy danh sách hồ sơ cho patient: ${patientUserId}`);
+
+    // Tìm tất cả medical records của patient (có thể là patientUserId hoặc customerId)
+    // Chỉ lấy các records đã được doctor duyệt (status = "Finalized")
     const records = await MedicalRecord.find({
       $or: [
         { patientUserId: patientUserId },
         { customerId: patientUserId }
-      ]
+      ],
+      // Chỉ lấy các records đã được doctor duyệt
+      status: 'Finalized'
     })
       .populate({
         path: 'appointmentId',
-        select: 'status timeslotId serviceId doctorUserId',
+        select: 'status timeslotId serviceId doctorUserId patientUserId customerId',
+        match: { status: 'Completed' }, // Chỉ lấy appointments đã hoàn thành
         populate: [
           {
             path: 'timeslotId',
@@ -372,11 +372,26 @@ class MedicalRecordService {
       .sort({ createdAt: -1 }) // Mới nhất trước
       .lean();
 
-    // Lọc chỉ lấy các records từ appointments đã hoàn thành VÀ đã được doctor duyệt
+    console.log(`📋 [getPatientMedicalRecordsList] Tìm thấy ${records.length} medical records`);
+
+    // Lọc lại để đảm bảo appointmentId tồn tại và đã completed
     const completedRecords = records.filter(record => {
-      if (!record.appointmentId) return false;
-      return record.appointmentId.status === 'Completed' && record.doctorApproved === true;
+      if (!record.appointmentId) {
+        console.log(`⚠️ [getPatientMedicalRecordsList] Record ${record._id} không có appointmentId`);
+        return false;
+      }
+      
+      // Kiểm tra appointment status và record status
+      const isValid = record.appointmentId.status === 'Completed' && record.status === 'Finalized';
+      
+      if (!isValid) {
+        console.log(`⚠️ [getPatientMedicalRecordsList] Record ${record._id} không hợp lệ - appointment.status: ${record.appointmentId.status}, record.status: ${record.status}`);
+      }
+      
+      return isValid;
     });
+
+    console.log(`✅ [getPatientMedicalRecordsList] Lọc được ${completedRecords.length} records hợp lệ`);
 
     // Format dữ liệu để trả về
     const formattedRecords = completedRecords.map(record => {

@@ -80,16 +80,17 @@ class NurseService {
       .sort({ 'timeslotId.startTime': 1 }) // Sort ascending: ngày cũ nhất lên đầu, ngày mới nhất xuống dưới
       .lean();
 
-    // Lấy thông tin doctorApproved từ MedicalRecord cho mỗi appointment
+    // Lấy thông tin status từ MedicalRecord cho mỗi appointment (để check xem đã được doctor duyệt chưa)
     const appointmentIds = appointments.map(apt => apt._id);
     const medicalRecords = await MedicalRecord.find({
       appointmentId: { $in: appointmentIds }
-    }).select('appointmentId doctorApproved').lean();
+    }).select('appointmentId status').lean();
 
     // Tạo map để tra cứu nhanh
-    const doctorApprovedMap = {};
+    // status = "Finalized" nghĩa là đã được doctor duyệt
+    const medicalRecordStatusMap = {};
     medicalRecords.forEach(record => {
-      doctorApprovedMap[record.appointmentId.toString()] = record.doctorApproved || false;
+      medicalRecordStatusMap[record.appointmentId.toString()] = record.status === 'Finalized';
     });
 
     // Format response thành array dạng bảng
@@ -109,7 +110,7 @@ class NurseService {
         type: appointment.type,
         status: appointment.status,
         mode: appointment.mode,
-        doctorApproved: doctorApprovedMap[appointment._id.toString()] || false
+        doctorApproved: medicalRecordStatusMap[appointment._id.toString()] || false
       };
     });
   }
