@@ -77,7 +77,7 @@ class NurseService {
         path: 'timeslotId',
         select: 'startTime endTime'
       })
-      .sort({ 'timeslotId.startTime': 1 })
+      .sort({ 'timeslotId.startTime': -1 }) // Sort descending: ngày gần nhất lên đầu
       .lean();
 
     // Lấy thông tin doctorApproved từ MedicalRecord cho mỗi appointment
