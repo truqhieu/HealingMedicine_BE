@@ -3,8 +3,9 @@ const nurseService = require('../services/nurse.service');
 const getNurseSchedule = async (req, res) => {
   try {
     const nurseUserId = req.user.userId;
+    const { startDate, endDate } = req.query; // Lấy date range từ query params (optional)
 
-    const data = await nurseService.getNurseSchedule(nurseUserId);
+    const data = await nurseService.getNurseSchedule(nurseUserId, startDate, endDate);
 
     return res.status(200).json({
       success: true,

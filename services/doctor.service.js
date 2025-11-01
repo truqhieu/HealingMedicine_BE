@@ -35,28 +35,41 @@ class DoctorService {
   }
 
   /**
-   * Lấy danh sách lịch hẹn của bác sĩ cho 2 tuần (tuần hiện tại + tuần tiếp theo)
+   * Lấy danh sách lịch hẹn của bác sĩ
+   * @param {string} doctorUserId - ID của doctor
+   * @param {string} startDate - Optional: Ngày bắt đầu (YYYY-MM-DD)
+   * @param {string} endDate - Optional: Ngày kết thúc (YYYY-MM-DD)
    */
-  async getDoctorAppointmentsSchedule(doctorUserId) {
+  async getDoctorAppointmentsSchedule(doctorUserId, startDate = null, endDate = null) {
     // Kiểm tra bác sĩ có tồn tại không
     const doctor = await User.findById(doctorUserId);
     if (!doctor || doctor.role !== 'Doctor') {
       throw new Error('Bạn không phải là bác sĩ');
     }
 
-    // Tính toán tuần hiện tại + tuần tiếp theo (2 tuần)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    let dateRangeStart, dateRangeEnd;
 
-    const dayOfWeek = today.getDay();
-    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-    const startOfWeek = new Date(today.setDate(diff));
+    // Nếu có startDate và endDate từ query params, dùng nó
+    if (startDate && endDate) {
+      dateRangeStart = new Date(startDate);
+      dateRangeStart.setHours(0, 0, 0, 0);
+      dateRangeEnd = new Date(endDate);
+      dateRangeEnd.setHours(23, 59, 59, 999);
+      console.log(`📅 Doctor ${doctorUserId} - Lấy lịch từ ${startDate} đến ${endDate} (custom range)`);
+    } else {
+      // Mặc định: Tính toán tuần hiện tại + tuần tiếp theo (2 tuần)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-    // Ngày kết thúc = 2 tuần từ đầu tuần (14 ngày)
-    const endOfTwoWeeks = new Date(startOfWeek);
-    endOfTwoWeeks.setDate(endOfTwoWeeks.getDate() + 14);
+      const dayOfWeek = today.getDay();
+      const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+      const startOfWeek = new Date(today.setDate(diff));
 
-    console.log(`📅 Doctor ${doctorUserId} - Lấy lịch từ ${startOfWeek.toISOString().split('T')[0]} đến ${endOfTwoWeeks.toISOString().split('T')[0]}`);
+      dateRangeStart = startOfWeek;
+      dateRangeEnd = new Date(startOfWeek);
+      dateRangeEnd.setDate(dateRangeEnd.getDate() + 14);
+      console.log(`📅 Doctor ${doctorUserId} - Lấy lịch từ ${dateRangeStart.toISOString().split('T')[0]} đến ${dateRangeEnd.toISOString().split('T')[0]} (2 tuần mặc định)`);
+    }
 
     // Lấy TẤT CẢ appointments đã duyệt của doctor
     const allAppointments = await Appointment.find({
@@ -81,13 +94,13 @@ class DoctorService {
       })
       .lean();
 
-    // Filter theo timeslotId.startTime - CHỈ 2 TUẦN
+    // Filter theo timeslotId.startTime trong date range
     const appointments = allAppointments.filter(appointment => {
       if (!appointment.timeslotId || !appointment.timeslotId.startTime) {
         return false;
       }
       const appointmentDate = new Date(appointment.timeslotId.startTime);
-      return appointmentDate >= startOfWeek && appointmentDate < endOfTwoWeeks;
+      return appointmentDate >= dateRangeStart && appointmentDate <= dateRangeEnd;
     });
 
     console.log(`✅ Lọc được ${appointments.length}/${allAppointments.length} lịch hẹn trong 2 tuần`);

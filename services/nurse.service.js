@@ -6,34 +6,47 @@ const MedicalRecord = require('../models/medicalRecord.model');
 class NurseService {
 
   /**
-   * Lấy danh sách lịch hẹn của TẤT CẢ các bác sĩ cho 2 tuần
+   * Lấy danh sách lịch hẹn của TẤT CẢ các bác sĩ
+   * @param {string} nurseUserId - ID của nurse
+   * @param {string} startDate - Optional: Ngày bắt đầu (YYYY-MM-DD)
+   * @param {string} endDate - Optional: Ngày kết thúc (YYYY-MM-DD)
    */
-  async getNurseSchedule(nurseUserId) {
+  async getNurseSchedule(nurseUserId, startDate = null, endDate = null) {
     // Kiểm tra có phải Nurse không
     const nurse = await User.findById(nurseUserId);
     if (!nurse || nurse.role !== 'Nurse') {
       throw new Error('Bạn không phải là điều dưỡng');
     }
 
-    // Tính toán ngày bắt đầu tuần (Thứ 2)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    let dateRangeStart, dateRangeEnd;
 
-    const dayOfWeek = today.getDay();
-    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-    const startOfWeek = new Date(today.setDate(diff));
+    // Nếu có startDate và endDate từ query params, dùng nó
+    if (startDate && endDate) {
+      dateRangeStart = new Date(startDate);
+      dateRangeStart.setHours(0, 0, 0, 0);
+      dateRangeEnd = new Date(endDate);
+      dateRangeEnd.setHours(23, 59, 59, 999);
+    } else {
+      // Mặc định: Tính toán ngày bắt đầu tuần (Thứ 2) - 2 tuần
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-    // Ngày kết thúc = 2 tuần từ đầu tuần (14 ngày)
-    const endOfTwoWeeks = new Date(startOfWeek);
-    endOfTwoWeeks.setDate(endOfTwoWeeks.getDate() + 14);
+      const dayOfWeek = today.getDay();
+      const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+      const startOfWeek = new Date(today.setDate(diff));
 
-    // Lấy tất cả appointments trong 2 tuần - dựa trên ngày khám (timeslot.startTime), không phải createdAt
+      dateRangeStart = startOfWeek;
+      dateRangeEnd = new Date(startOfWeek);
+      dateRangeEnd.setDate(dateRangeEnd.getDate() + 14);
+    }
+
+    // Lấy tất cả appointments trong date range - dựa trên ngày khám (timeslot.startTime), không phải createdAt
     // Tìm tất cả timeslots trong khoảng thời gian này trước
     const Timeslot = require('../models/timeslot.model');
     const timeslotsInRange = await Timeslot.find({
       startTime: {
-        $gte: startOfWeek,
-        $lt: endOfTwoWeeks
+        $gte: dateRangeStart,
+        $lte: dateRangeEnd
       }
     }).select('_id').lean();
 
