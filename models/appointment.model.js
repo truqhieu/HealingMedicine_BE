@@ -24,7 +24,7 @@ const appointmentSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['PendingPayment', 'Pending', 'Approved', 'Cancelled', 'Completed', 'CheckedIn', 'InProgress', 'Expired', 'Refunded'],
+    enum: ['PendingPayment', 'Pending', 'Approved', 'Cancelled', 'Completed', 'CheckedIn', 'InProgress', 'Expired', 'Refunded', 'No-Show'],
     default: 'Pending',
   },
   paymentHoldExpiresAt: {

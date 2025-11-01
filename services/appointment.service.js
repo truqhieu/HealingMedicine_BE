@@ -816,8 +816,8 @@ class AppointmentService {
         .populate('timeslotId', 'startTime endTime')
         .sort({ createdAt: -1 });
 
-      // ⭐ Check và update expired appointments realtime
-      await this._checkAndUpdateExpiredAppointments(appointments);
+      // ⭐ Check và update expired appointments realtime (deprecated - use AppointmentMonitorService instead)
+      // await this._checkAndUpdateExpiredAppointments(appointments);
 
       // Lấy lại data sau khi update (nếu có thay đổi)
       const updatedAppointments = await Appointment.find(query)
